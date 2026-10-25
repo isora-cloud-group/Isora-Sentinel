@@ -13,9 +13,10 @@ param(
     [string]$ScheduleIntegrity = "Weekly"
 )
 
-Write-Host "=====================================================" -ForegroundColor Cyan
-Write-Host " Sentinel-IT Enterprise Installer & Orchestrator" -ForegroundColor Cyan
-Write-Host "=====================================================" -ForegroundColor Cyan
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
+Write-Host " Sentinel-IT | Enterprise Installer & Orchestrator" -ForegroundColor Cyan
+Write-Host " Autora: Sandra Gabriela Puerto Torres | https://isora.com.co" -ForegroundColor Gray
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
 if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "[ERROR] This installer must be run as Administrator." -ForegroundColor Red
@@ -72,3 +73,9 @@ if ($RegisterTasks -match "^y") {
 } else {
     Write-Host "`n[INFO] Installation finished. Tasks were not registered." -ForegroundColor Cyan
 }
+
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
+Write-Host " Sentinel-IT | Enterprise Hygiene & Compliance Suite" -ForegroundColor Cyan
+Write-Host " Autora: Sandra Gabriela Puerto Torres" -ForegroundColor White
+Write-Host " https://isora.com.co" -ForegroundColor Gray
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan

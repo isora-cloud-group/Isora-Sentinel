@@ -2,9 +2,10 @@
 .SYNOPSIS
     Uninstaller for Sentinel-IT Suite
 #>
-Write-Host "=====================================================" -ForegroundColor Cyan
-Write-Host " Sentinel-IT Uninstaller" -ForegroundColor Cyan
-Write-Host "=====================================================" -ForegroundColor Cyan
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
+Write-Host " Sentinel-IT | Enterprise Uninstaller" -ForegroundColor Cyan
+Write-Host " Autora: Sandra Gabriela Puerto Torres | https://isora.com.co" -ForegroundColor Gray
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
 if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "[ERROR] This uninstaller must be run as Administrator." -ForegroundColor Red
@@ -28,3 +29,6 @@ if (Test-Path $InstallDir) {
 }
 
 Write-Host "`n[SUCCESS] Sentinel-IT has been uninstalled." -ForegroundColor Cyan
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
+Write-Host " Autora: Sandra Gabriela Puerto Torres | https://isora.com.co" -ForegroundColor Gray
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan

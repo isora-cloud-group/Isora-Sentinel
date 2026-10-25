@@ -18,9 +18,10 @@ param(
 $ErrorActionPreference = "Stop"
 $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 
-Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " Sentinel-IT Automated Test Suite (Pester CI/CD Gate)" -ForegroundColor Cyan
-Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
+Write-Host " Sentinel-IT | Automated Test Suite (Pester CI/CD Gate)" -ForegroundColor Cyan
+Write-Host " Autora: Sandra Gabriela Puerto Torres | https://isora.com.co" -ForegroundColor Gray
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
 # Ensure Pester 5+ is available; if invoked under Windows PowerShell 5.1 with legacy Pester 3, delegate to pwsh if available
 $pesterMod = Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version.Major -ge 5 } | Sort-Object Version -Descending | Select-Object -First 1
@@ -71,9 +72,10 @@ $passed = if ($null -ne $result.PassedCount) { $result.PassedCount } else { 0 }
 $failed = if ($null -ne $result.FailedCount) { $result.FailedCount } else { 0 }
 $total  = if ($null -ne $result.TotalCount)  { $result.TotalCount }  else { $passed + $failed }
 
-Write-Host "`n==========================================================" -ForegroundColor Cyan
+Write-Host "`n------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " Test Summary: Passed=$passed, Failed=$failed, Total=$total" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })
-Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host " https://isora.com.co" -ForegroundColor Gray
+Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
 if ($failed -gt 0) {
     exit 1
