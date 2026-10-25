@@ -4,7 +4,8 @@
 #>
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " Sentinel-IT | Enterprise Uninstaller" -ForegroundColor Cyan
-Write-Host " Autora: Sandra Gabriela Puerto Torres | https://isora.com.co" -ForegroundColor Gray
+Write-Host " Autora: Sandra Gabriela Puerto Torres | Isora" -ForegroundColor Gray
+Write-Host " https://sandrapuerto.com | https://isora.com.co" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
 if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -30,5 +31,6 @@ if (Test-Path $InstallDir) {
 
 Write-Host "`n[SUCCESS] Sentinel-IT has been uninstalled." -ForegroundColor Cyan
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
-Write-Host " Autora: Sandra Gabriela Puerto Torres | https://isora.com.co" -ForegroundColor Gray
+Write-Host " Autora: Sandra Gabriela Puerto Torres | Isora" -ForegroundColor White
+Write-Host " https://sandrapuerto.com | https://isora.com.co" -ForegroundColor Gray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
