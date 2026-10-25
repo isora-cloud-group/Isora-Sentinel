@@ -1,0 +1,41 @@
+name: Sentinel-IT CI Validation
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate PowerShell Script Syntax & AST
+        shell: powershell
+        run: |
+          Write-Host "Checking all PowerShell scripts for syntax errors..."
+          $files = Get-ChildItem -Path . -Recurse -Include *.ps1, *.psm1
+          $errors = 0
+          foreach ($file in $files) {
+              $tokens = $null
+              $parseErrors = $null
+              $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$parseErrors)
+              if ($parseErrors.Count -gt 0) {
+                  Write-Error "Syntax error in $($file.FullName):"
+                  $parseErrors | ForEach-Object { Write-Error $_.Message }
+                  $errors += $parseErrors.Count
+              } else {
+                  Write-Host "OK: $($file.Name)"
+              }
+          }
+          if ($errors -gt 0) {
+              exit 1
+          }
+
+      - name: Run Test Suite
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File tests\Invoke-Tests.ps1

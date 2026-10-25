@@ -1,0 +1,41 @@
+# ============================================================================
+# Sentinel-IT — Maintenance & Control-Mapping Suite for Windows Endpoints
+# License: MIT
+# ============================================================================
+
+# Runtime logs and operational dumps
+logs/
+*.log
+*.log.*
+TestResults.xml
+TestResults/
+
+# Environment and secrets
+.env
+.env.*
+!*.example
+*.key
+*.pem
+*.secret
+
+# PowerShell gallery / build artifacts
+*.nupkg
+packages/
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating System artifacts
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Temporary files
+tmp/
+*.tmp
+*.bak
