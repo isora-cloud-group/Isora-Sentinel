@@ -3,14 +3,19 @@
     Sentinel-IT Enterprise Logging Module
 .DESCRIPTION
     Provides standardized forensic logging capabilities (Text and JSON for SIEM).
+    Zero external dependencies, cross-compatible with PowerShell 5.1 and 7+.
 #>
 
-$global:SentinelLogFormat = "TEXT" # Can be set to "JSON" for SIEM integration
-$global:SentinelLogDir = "C:\Program Files\IT_Maintenance\logs"
+$global:SentinelLogFormat = if ($env:SENTINEL_LOG_FORMAT) { $env:SENTINEL_LOG_FORMAT.ToUpper() } else { "TEXT" }
+$global:SentinelLogDir = if ($env:SENTINEL_LOG_DIR) { $env:SENTINEL_LOG_DIR } else { "C:\Program Files\IT_Maintenance\logs" }
 
 function Initialize-SentinelLog {
-    param([string]$EngineName)
-    $LogPath = Join-Path $global:SentinelLogDir $EngineName
+    param(
+        [Parameter(Mandatory=$true)][string]$EngineName,
+        [Parameter(Mandatory=$false)][string]$LogDir = $global:SentinelLogDir
+    )
+    $effectiveLogDir = if ($LogDir) { $LogDir } else { $global:SentinelLogDir }
+    $LogPath = Join-Path $effectiveLogDir $EngineName
     if (-not (Test-Path $LogPath)) { New-Item -ItemType Directory -Path $LogPath -Force | Out-Null }
     
     $PreciseTime = Get-Date -Format "yyyyMMdd_HHmmss_fffffff"
@@ -35,16 +40,22 @@ function Write-AuditEntry {
     if ($global:SentinelLogFormat -eq "JSON") {
         $LogObj = [ordered]@{
             Timestamp = $Timestamp
-            Level = $Level
-            Host = $HostName
-            Identity = $Identity
-            PID = $PID
-            Message = $Message
-            Metadata = $SafeMetadata
+            Level     = $Level
+            Host      = $HostName
+            Identity  = $Identity
+            PID       = $PID
+            Message   = $Message
+            Metadata  = $SafeMetadata
         }
         $LogObj | ConvertTo-Json -Compress | Add-Content -Path $global:CurrentLogFile -Encoding utf8
     } else {
-        $MetaStr = if ($SafeMetadata.Count -gt 0) { " | " + (($SafeMetadata.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ", ") } else { "" }
+        $MetaStr = ""
+        if ($SafeMetadata.Count -gt 0) {
+            $pairs = foreach ($entry in $SafeMetadata.GetEnumerator()) {
+                "$($entry.Key)=$($entry.Value)"
+            }
+            $MetaStr = " | " + ($pairs -join ", ")
+        }
         $Entry = "[{0}] [{1}] [PID:{2}] [{3}] {4}{5}" -f $Timestamp, $Level.PadRight(7), $PID, $Identity, $Message, $MetaStr
         $Entry | Add-Content -Path $global:CurrentLogFile -Encoding utf8
     }

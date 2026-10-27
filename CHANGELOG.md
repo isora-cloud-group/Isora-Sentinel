@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.0] - 2026-10-27
+
+### Added
+- **New Engine — BitLocker Cryptographic Compliance (`Invoke-BitLockerAudit.ps1`):** Audits disk encryption status, protection state, and key protectors mapped to ISO/IEC 27001:2022 Control A.8.24.
+- **New Engine — Security Event & Anti-Forensics Audit (`Invoke-EventAudit.ps1`):** Audits Windows Security Event log for Event 1102 (audit log cleared), Event 4625 brute-force bursts, and account provisioning anomalies mapped to ISO/IEC 27001:2022 Control A.8.15.
+- **Enterprise Operator Manual (`docs/MANUAL_DE_USO.md`):** Comprehensive guide for deployment, interactive runs, GPO automation, parameters, and verification.
+- **SIEM Ingestion Guide (`docs/SIEM_INTEGRATION.md`):** Complete setup for Splunk Universal Forwarder, Elastic Filebeat, Datadog Agent, and Microsoft Sentinel (KQL/SPL alert queries).
+- **Troubleshooting & Diagnostic Matrix (`docs/TROUBLESHOOTING.md`):** Root-cause analysis and resolutions for exit codes, UAC elevation, Task Scheduler status, and OneDrive cloud-only files.
+- **GitHub Issue Templates:** Added `.github/ISSUE_TEMPLATE/bug_report.md` and `.github/ISSUE_TEMPLATE/feature_request.md`.
+- **Developer Guidelines:** Added `.cursorrules` and `CLAUDE.md`.
+- **Expanded Test Suite (`tests/Sentinel-Engines.Tests.ps1`):** Pester test suite expanded to 25/25 tests passing (100% automated coverage).
+
+### Fixed
+- **`RemainingScripts` Binding Bug in `Sentinel-Logger.psm1`:** Resolved critical parameter binding exception caused by pipeline evaluation of `ForEach-Object` with `-join` in Windows PowerShell 5.1; refactored to native, zero-overhead `foreach` iteration.
+
+### Changed
+- **GPO Environment Variable Support:** `Sentinel-Logger.psm1` now reads `$env:SENTINEL_LOG_FORMAT` and `$env:SENTINEL_LOG_DIR` before falling back to defaults.
+- **Dry-Run Switch (`-AuditOnly`):** Added to `Invoke-CleanupScreenshots.ps1` and `Invoke-CleanupTempGlobal.ps1` for safe enterprise simulation.
+- **DISM Exit Code Auditing:** `Invoke-IntegrityCheck.ps1` now evaluates standard DISM exit codes (0 = Healthy, 20 = Corrupted repairable, 3010 = Reboot required) and supports `-AutoRepair`.
+- **Defender Parameterization:** `Invoke-DefenderScan.ps1` supports `-ScanType 1|2`, pre-scan signature definition updates, and exit code capture.
+- **Expanded Specifications:** Completely rewrote `docs/ARCHITECTURE.md` (Mermaid diagrams, threat model) and `docs/ISO_MAPPING.md` (auditor evidence matrix).
+- **Installer Harmonization:** Updated `installer/Install-Sentinel.ps1` and `installer/Uninstall-Sentinel.ps1` to orchestrate all 6 engines.
+
+---
+
 ## [2.1.0] - 2026-10-25
 
 ### Added

@@ -6,17 +6,21 @@
     and SIEM payload serialization aligned with ISO/IEC 27001:2022 Control A.8.15.
 #>
 
-$ModulePath = Join-Path $PSScriptRoot "..\src\lib\Sentinel-Logger.psm1"
-Import-Module $ModulePath -Force
+$script:ModulePath = Join-Path $PSScriptRoot "..\src\lib\Sentinel-Logger.psm1"
+Import-Module $script:ModulePath -Force
 
 Describe "Sentinel-Logger Module Tests" {
     BeforeAll {
+        $script:LoggerModule = (Resolve-Path (Join-Path $PSScriptRoot "..\src\lib\Sentinel-Logger.psm1")).Path
         $TestDir = Join-Path $env:TEMP ("SentinelTest_" + [Guid]::NewGuid().ToString("N"))
         New-Item -ItemType Directory -Path $TestDir -Force | Out-Null
+        $script:PrevLogDirEnv = $env:SENTINEL_LOG_DIR
+        $env:SENTINEL_LOG_DIR = $TestDir
         $global:SentinelLogDir = $TestDir
     }
 
     AfterAll {
+        $env:SENTINEL_LOG_DIR = $script:PrevLogDirEnv
         if ($TestDir -and (Test-Path $TestDir)) {
             Remove-Item -Path $TestDir -Recurse -Force -ErrorAction SilentlyContinue
         }
@@ -44,9 +48,39 @@ Describe "Sentinel-Logger Module Tests" {
             $content | Should -Match "Key1=Val1"
         }
 
+        It "Regression: Handles multiple metadata keys without RemainingScripts binding error" {
+            Initialize-SentinelLog -EngineName "RemainingScriptsRegression"
+            {
+                Write-AuditEntry -Message "Multi-metadata regression test" -Level "WARN" -Metadata @{
+                    ProfileCount = 5
+                    Path         = "C:\Test"
+                    Status       = "Clean"
+                    Code         = 0
+                }
+            } | Should -Not -Throw
+
+            $content = Get-Content -Path $global:CurrentLogFile -Raw
+            $content | Should -Match "ProfileCount=5"
+            $content | Should -Match "Path=C:\\Test"
+        }
+
         It "Handles empty and null metadata without throwing" {
             { Write-AuditEntry -Message "No metadata message" } | Should -Not -Throw
             { Write-AuditEntry -Message "Null metadata message" -Metadata $null } | Should -Not -Throw
+        }
+    }
+
+    Context "Environment Variable Overrides" {
+        It "Respects env:SENTINEL_LOG_FORMAT when specified" {
+            $prevEnv = $env:SENTINEL_LOG_FORMAT
+            try {
+                $env:SENTINEL_LOG_FORMAT = "JSON"
+                Import-Module $script:LoggerModule -Force
+                $global:SentinelLogFormat | Should -Be "JSON"
+            } finally {
+                $env:SENTINEL_LOG_FORMAT = $prevEnv
+                Import-Module $script:LoggerModule -Force
+            }
         }
     }
 

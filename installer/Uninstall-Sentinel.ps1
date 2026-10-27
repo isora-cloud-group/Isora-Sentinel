@@ -14,7 +14,7 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
 }
 
 Write-Host "[*] Removing Scheduled Tasks..."
-$Tasks = @("Cleanup_Screenshots", "Cleanup_Temp_Global", "Defender_Scan", "Integrity_Check")
+$Tasks = @("Cleanup_Screenshots", "Cleanup_Temp_Global", "Defender_Scan", "Integrity_Check", "BitLocker_Audit", "Event_Audit")
 foreach ($Task in $Tasks) {
     if (Get-ScheduledTask -TaskName "Sentinel-IT\$Task" -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName "Sentinel-IT\$Task" -Confirm:$false

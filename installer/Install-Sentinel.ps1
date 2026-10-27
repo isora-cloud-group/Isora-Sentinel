@@ -10,7 +10,9 @@ param(
     [string]$ScheduleScreenshots = "Daily",
     [string]$ScheduleTemp = "Daily",
     [string]$ScheduleDefender = "Weekly",
-    [string]$ScheduleIntegrity = "Weekly"
+    [string]$ScheduleIntegrity = "Weekly",
+    [string]$ScheduleBitLocker = "Daily",
+    [string]$ScheduleEventAudit = "Daily"
 )
 
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
@@ -69,6 +71,8 @@ if ($RegisterTasks -match "^y") {
     Register-SentinelTask -TaskName "Cleanup_Temp_Global" -ScriptFile "Invoke-CleanupTempGlobal.ps1" -DefaultTrigger $ScheduleTemp
     Register-SentinelTask -TaskName "Defender_Scan" -ScriptFile "Invoke-DefenderScan.ps1" -DefaultTrigger $ScheduleDefender
     Register-SentinelTask -TaskName "Integrity_Check" -ScriptFile "Invoke-IntegrityCheck.ps1" -DefaultTrigger $ScheduleIntegrity
+    Register-SentinelTask -TaskName "BitLocker_Audit" -ScriptFile "Invoke-BitLockerAudit.ps1" -DefaultTrigger $ScheduleBitLocker
+    Register-SentinelTask -TaskName "Event_Audit" -ScriptFile "Invoke-EventAudit.ps1" -DefaultTrigger $ScheduleEventAudit
     
     Write-Host "`n[SUCCESS] Orchestration Complete!" -ForegroundColor Cyan
 } else {

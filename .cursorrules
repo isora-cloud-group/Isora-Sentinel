@@ -1,0 +1,35 @@
+# Sentinel-IT Development Rules & Architecture Guidelines
+
+## 1. Project Identity & Author
+* **Author & Architect:** Sandra Gabriela Puerto Torres / Isora Cloud Group
+* **Portals:** https://sandrapuerto.com | https://isora.com.co
+* **License:** MIT License
+* **Core Philosophy:** Zero-dependency native PowerShell automation for Windows endpoint hygiene, structured SIEM logging, and ISO/IEC 27001:2022 / ISO/IEC 20000-1 compliance.
+
+## 2. Architectural Principles (Hub-and-Spoke)
+* **Hub (`src/lib/`):** Contains shared utilities and cross-cutting concerns:
+  - `Sentinel-Core.psm1`: Privilege assertion (`Assert-IsAdmin`) and binary discovery (`Get-DefenderPlatformPath`).
+  - `Sentinel-Logger.psm1`: Standardized forensic audit logging (`Initialize-SentinelLog`, `Write-AuditEntry`) with dual-format support (Human Text & NDJSON).
+* **Spokes (`src/engines/`):** Atomic, self-contained execution engines mapped to international controls:
+  - `Invoke-CleanupScreenshots.ps1` (ISO 27001 A.8.1 - DLP)
+  - `Invoke-CleanupTempGlobal.ps1` (ISO 20000-1 §8.2 - Capacity Management)
+  - `Invoke-DefenderScan.ps1` (ISO 27001 A.8.7 - Protection against malware)
+  - `Invoke-IntegrityCheck.ps1` (ISO 27001 A.8.20 - Component Store integrity)
+  - `Invoke-BitLockerAudit.ps1` (ISO 27001 A.8.24 - Cryptographic compliance)
+  - `Invoke-EventAudit.ps1` (ISO 27001 A.8.15 - Logging & anti-forensics)
+* **Installer (`installer/`):** Automated deployment and Scheduled Tasks orchestrator running as `NT AUTHORITY\SYSTEM`.
+
+## 3. PowerShell Coding Standards
+* **Zero Dependencies:** Never require third-party PowerShell modules, Node, Python, or external package managers. Code must run natively on fresh Windows 10/11 and Windows Server installations.
+* **Dual Runtime Compatibility:** Code must parse cleanly and execute identically on both Windows PowerShell 5.1 and PowerShell Core 7+.
+* **Pipeline Binding Safety:** Never pipe into `ForEach-Object` with `-join` inside string expressions (causes `RemainingScripts` binding exception in PS 5.1). Use native `foreach ($entry in $SafeMetadata.GetEnumerator())`.
+* **Privilege Enforcement:** Every engine must invoke `Assert-IsAdmin` inside its primary `try` block.
+* **Dry-Run Support:** Any engine performing file deletion must implement `[CmdletBinding()] param([switch]$AuditOnly)` to allow safe simulation.
+* **Exit Code Auditing:** External process invocations (`dism.exe`, `MpCmdRun.exe`, `manage-bde.exe`) must capture and evaluate `$LASTEXITCODE`.
+
+## 4. Testing & Verification Gate
+* Always run the Pester test suite before finalizing changes:
+  ```powershell
+  powershell.exe -ExecutionPolicy Bypass -File .\tests\Invoke-Tests.ps1
+  ```
+* All Pester tests (unit tests, AST syntax parsing, and parameter binding) must pass 100%.
