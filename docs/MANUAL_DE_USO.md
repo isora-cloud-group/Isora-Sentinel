@@ -1,7 +1,9 @@
 # Manual de Uso y Operación Empresarial — Sentinel-IT Suite
 
+**Organización Titular:** Isora Cloud Group  
+**Arquitectura & Dirección:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandrapuerto](https://github.com/sandrapuerto))  
+**Implementación Agéntica:** Google Antigravity AI Engine  
 **Versión del Software:** 2.2.0  
-**Autora & Arquitectura:** Sandra Gabriela Puerto Torres / Isora Cloud Group  
 **Entorno Operativo:** Windows 10, Windows 11, Windows Server 2016 / 2019 / 2022  
 **Motor de Ejecución:** Windows PowerShell 5.1+ o PowerShell Core 7+  
 **Contexto de Seguridad:** `NT AUTHORITY\SYSTEM` / Administrador Local Elevado  

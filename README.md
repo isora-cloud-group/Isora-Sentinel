@@ -1,17 +1,20 @@
 <div align="center">
 
-# 🛡️ Sentinel-IT
-### Enterprise Maintenance & Control-Mapping Suite for Windows Endpoints
+# 🏢 ISORA CLOUD GROUP
+## 🛡️ Sentinel-IT Suite
+### Enterprise Endpoint Hygiene & Compliance Automation for Windows
 
+[![Organization: Isora Cloud Group](https://img.shields.io/badge/Organization-Isora%20Cloud%20Group-0ea5e9?style=for-the-badge&logo=cloud&logoColor=white)](https://isora.com.co)
+[![Architect: Sandra Puerto](https://img.shields.io/badge/Architect-Sandra%20Puerto-f59e0b?style=for-the-badge&logo=linkedin&logoColor=white)](https://sandrapuerto.com)
+[![Powered By: Antigravity AI](https://img.shields.io/badge/Powered%20By-Google%20Antigravity%20AI-6366f1?style=for-the-badge&logo=google&logoColor=white)](#)
 [![Version](https://img.shields.io/badge/Version-2.2.0-blue.svg?style=for-the-badge)](CHANGELOG.md)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-blue.svg?style=for-the-badge&logo=powershell&logoColor=white)](#)
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011%20%7C%20Server-0078D6?style=for-the-badge&logo=windows&logoColor=white)](#)
 [![Mapped Controls](https://img.shields.io/badge/Controls-ISO%2027001%20%7C%20ISO%2020000--1%20%7C%20SOC%202-10b981.svg?style=for-the-badge)](docs/ISO_MAPPING.md)
 [![Tests](https://img.shields.io/badge/Tests-25%20Passed%20%7C%20Pester-6366f1.svg?style=for-the-badge&logo=checkmarx&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
-[![Author](https://img.shields.io/badge/Author-Sandra%20Puerto%20%7C%20Isora-f59e0b?style=for-the-badge&logo=linkedin&logoColor=white)](https://sandrapuerto.com)
 
-*Zero-dependency native PowerShell automation with structured forensic audit logging for SIEM ingestion and ISO/IEC 27001:2022 / ISO/IEC 20000-1 compliance mapping.*
+*Plataforma soberana de mantenimiento y mapeo normativo ISO/IEC 27001:2022 e ISO/IEC 20000-1 para endpoints Windows corporativos.*
 
 ---
 </div>
@@ -202,7 +205,19 @@ powershell.exe -ExecutionPolicy Bypass -File .\tests\Invoke-Tests.ps1
 
 ---
 
-## 🔒 8. Security Policy
+## 👥 8. Authorship, Governance & Development Team
+
+Sentinel-IT is governed under an enterprise open-source model combining human systems architecture with cutting-edge agentic development:
+
+| Role | Entity / Contributor | Function & Scope | Profiles & Links |
+| :--- | :--- | :--- | :--- |
+| **Organización Titular** | **Isora Cloud Group** | Entidad de Ingeniería Cloud & Gobernanza del Repositorio | [isora.com.co](https://isora.com.co) |
+| **Arquitecta de Sistemas & Dirección** | **Sandra Gabriela Puerto Torres** | Concepción arquitectónica, especificación de controles ISO/IEC, diseño de seguridad y dirección técnica | [sandrapuerto.com](https://sandrapuerto.com) · [GitHub](https://github.com/sandrapuerto) · [LinkedIn](https://linkedin.com) |
+| **Implementación & Asistencia Agéntica** | **Google Antigravity AI Engine** | Generación de código fuente, refactorización, suite de pruebas CI/CD y resolución de compatibilidad | [Google DeepMind](https://deepmind.google) |
+
+---
+
+## 🔒 9. Security Policy
 
 Because Sentinel-IT executes with `NT AUTHORITY\SYSTEM` permissions, strict access controls must be maintained on `C:\Program Files\IT_Maintenance\`. For security advisories, vulnerability disclosure SLAs, and threat models, see [SECURITY.md](SECURITY.md).
 
@@ -211,12 +226,12 @@ Because Sentinel-IT executes with `NT AUTHORITY\SYSTEM` permissions, strict acce
 
 ---
 
-## 📜 9. License
+## 📜 10. License
 
 This project is licensed under the open-source **[MIT License](LICENSE)**.
 
 ```text
-Copyright (c) 2026 Sandra Gabriela Puerto Torres / Isora Cloud Group
+Copyright (c) 2026 Isora Cloud Group / Sandra Gabriela Puerto Torres
 ```
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, without restriction.

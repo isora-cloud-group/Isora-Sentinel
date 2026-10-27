@@ -1,7 +1,9 @@
 # Arquitectura del Sistema — Sentinel-IT Suite
 
+**Organización Titular:** Isora Cloud Group  
+**Arquitectura & Dirección:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandrapuerto](https://github.com/sandrapuerto))  
+**Implementación Agéntica:** Google Antigravity AI Engine  
 **Versión del Documento:** 2.2.0  
-**Autora & Arquitecta Principal:** Sandra Gabriela Puerto Torres / Isora Cloud Group  
 **Taxonomía Arquitectónica:** Hub-and-Spoke Modular, Cero Dependencias Externas  
 
 ---

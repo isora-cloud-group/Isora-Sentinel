@@ -19,9 +19,10 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
-Write-Host " Sentinel-IT | Automated Test Suite (Pester CI/CD Gate)" -ForegroundColor Cyan
-Write-Host " Autora: Sandra Gabriela Puerto Torres | Isora" -ForegroundColor Gray
-Write-Host " https://sandrapuerto.com | https://isora.com.co" -ForegroundColor DarkGray
+Write-Host " ISORA CLOUD GROUP | Sentinel-IT Automated Test Suite" -ForegroundColor Cyan
+Write-Host " Arquitectura & Dirección: Sandra Gabriela Puerto Torres" -ForegroundColor Gray
+Write-Host " Implementación: Google Antigravity AI (Pair Programming)" -ForegroundColor DarkGray
+Write-Host " https://isora.com.co | https://sandrapuerto.com" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
 # Ensure Pester 5+ is available; if invoked under Windows PowerShell 5.1 with legacy Pester 3, delegate to pwsh if available
@@ -75,7 +76,8 @@ $total  = if ($null -ne $result.TotalCount)  { $result.TotalCount }  else { $pas
 
 Write-Host "`n------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " Test Summary: Passed=$passed, Failed=$failed, Total=$total" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })
-Write-Host " https://sandrapuerto.com | https://isora.com.co" -ForegroundColor Gray
+Write-Host " ISORA CLOUD GROUP | Powered by Google Antigravity AI" -ForegroundColor Gray
+Write-Host " https://isora.com.co | https://sandrapuerto.com" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
 if ($failed -gt 0) {

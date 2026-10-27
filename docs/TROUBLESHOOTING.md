@@ -1,7 +1,9 @@
 # Guía de Diagnóstico y Resolución de Problemas (Troubleshooting) — Sentinel-IT
 
+**Organización Titular:** Isora Cloud Group  
+**Arquitectura & Dirección:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandrapuerto](https://github.com/sandrapuerto))  
+**Implementación Agéntica:** Google Antigravity AI Engine  
 **Versión:** 2.2.0  
-**Autora:** Sandra Gabriela Puerto Torres / Isora Cloud Group  
 
 Esta guía documenta los escenarios de error, códigos de salida y puntos de fricción más comunes al operar **Sentinel-IT**, junto con sus causas técnicas y pasos de resolución inmediata.
 
