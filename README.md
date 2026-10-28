@@ -4,9 +4,11 @@
 ## 🛡️ Sentinel-IT Suite
 ### Enterprise Endpoint Hygiene & Compliance Automation for Windows
 
-[![Organization: Isora Cloud Group](https://img.shields.io/badge/Organization-Isora%20Cloud%20Group-0ea5e9?style=for-the-badge&logo=cloud&logoColor=white)](https://isora.com.co)
-[![Architect: Sandra Puerto](https://img.shields.io/badge/Architect-Sandra%20Puerto-f59e0b?style=for-the-badge&logo=linkedin&logoColor=white)](https://sandrapuerto.com)
-[![Powered By: Antigravity AI](https://img.shields.io/badge/Powered%20By-Google%20Antigravity%20AI-6366f1?style=for-the-badge&logo=google&logoColor=white)](#)
+[![Commercial Brand & Distributor](https://img.shields.io/badge/Distributor-Isora%20Cloud%20Group-0ea5e9?style=for-the-badge&logo=cloud&logoColor=white)](https://isora.com.co)
+[![Copyright & Architecture](https://img.shields.io/badge/Copyright%20%26%20Architect-Sandra%20Gabriela%20Puerto%20Torres%20(SGPT)-f59e0b?style=for-the-badge&logo=shield&logoColor=white)](https://www.linkedin.com/in/sandra-puerto/)
+[![GitHub](https://img.shields.io/badge/GitHub-@sandra--puerto-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sandra-puerto)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Sandra%20Gabriela%20Puerto%20Torres%20(SGPT)-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/sandra-puerto/)
+[![Code Implementation](https://img.shields.io/badge/Powered%20By-Google%20Antigravity%20AI-6366f1?style=for-the-badge&logo=google&logoColor=white)](#)
 [![Version](https://img.shields.io/badge/Version-2.2.0-blue.svg?style=for-the-badge)](CHANGELOG.md)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-blue.svg?style=for-the-badge&logo=powershell&logoColor=white)](#)
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011%20%7C%20Server-0078D6?style=for-the-badge&logo=windows&logoColor=white)](#)
@@ -207,13 +209,13 @@ powershell.exe -ExecutionPolicy Bypass -File .\tests\Invoke-Tests.ps1
 
 ## 👥 8. Authorship, Governance & Development Team
 
-Sentinel-IT is governed under an enterprise open-source model combining human systems architecture with cutting-edge agentic development:
+Sentinel-IT is governed under an enterprise model combining personal intellectual property ownership with commercial brand distribution and modern agentic development:
 
 | Role | Entity / Contributor | Function & Scope | Profiles & Links |
 | :--- | :--- | :--- | :--- |
-| **Organización Titular** | **Isora Cloud Group** | Entidad de Ingeniería Cloud & Gobernanza del Repositorio | [isora.com.co](https://isora.com.co) |
-| **Arquitecta de Sistemas & Dirección** | **Sandra Gabriela Puerto Torres** | Concepción arquitectónica, especificación de controles ISO/IEC, diseño de seguridad y dirección técnica | [sandrapuerto.com](https://sandrapuerto.com) · [GitHub](https://github.com/sandrapuerto) · [LinkedIn](https://linkedin.com) |
-| **Implementación & Asistencia Agéntica** | **Google Antigravity AI Engine** | Generación de código fuente, refactorización, suite de pruebas CI/CD y resolución de compatibilidad | [Google DeepMind](https://deepmind.google) |
+| **Marca Comercial & Distribuidor** | **Isora Cloud Group** | Marca comercial paraguas, distribución y gobernanza del ecosistema | [isora.com.co](https://isora.com.co) |
+| **Copyright & Arquitectura** | **Sandra Gabriela Puerto Torres (SGPT)** | Titular única y exclusiva del Copyright, concepción arquitectónica, diseño de controles y dirección técnica | [sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/) |
+| **Implementación de Código** | **Google Antigravity AI Engine** | Generación de código fuente, refactorización y suite de pruebas CI/CD bajo la dirección técnica de la arquitecta | [Google DeepMind](https://deepmind.google) |
 
 ---
 
@@ -222,6 +224,7 @@ Sentinel-IT is governed under an enterprise open-source model combining human sy
 Because Sentinel-IT executes with `NT AUTHORITY\SYSTEM` permissions, strict access controls must be maintained on `C:\Program Files\IT_Maintenance\`. For security advisories, vulnerability disclosure SLAs, and threat models, see [SECURITY.md](SECURITY.md).
 
 * **Security Contact:** [security@isora.com.co](mailto:security@isora.com.co) · [contacto@sandrapuerto.com](mailto:contacto@sandrapuerto.com)
+* **Author Profiles:** [GitHub: https://github.com/sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn: https://www.linkedin.com/in/sandra-puerto/](https://www.linkedin.com/in/sandra-puerto/)
 * **General Inquiries:** [contact@isora.com.co](mailto:contact@isora.com.co)
 
 ---
@@ -231,7 +234,8 @@ Because Sentinel-IT executes with `NT AUTHORITY\SYSTEM` permissions, strict acce
 This project is licensed under the open-source **[MIT License](LICENSE)**.
 
 ```text
-Copyright (c) 2026 Isora Cloud Group / Sandra Gabriela Puerto Torres
+Copyright (c) 2026 Sandra Gabriela Puerto Torres (SGPT).
+Commercial brand & distribution under the auspices of Isora Cloud Group.
 ```
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, without restriction.

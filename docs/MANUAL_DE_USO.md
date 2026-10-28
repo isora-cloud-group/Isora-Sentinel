@@ -1,7 +1,7 @@
 # Manual de Uso y Operación Empresarial — Sentinel-IT Suite
 
-**Organización Titular:** Isora Cloud Group  
-**Arquitectura & Dirección:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandrapuerto](https://github.com/sandrapuerto))  
+**Marca & Distribución:** Isora Cloud Group  
+**Copyright & Arquitectura:** Sandra Gabriela Puerto Torres (SGPT) ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
 **Implementación Agéntica:** Google Antigravity AI Engine  
 **Versión del Software:** 2.2.0  
 **Entorno Operativo:** Windows 10, Windows 11, Windows Server 2016 / 2019 / 2022  

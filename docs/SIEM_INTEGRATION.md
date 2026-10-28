@@ -1,7 +1,7 @@
 # Guía de Integración SIEM — Sentinel-IT Suite
 
-**Organización Titular:** Isora Cloud Group  
-**Arquitectura & Dirección:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandrapuerto](https://github.com/sandrapuerto))  
+**Marca & Distribución:** Isora Cloud Group  
+**Copyright & Arquitectura:** Sandra Gabriela Puerto Torres (SGPT) ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
 **Implementación Agéntica:** Google Antigravity AI Engine  
 **Estándar de Cumplimiento:** ISO/IEC 27001:2022 Control A.8.15 (Registro y Monitoreo)  
 **Formato de Eventos:** JSON UTF-8 (RFC 8259) delimitado por saltos de línea (NDJSON)  

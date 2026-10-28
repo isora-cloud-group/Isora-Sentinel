@@ -1,7 +1,7 @@
 # Mapeo de Cumplimiento Normativo — ISO/IEC 27001:2022 e ISO/IEC 20000-1:2018
 
-**Organización Titular:** Isora Cloud Group  
-**Arquitectura & Dirección:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandrapuerto](https://github.com/sandrapuerto))  
+**Marca & Distribución:** Isora Cloud Group  
+**Copyright & Arquitectura:** Sandra Gabriela Puerto Torres (SGPT) ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
 **Implementación Agéntica:** Google Antigravity AI Engine  
 **Versión del Documento:** 2.2.0  
 **Propósito:** Proporcionar la matriz de trazabilidad técnica, justificación de control y evidencia de auditoría para evaluadores de acreditación, auditores de SGSI y jurados académicos.

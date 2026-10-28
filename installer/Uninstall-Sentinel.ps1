@@ -4,9 +4,9 @@
 #>
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Sentinel-IT Suite Uninstaller" -ForegroundColor Cyan
-Write-Host " Arquitectura & Dirección: Sandra Gabriela Puerto Torres" -ForegroundColor Gray
+Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor Gray
 Write-Host " Implementación: Google Antigravity AI (Pair Programming)" -ForegroundColor DarkGray
-Write-Host " https://isora.com.co | https://sandrapuerto.com" -ForegroundColor DarkGray
+Write-Host " GitHub: https://github.com/sandra-puerto | LinkedIn: https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
 if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -33,7 +33,7 @@ if (Test-Path $InstallDir) {
 Write-Host "`n[SUCCESS] Sentinel-IT has been uninstalled." -ForegroundColor Cyan
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Sentinel-IT Suite" -ForegroundColor Cyan
-Write-Host " Arquitectura & Dirección: Sandra Gabriela Puerto Torres" -ForegroundColor White
+Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor White
 Write-Host " Powered by: Google Antigravity AI" -ForegroundColor Gray
-Write-Host " https://isora.com.co | https://sandrapuerto.com" -ForegroundColor DarkGray
+Write-Host " https://github.com/sandra-puerto | https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
