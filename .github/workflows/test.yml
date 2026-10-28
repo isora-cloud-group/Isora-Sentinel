@@ -35,7 +35,17 @@ jobs:
               exit 1
           }
 
-      - name: Run Test Suite
+      - name: Run Pester Automated Test Suite
         shell: powershell
         run: |
           powershell -ExecutionPolicy Bypass -File tests\Invoke-Tests.ps1
+
+      - name: Build Standalone Installer Executable
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File installer\Build-InstallerExe.ps1
+
+      - name: Verify Forensic Binary Integrity & Decompilation
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.ps1 -InstallerPath installer\Sentinel-IT-Setup.exe

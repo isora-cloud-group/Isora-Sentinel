@@ -2,7 +2,6 @@
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Agentic AI Implementation:** Google Antigravity AI Engine  
 **Document Version:** 2.2.0  
 **Architectural Taxonomy:** Modular Hub-and-Spoke, Zero External Dependencies, Sovereign Local Execution  
 
@@ -53,6 +52,7 @@ flowchart TD
         E4["Invoke-IntegrityCheck.ps1\nISO 27001 A.8.20 (DISM Component Store Audit)"]
         E5["Invoke-BitLockerAudit.ps1\nISO 27001 A.8.24 (Cryptographic Encryption Audit)"]
         E6["Invoke-EventAudit.ps1\nISO 27001 A.8.15 (Security Event Log Anti-Forensics)"]
+        E7["Invoke-ArchiveDownloads.ps1\nISO 27001 A.8.10 (Downloads Lifecycle & Tiering)"]
     end
 
     subgraph LocalStorage["Forensic Telemetry Store"]
@@ -71,8 +71,8 @@ flowchart TD
     TaskSched & Tray & ConfigForm --> AssertAdmin & AssertIntegrity
     AssertIntegrity --> Manifest
     AssertAdmin & AssertIntegrity --> Core & Logger
-    Core & Logger --> E1 & E2 & E3 & E4 & E5 & E6
-    E1 & E2 & E3 & E4 & E5 & E6 --> LogsDir & NDJSONStream
+    Core & Logger --> E1 & E2 & E3 & E4 & E5 & E6 & E7
+    E1 & E2 & E3 & E4 & E5 & E6 & E7 --> LogsDir & NDJSONStream
     LogsDir & NDJSONStream --> Splunk & Elastic & Datadog & Sentinel
 ```
 
@@ -81,7 +81,7 @@ flowchart TD
 ## 3. Privilege Model & Security Boundaries
 
 ### 3.1. `NT AUTHORITY\SYSTEM` Execution Context
-System-wide hygiene operations (purging multi-user temporary files, auditing the Windows Component Store via DISM, querying BitLocker volume encryption metadata across locked volumes, and reading the Windows Security Event log) require elevated operating system privileges.
+System-wide maintenance and hardening operations (purging multi-user temporary files, auditing the Windows Component Store via DISM, querying BitLocker volume encryption metadata across locked volumes, and reading the Windows Security Event log) require elevated operating system privileges.
 
 1. **Scheduled Task Identity:** Automated routines are registered in Windows Task Scheduler under `NT AUTHORITY\SYSTEM` with `RunLevel = Highest`. This enables fully unattended, background execution without interactive UAC dialogs.
 2. **Explicit Privilege Assertion:** Every engine executes `Assert-IsAdmin` upon entry. If the caller does not hold the Local Administrator or SYSTEM security identifier, the script terminates immediately with a non-zero exit code, preventing unauthorized standard users from invoking administrative logic.
@@ -135,7 +135,7 @@ sequenceDiagram
 
 ### Technical Highlights of `Sentinel-IT-Tray.exe`:
 * **High-DPI Awareness:** Uses `SetProcessDPIAware()` and dynamic layout scaling based on screen PPI (96 to 288 DPI), rendering crisp vector glyphs and typography on 4K displays.
-* **Non-Blocking Elevation:** Starts elevated tasks using `ProcessStartInfo` with `Verb = "runas"` and `WindowStyle = ProcessWindowStyle.Normal`. PowerShell hides itself internally with `-WindowStyle Hidden`, avoiding the Windows 10/11 UAC suppression bug caused by `SW_HIDE`.
+* **Non-Blocking Elevation:** Starts elevated tasks using `ProcessStartInfo` with `Verb = "runas"`, avoiding the Windows 10/11 UAC suppression bug caused by `SW_HIDE` on elevated parent processes. Background non-elevated executions use `CreateNoWindow = true` cleanly without shell window flicker.
 * **Asynchronous Thread Pool Waiting:** Eliminates cross-integrity `EnableRaisingEvents` handle duplication crashes (`Win32Exception: 0x32`) by awaiting process completion via `ThreadPool.QueueUserWorkItem(delegate { p.WaitForExit(); })`.
 * **TaskConfigForm GUI (`TaskConfigForm.cs`):** Directly queries Windows Task Scheduler XML definitions via `schtasks.exe /Query /XML`, parsing frequencies (Daily, Weekly, Monthly), day-of-week selections, and start boundaries without external management dependencies.
 
@@ -203,4 +203,4 @@ Toggled transparently across all fleet endpoints via the machine-level environme
 | **`Invoke-IntegrityCheck`** | Component Store corruption detected (DISM exit code 20) | Emits `WARN` alert to SIEM; if `-AutoRepair` is enabled, triggers `/RestoreHealth` automatically. |
 | **`Invoke-BitLockerAudit`** | Unencrypted volume or protection suspended | Flags volume with `WARN` severity; records unencrypted volume status for immediate SOC alerting. |
 | **`Invoke-EventAudit`** | Security Event Log cleared (Event 1102) | Emits immediate `ERROR` alert with actor identity and timestamp indicating potential anti-forensics evasion. |
-| **`Sentinel-IT-Tray`** | Scheduled task not yet registered in Task Scheduler | Detects missing task and falls back seamlessly to direct elevated PowerShell script execution. |
+| **`Sentinel-IT-Tray`** | Scheduled task not yet registered in Task Scheduler | Detects missing task and falls back automatically to direct elevated PowerShell script execution. |

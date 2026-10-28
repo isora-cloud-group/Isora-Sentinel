@@ -2,7 +2,6 @@
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Agentic AI Implementation:** Google Antigravity AI Engine  
 **Software Version:** 2.2.0  
 
 This guide provides technical root-cause analysis and operational remediation steps for common error scenarios, return codes, and system integration points across **Sentinel-IT**.
@@ -64,7 +63,7 @@ When triggering an administrative module from `Sentinel-IT-Tray.exe`, the UAC el
 2. **Handle Duplication Restriction:** Setting `p.EnableRaisingEvents = true` on a standard-user process before calling `Process.Start()` with `Verb = "runas"` causes .NET to attempt to duplicate the handle with `SYNCHRONIZE` rights across integrity levels. Windows security policy blocks this, throwing `Win32Exception: 0x32 (The request is not supported)`.
 
 ### Remediation (Implemented in v2.2.0)
-* In `SentinelTray.cs`, elevated commands leave `psi.WindowStyle = ProcessWindowStyle.Normal`, allowing PowerShell to hide its own console window internally using the `-WindowStyle Hidden` command-line argument.
+* In `SentinelTray.cs`, elevated commands set `psi.WindowStyle = ProcessWindowStyle.Normal` alongside `Verb = "runas"` to ensure the UAC consent desktop prompt appears reliably without suppression. Non-elevated execution relies on `CreateNoWindow = true`.
 * Event monitoring is delegated to `ThreadPool.QueueUserWorkItem(delegate { p.WaitForExit(); })` without calling `EnableRaisingEvents`.
 
 ---

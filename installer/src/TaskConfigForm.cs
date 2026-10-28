@@ -748,7 +748,7 @@ namespace SentinelIT.Tray
             if (toggle.Checked)
             {
                 args = string.Format(
-                    "/Create /TN \"Sentinel-IT\\{0}\" /TR \"powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \\\"{1}\\\"\" {2} /RU \"NT AUTHORITY\\SYSTEM\" /RL HIGHEST /F",
+                    "/Create /TN \"Sentinel-IT\\{0}\" /TR \"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\\"{1}\\\"\" {2} /RU \"NT AUTHORITY\\SYSTEM\" /RL HIGHEST /F",
                     TaskName, scriptPath, GetTriggerArgs());
             }
             else if (InitialExists)
@@ -761,7 +761,7 @@ namespace SentinelIT.Tray
                 return "";
             }
             return "$p = Start-Process -FilePath 'schtasks.exe' -ArgumentList '" + args.Replace("'", "''") +
-                   "' -Wait -PassThru -WindowStyle Hidden; if ($p.ExitCode -ne 0) { $errs++ }; ";
+                   "' -Wait -PassThru; if ($p.ExitCode -ne 0) { $errs++ }; ";
         }
 
         // ---------------- Layout responsive ----------------
@@ -1055,6 +1055,10 @@ namespace SentinelIT.Tray
                 "Auditoría de eventos de seguridad", "A.8.15 · Registro",
                 "Detecta el borrado del registro de seguridad (evento 1102), intentos fallidos de inicio de sesión (4625) y cuentas nuevas.",
                 "Diario", 0, 0, "03:00");
+            AddCard(stack, "Archive_Downloads", "Invoke-ArchiveDownloads.ps1",
+                "Archivado seguro de descargas", "A.8.10 · Ciclo de vida",
+                @"Relocaliza descargas de más de 30 días hacia Documentos\Sentinel_Archived\Downloads protegiéndolas con respaldo corporativo.",
+                "Mensual", 0, 0, "03:00");
 
             // Opciones generales
             CfgStack general = new CfgStack();

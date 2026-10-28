@@ -1,7 +1,7 @@
 // ============================================================================
-// Sentinel-IT Suite — Monitor de Bandeja del Sistema (System Tray)
+// Sentinel-IT Suite - Monitor de Bandeja del Sistema (System Tray)
 // Copyright (c) 2026 Sandra Gabriela Puerto Torres
-// Licencia: MIT (Open Source) — Terceros: FontAwesome Free 6.x (CC BY 4.0)
+// Licencia: MIT (Open Source)
 // ============================================================================
 
 using System;
@@ -23,28 +23,32 @@ using Microsoft.Win32;
 
 namespace SentinelIT.Tray
 {
-    // =========================================================================
-    //  TOKENS DE DISEÑO (WCAG AA >= 4.5:1 sobre Slate 900)
-    // =========================================================================
-    internal static class TrayTheme
+internal static class TrayTheme
     {
-        public static readonly Color BgDark        = Color.FromArgb(15, 23, 42);    // Slate 900
-        public static readonly Color BgHover       = Color.FromArgb(30, 41, 59);    // Slate 800
-        public static readonly Color Border        = Color.FromArgb(51, 65, 85);    // Slate 700
-        public static readonly Color TextPrimary   = Color.FromArgb(241, 245, 249); // Slate 100 (16:1)
-        public static readonly Color TextSecondary = Color.FromArgb(203, 213, 225); // Slate 300 (12:1)
-        public static readonly Color TextMuted     = Color.FromArgb(148, 163, 184); // Slate 400 (7:1)
-        public static readonly Color AccentSky     = Color.FromArgb(56, 189, 248);  // Sky 400
-        public static readonly Color Emerald       = Color.FromArgb(52, 211, 153);  // Emerald 400
-        public static readonly Color Amber         = Color.FromArgb(251, 191, 36);  // Amber 400
+        // Compatibilidad con cabecera de TaskConfigForm
+        public static readonly Color BgDark          = Color.FromArgb(15, 23, 42);    // Slate 900
+        public static readonly Color AccentSky        = Color.FromArgb(3, 105, 161);   // Sky 700
+
+        // Superficie blanca Enterprise para el menu del Tray
+        public static readonly Color BgSurface        = Color.White;                    // Fondo blanco
+        public static readonly Color BgHover          = Color.FromArgb(241, 245, 249); // Slate 100
+        public static readonly Color Border           = Color.FromArgb(203, 213, 225); // Slate 300
+        public static readonly Color BorderSubtle     = Color.FromArgb(226, 232, 240); // Slate 200
+        public static readonly Color TextPrimary      = Color.FromArgb(15, 23, 42);    // Slate 900
+        public static readonly Color TextSecondary    = Color.FromArgb(71, 85, 105);   // Slate 600
+        public static readonly Color TextMuted        = Color.FromArgb(148, 163, 184); // Slate 400
+        public static readonly Color AccentBlue       = Color.FromArgb(3, 105, 161);   // Sky 700
+        public static readonly Color Emerald          = Color.FromArgb(5, 150, 105);   // Emerald 600
+        public static readonly Color Amber            = Color.FromArgb(217, 119, 6);   // Amber 600
+        public static readonly Color Danger           = Color.FromArgb(220, 38, 38);   // Red 600
 
         public static Font Font(float size)              { return new Font("Segoe UI", size, FontStyle.Regular); }
         public static Font Font(float size, FontStyle s) { return new Font("Segoe UI", size, s); }
     }
 
     // =========================================================================
-    //  RENDERER ENTERPRISE: hover redondeado con barra de acento, chevrons y
-    //  checks vectoriales, separadores discretos, sin degradados ni bordes 3D.
+    //  RENDERER ENTERPRISE: Fondo blanco, hover Slate 100 con acento Sky 700,
+    //  chevrons y checks vectoriales limpios, sin degradados ni halos de neon.
     // =========================================================================
     internal class EnterpriseMenuRenderer : ToolStripProfessionalRenderer
     {
@@ -55,7 +59,7 @@ namespace SentinelIT.Tray
 
         protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
         {
-            using (Brush b = new SolidBrush(TrayTheme.BgDark))
+            using (Brush b = new SolidBrush(TrayTheme.BgSurface))
                 e.Graphics.FillRectangle(b, e.AffectedBounds);
         }
 
@@ -68,7 +72,7 @@ namespace SentinelIT.Tray
 
         protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
         {
-            // Sin franja lateral: el menú es una superficie continua.
+            // Superficie continua sin franja lateral desalineada
         }
 
         protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
@@ -84,8 +88,8 @@ namespace SentinelIT.Tray
             using (Brush b = new SolidBrush(TrayTheme.BgHover))
                 g.FillPath(b, gp);
 
-            using (Brush b = new SolidBrush(TrayTheme.AccentSky))
-                g.FillRectangle(b, r.X, r.Y + 7, 3, Math.Max(4, r.Height - 14));
+            using (Brush b = new SolidBrush(TrayTheme.AccentBlue))
+                g.FillRectangle(b, r.X, r.Y + 6, 3, Math.Max(4, r.Height - 12));
         }
 
         protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
@@ -97,11 +101,11 @@ namespace SentinelIT.Tray
             }
             else if (mi != null && !string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) && e.Text == mi.ShortcutKeyDisplayString)
             {
-                e.TextColor = TrayTheme.TextMuted;              // texto auxiliar (ID de control, hora)
+                e.TextColor = TrayTheme.TextSecondary;
             }
-            else if (e.Item.Selected && e.Item.Enabled)
+            else if (!e.Item.Enabled)
             {
-                e.TextColor = Color.White;
+                e.TextColor = TrayTheme.TextMuted;
             }
             else
             {
@@ -114,7 +118,7 @@ namespace SentinelIT.Tray
         {
             if (e.Image == null) return;
             e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            e.Graphics.DrawImage(e.Image, e.ImageRectangle);   // sin atenuado automático en ítems deshabilitados
+            e.Graphics.DrawImage(e.Image, e.ImageRectangle);
         }
 
         protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
@@ -123,7 +127,7 @@ namespace SentinelIT.Tray
             g.SmoothingMode = SmoothingMode.AntiAlias;
             Rectangle r = e.ImageRectangle;
             int cx = r.Left + r.Width / 2, cy = r.Top + r.Height / 2;
-            using (Pen p = new Pen(TrayTheme.AccentSky, 2f))
+            using (Pen p = new Pen(TrayTheme.AccentBlue, 2f))
             {
                 p.StartCap = LineCap.Round; p.EndCap = LineCap.Round; p.LineJoin = LineJoin.Round;
                 g.DrawLines(p, new Point[] { new Point(cx - 4, cy), new Point(cx - 1, cy + 3), new Point(cx + 4, cy - 3) });
@@ -136,14 +140,14 @@ namespace SentinelIT.Tray
             g.SmoothingMode = SmoothingMode.AntiAlias;
             Rectangle r = e.ArrowRectangle;
             int cx = r.Left + r.Width / 2, cy = r.Top + r.Height / 2;
-            Color c = (e.Item.Selected && e.Item.Enabled) ? Color.White : TrayTheme.TextMuted;
+            Color c = (e.Item.Selected && e.Item.Enabled) ? TrayTheme.AccentBlue : TrayTheme.TextSecondary;
             using (Pen p = new Pen(c, 1.5f))
                 g.DrawLines(p, new Point[] { new Point(cx - 2, cy - 4), new Point(cx + 2, cy), new Point(cx - 2, cy + 4) });
         }
 
         protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
         {
-            using (Pen p = new Pen(TrayTheme.Border))
+            using (Pen p = new Pen(TrayTheme.BorderSubtle))
             {
                 int y = e.Item.Height / 2;
                 e.Graphics.DrawLine(p, 12, y, e.Item.Width - 12, y);
@@ -165,15 +169,15 @@ namespace SentinelIT.Tray
 
     internal class EnterpriseColors : ProfessionalColorTable
     {
-        public override Color ToolStripDropDownBackground   { get { return TrayTheme.BgDark; } }
-        public override Color ImageMarginGradientBegin      { get { return TrayTheme.BgDark; } }
-        public override Color ImageMarginGradientMiddle     { get { return TrayTheme.BgDark; } }
-        public override Color ImageMarginGradientEnd        { get { return TrayTheme.BgDark; } }
+        public override Color ToolStripDropDownBackground   { get { return TrayTheme.BgSurface; } }
+        public override Color ImageMarginGradientBegin      { get { return TrayTheme.BgSurface; } }
+        public override Color ImageMarginGradientMiddle     { get { return TrayTheme.BgSurface; } }
+        public override Color ImageMarginGradientEnd        { get { return TrayTheme.BgSurface; } }
         public override Color MenuBorder                    { get { return TrayTheme.Border; } }
         public override Color MenuItemBorder                { get { return Color.Transparent; } }
         public override Color MenuItemSelected              { get { return TrayTheme.BgHover; } }
-        public override Color SeparatorDark                 { get { return TrayTheme.Border; } }
-        public override Color SeparatorLight                { get { return TrayTheme.Border; } }
+        public override Color SeparatorDark                 { get { return TrayTheme.BorderSubtle; } }
+        public override Color SeparatorLight                { get { return TrayTheme.BorderSubtle; } }
     }
 
     // =========================================================================
@@ -395,12 +399,12 @@ namespace SentinelIT.Tray
             using (Graphics g = Graphics.FromImage(bmp))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                int d = Sz(8);
+                int d = Sz(9);
                 int o = (size - d) / 2;
-                using (Brush halo = new SolidBrush(Color.FromArgb(60, color)))
-                    g.FillEllipse(halo, o - Sz(2), o - Sz(2), d + Sz(4), d + Sz(4));
                 using (Brush b = new SolidBrush(color))
                     g.FillEllipse(b, o, o, d, d);
+                using (Pen p = new Pen(Color.FromArgb(40, Color.Black), 1f))
+                    g.DrawEllipse(p, o, o, d, d);
             }
             return bmp;
         }
@@ -411,7 +415,7 @@ namespace SentinelIT.Tray
         private void StyleDropDown(ToolStripDropDown dd)
         {
             dd.Renderer = new EnterpriseMenuRenderer();
-            dd.BackColor = TrayTheme.BgDark;
+            dd.BackColor = TrayTheme.BgSurface;
             dd.Font = TrayTheme.Font(9.5F);
             dd.ShowItemToolTips = true;
             ToolStripDropDownMenu ddm = dd as ToolStripDropDownMenu;
@@ -438,9 +442,9 @@ namespace SentinelIT.Tray
         {
             ToolStripMenuItem it = new ToolStripMenuItem(text);
             it.Enabled = false;
-            it.Tag = TrayTheme.TextMuted;
-            it.Font = TrayTheme.Font(7.75F, FontStyle.Bold);
-            it.Padding = new Padding(0, Sz(6), 0, Sz(0));
+            it.Tag = TrayTheme.TextSecondary;
+            it.Font = TrayTheme.Font(7.5F, FontStyle.Bold);
+            it.Padding = new Padding(0, Sz(7), 0, Sz(2));
             return it;
         }
 
@@ -460,18 +464,19 @@ namespace SentinelIT.Tray
             StyleDropDown(menu);
 
             // ---- Cabecera corporativa ----
+                        // ---- Cabecera corporativa unificada con Setup/Config ----
             ToolStripMenuItem itemTitle = NewItem("Sentinel-IT Suite", G_Shield, null);
             itemTitle.Enabled = false;
-            itemTitle.Image = Glyph(G_Shield, TrayTheme.AccentSky);
+            itemTitle.Image = Glyph(G_Shield, TrayTheme.AccentBlue);
             itemTitle.Font = TrayTheme.Font(10.5F, FontStyle.Bold);
-            itemTitle.Tag = Color.White;
+            itemTitle.Tag = TrayTheme.TextPrimary;
             itemTitle.Padding = new Padding(0, Sz(8), 0, Sz(0));
             menu.Items.Add(itemTitle);
 
-            ToolStripMenuItem itemSub = NewItem("Enterprise Endpoint Hygiene  ·  v" + Version, null, null);
+            ToolStripMenuItem itemSub = NewItem("Autonomous Endpoint Compliance  ·  v" + Version, null, null);
             itemSub.Enabled = false;
             itemSub.Font = TrayTheme.Font(8.5F);
-            itemSub.Tag = TrayTheme.TextMuted;
+            itemSub.Tag = TrayTheme.TextSecondary;
             itemSub.Padding = new Padding(0, Sz(0), 0, Sz(6));
             menu.Items.Add(itemSub);
 
@@ -493,6 +498,7 @@ namespace SentinelIT.Tray
             StyleDropDown(menuModules.DropDown);
             AddModule(menuModules, "Purga de capturas de pantalla",      "A.8.1",   G_Camera, "Invoke-CleanupScreenshots.ps1", false);
             AddModule(menuModules, "Recuperación de temporales y caché", "§8.2",    G_Delete, "Invoke-CleanupTempGlobal.ps1",  false);
+            AddModule(menuModules, "Archivado seguro de descargas",      "A.8.10",  G_Folder, "Invoke-ArchiveDownloads.ps1",   false);
             AddModule(menuModules, "Escaneo antimalware Defender",       "A.8.7",   G_Shield, "Invoke-DefenderScan.ps1",       true);
             AddModule(menuModules, "Auditoría Component Store (DISM)",   "A.8.20",  G_Sync,   "Invoke-IntegrityCheck.ps1",     true);
             AddModule(menuModules, "Auditoría criptográfica BitLocker",  "A.8.24",  G_Lock,   "Invoke-BitLockerAudit.ps1",     true);
@@ -679,16 +685,13 @@ namespace SentinelIT.Tray
 
         private void RunPowerShell(string command, bool elevate, Action<int> onDone)
         {
-            string b64 = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
-            ProcessStartInfo psi = new ProcessStartInfo("powershell.exe",
-                "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand " + b64);
+            ProcessStartInfo psi = new ProcessStartInfo("powershell.exe");
+            string escaped = command.Replace("\"", "\\\"");
+            psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"" + escaped + "\"";
             if (elevate)
             {
                 psi.UseShellExecute = true;
                 psi.Verb = "runas";
-                // IMPORTANTE: No fijar psi.WindowStyle = ProcessWindowStyle.Hidden con Verb='runas',
-                // ya que SW_HIDE en ShellExecuteEx suprime o bloquea el cuadro de diálogo de UAC en Windows 10/11.
-                // PowerShell ya se oculta por sí mismo mediante el argumento '-WindowStyle Hidden'.
                 psi.WindowStyle = ProcessWindowStyle.Normal;
             }
             else
@@ -792,7 +795,8 @@ namespace SentinelIT.Tray
                     "@{ T = 'Defender_Scan';       S = 'Invoke-DefenderScan.ps1' }, " +
                     "@{ T = 'Integrity_Check';     S = 'Invoke-IntegrityCheck.ps1' }, " +
                     "@{ T = 'BitLocker_Audit';     S = 'Invoke-BitLockerAudit.ps1' }, " +
-                    "@{ T = 'Event_Audit';         S = 'Invoke-EventAudit.ps1' } " +
+                    "@{ T = 'Event_Audit';         S = 'Invoke-EventAudit.ps1' }, " +
+                    "@{ T = 'Archive_Downloads';   S = 'Invoke-ArchiveDownloads.ps1' } " +
                 "); " +
                 "$f = 0; " +
                 "foreach ($item in $tasks) { " +
@@ -810,7 +814,7 @@ namespace SentinelIT.Tray
                 "exit $f " +
             "}";
 
-            int total = 6;
+            int total = 7;
             RunPowerShell(cmd, !admin, delegate(int failures)
             {
                 int ok = total - failures;

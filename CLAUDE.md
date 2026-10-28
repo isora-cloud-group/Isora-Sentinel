@@ -1,7 +1,7 @@
 # Sentinel-IT — AI Agent Assistant Guide (CLAUDE.md)
 
 ## Project Overview
-Sentinel-IT is a sovereign, zero-dependency PowerShell automation suite for Windows endpoints. It executes as `NT AUTHORITY\SYSTEM` to enforce endpoint hygiene and ISO compliance mapping (ISO/IEC 27001:2022 and ISO/IEC 20000-1:2018), producing structured forensic logs for SIEM platforms (Splunk, Elastic, Datadog, Microsoft Sentinel).
+Sentinel-IT is a sovereign, zero-dependency PowerShell automation suite for Windows endpoints. It executes as `NT AUTHORITY\SYSTEM` to enforce endpoint hardening, maintenance, and ISO compliance mapping (ISO/IEC 27001:2022 and ISO/IEC 20000-1:2018), producing structured forensic logs for SIEM platforms (Splunk, Elastic, Datadog, Microsoft Sentinel).
 
 **Author & Architecture:** Sandra Gabriela Puerto Torres  
 **Commercial Brand:** Isora Cloud Group  

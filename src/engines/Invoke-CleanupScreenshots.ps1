@@ -17,6 +17,7 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Cleanup_Screenshots"
+try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Cleanup_Screenshots] - SECURITY AUDIT START"
@@ -87,7 +88,8 @@ try {
 
         # Offline profile support: if user hive is not currently mounted under HKEY_USERS
         $tempHiveLoaded = $false
-        $tempHiveName = "Sentinel_Offline_$UserName"
+        $safeUName = $UserName -replace '[^a-zA-Z0-9]', '_'
+        $tempHiveName = "Sentinel_Offline_$safeUName"
         $ntuserDat = Join-Path $ProfilePath "NTUSER.DAT"
         if ($regHives.Count -eq 0 -and (Test-Path -LiteralPath $ntuserDat)) {
             try {
@@ -179,7 +181,8 @@ try {
                         } else {
                             $vectorPurged = 0
                             foreach ($Asset in $Assets) {
-                                if (-not ($Asset.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+                                $isReparseOrCloud = ($Asset.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -or ($Asset.Attributes -band [System.IO.FileAttributes]::Offline)
+                                if (-not $isReparseOrCloud) {
                                     if ($Asset.Attributes -band [System.IO.FileAttributes]::ReadOnly) {
                                         try { [System.IO.File]::SetAttributes($Asset.FullName, [System.IO.FileAttributes]::Normal) } catch { }
                                     }

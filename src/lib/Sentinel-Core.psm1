@@ -59,12 +59,16 @@ function Get-DefenderPlatformPath {
 
 function Assert-SentinelIntegrity {
     param(
-        [Parameter(Mandatory=$false)][string]$ManifestPath
+        [Parameter(Mandatory=$false)][string]$ManifestPath,
+        [Parameter(Mandatory=$false)][string]$TargetDir,
+        [Parameter(Mandatory=$false)][switch]$AllowMissingManifest
     )
     $resolvedManifest = if ($ManifestPath) { 
         $ManifestPath 
     } elseif (Test-Path (Join-Path $PSScriptRoot "..\integrity.manifest.json")) {
         Join-Path $PSScriptRoot "..\integrity.manifest.json"
+    } elseif (Test-Path (Join-Path $PSScriptRoot "..\..\integrity.manifest.json")) {
+        Join-Path $PSScriptRoot "..\..\integrity.manifest.json"
     } else {
         # Check registry for custom InstallLocation before defaulting
         $installLoc = $null
@@ -84,13 +88,29 @@ function Assert-SentinelIntegrity {
     }
 
     if (-not $resolvedManifest -or -not (Test-Path -LiteralPath $resolvedManifest)) {
+        if ($AllowMissingManifest) {
+            return $true
+        }
+        # In SYSTEM or production environments, missing manifest is a fail-closed integrity violation
+        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        if ($identity.User.Value -eq "S-1-5-18" -or (Test-Path "C:\Program Files\Sentinel-IT\integrity.manifest.json")) {
+            throw "Security Violation: Integrity manifest missing or inaccessible. Execution blocked under SYSTEM."
+        }
         return $true
     }
 
     try {
         $raw = Get-Content -LiteralPath $resolvedManifest -Raw -Encoding UTF8 | ConvertFrom-Json
-        $baseDir = Split-Path -Parent $resolvedManifest
+        $baseDir = if ($TargetDir -and (Test-Path -LiteralPath $TargetDir)) {
+            $TargetDir
+        } else {
+            Split-Path -Parent $resolvedManifest
+        }
         
+        if (-not $raw.files) {
+            throw "Integrity Violation: Manifest contains invalid or empty file table."
+        }
+
         foreach ($fileProp in $raw.files.PSObject.Properties) {
             $relPath = $fileProp.Name
             $expectedHash = $fileProp.Value

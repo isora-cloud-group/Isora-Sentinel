@@ -30,10 +30,11 @@ Describe "Sentinel-IT Engines Suite Tests" {
             $cmd.Parameters.ContainsKey("AuditOnly") | Should -Be $true
         }
 
-        It "Invoke-CleanupTempGlobal accepts -AuditOnly switch" {
+        It "Invoke-CleanupTempGlobal accepts -AuditOnly and -DaysOld parameters" {
             $scriptPath = Join-Path $script:EnginesDir "Invoke-CleanupTempGlobal.ps1"
             $cmd = Get-Command $scriptPath
             $cmd.Parameters.ContainsKey("AuditOnly") | Should -Be $true
+            $cmd.Parameters.ContainsKey("DaysOld") | Should -Be $true
         }
 
         It "Invoke-DefenderScan accepts -ScanType and -SkipSignatureUpdate parameters" {
@@ -43,16 +44,18 @@ Describe "Sentinel-IT Engines Suite Tests" {
             $cmd.Parameters.ContainsKey("SkipSignatureUpdate") | Should -Be $true
         }
 
-        It "Invoke-IntegrityCheck accepts -AutoRepair parameter" {
+        It "Invoke-IntegrityCheck accepts -AutoRepair and -QuickCheck parameters" {
             $scriptPath = Join-Path $script:EnginesDir "Invoke-IntegrityCheck.ps1"
             $cmd = Get-Command $scriptPath
             $cmd.Parameters.ContainsKey("AutoRepair") | Should -Be $true
+            $cmd.Parameters.ContainsKey("QuickCheck") | Should -Be $true
         }
 
-        It "Invoke-BitLockerAudit accepts -TargetMountPoint parameter" {
+        It "Invoke-BitLockerAudit accepts -TargetMountPoint and -IncludeRemovable parameters" {
             $scriptPath = Join-Path $script:EnginesDir "Invoke-BitLockerAudit.ps1"
             $cmd = Get-Command $scriptPath
             $cmd.Parameters.ContainsKey("TargetMountPoint") | Should -Be $true
+            $cmd.Parameters.ContainsKey("IncludeRemovable") | Should -Be $true
         }
 
         It "Invoke-EventAudit accepts -Hours and -FailedLogonThreshold parameters" {
@@ -60,6 +63,15 @@ Describe "Sentinel-IT Engines Suite Tests" {
             $cmd = Get-Command $scriptPath
             $cmd.Parameters.ContainsKey("Hours") | Should -Be $true
             $cmd.Parameters.ContainsKey("FailedLogonThreshold") | Should -Be $true
+        }
+
+        It "Invoke-ArchiveDownloads accepts -DaysOld, -CustomArchiveDir and -AuditOnly parameters" {
+            $scriptPath = Join-Path $script:EnginesDir "Invoke-ArchiveDownloads.ps1"
+            $cmd = Get-Command $scriptPath
+            $cmd.Parameters.ContainsKey("DaysOld") | Should -Be $true
+            $cmd.Parameters.ContainsKey("CustomArchiveDir") | Should -Be $true
+            $cmd.Parameters.ContainsKey("AuditOnly") | Should -Be $true
+            $cmd.Parameters.ContainsKey("IncludeSubdirectories") | Should -Be $true
         }
     }
 }

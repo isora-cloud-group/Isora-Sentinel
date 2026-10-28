@@ -61,4 +61,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-11-15
 
 ### Added
-- Initial standalone PowerShell automation scripts for endpoint hygiene and malware scanning.
+- Initial standalone PowerShell automation scripts for endpoint maintenance, hardening, and malware scanning.

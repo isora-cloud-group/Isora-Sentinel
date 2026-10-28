@@ -8,7 +8,8 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$TargetMountPoint
+    [string]$TargetMountPoint,
+    [switch]$IncludeRemovable
 )
 
 $ErrorActionPreference = "Continue"
@@ -17,6 +18,7 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_BitLocker_Audit"
+try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_BitLocker_Audit] - CRYPTOGRAPHIC COMPLIANCE START"
@@ -37,6 +39,9 @@ try {
     if ($hasBitLockerCmdlet) {
         try {
             $volumes = Get-BitLockerVolume -ErrorAction Stop
+            if (-not $IncludeRemovable) {
+                $volumes = $volumes | Where-Object { [string]$_.VolumeType -notmatch "Removable" }
+            }
             if ($TargetMountPoint) {
                 $volumes = $volumes | Where-Object { $_.MountPoint -eq $TargetMountPoint }
             }
@@ -79,6 +84,10 @@ try {
             $lines = $bdeOutput -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
             foreach ($line in $lines) {
                 Write-AuditEntry $line.Trim() -Level "INFO"
+                if ($line -match "Volume\s+([A-Z]:)") { $volumesAudited++ }
+                if ($line -match "Protection Off|Conversion Status:\s+Fully Decrypted|Percentage Encrypted:\s+0") {
+                    $unprotectedCount++
+                }
             }
         } catch {
             Write-AuditEntry "AUDIT NOTICE: BitLocker management utilities are not available or not supported on this Windows edition." -Level "WARN" -Metadata @{ Error = $_.Exception.Message }

@@ -20,6 +20,7 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Event_Audit"
+try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Event_Audit] - SECURITY EVENT LOG AUDIT START"
@@ -62,11 +63,35 @@ try {
             Write-AuditEntry "CRITICAL ANTI-FORENSICS ALERT: Security Audit Log was cleared." -Level "ERROR" -Metadata @{
                 EventID   = 1102
                 Timestamp = $ev.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
-                User      = $ev.UserId
+                User      = try { (New-Object System.Security.Principal.SecurityIdentifier($ev.UserId)).Translate([System.Security.Principal.NTAccount]).Value } catch { [string]$ev.UserId }
             }
         }
     } elseif (-not $AccessDeniedDetected) {
         Write-AuditEntry "AUDIT: No audit log clearance events detected in window." -Level "SUCCESS"
+    }
+
+    # 1.1. System Log Event 104: System Audit Log Cleared
+    try {
+        $SysClearEvents = Get-WinEvent -FilterHashtable @{
+            LogName      = "System"
+            ProviderName = "Microsoft-Windows-Eventlog"
+            Id           = 104
+            StartTime    = $StartTime
+        } -ErrorAction Stop
+    } catch {
+        $SysClearEvents = @()
+    }
+    if ($SysClearEvents -and $SysClearEvents.Count -gt 0) {
+        $AnomaliesDetected += $SysClearEvents.Count
+        foreach ($ev in $SysClearEvents) {
+            $uName = try { (New-Object System.Security.Principal.SecurityIdentifier($ev.UserId)).Translate([System.Security.Principal.NTAccount]).Value } catch { [string]$ev.UserId }
+            Write-AuditEntry "CRITICAL ANTI-FORENSICS ALERT: System Log was cleared (Event 104)." -Level "ERROR" -Metadata @{
+                EventID   = 104
+                LogName   = "System"
+                Timestamp = $ev.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
+                User      = $uName
+            }
+        }
     }
 
     # 2. Event 4625: Failed Logon Attempts (Brute Force Monitoring)

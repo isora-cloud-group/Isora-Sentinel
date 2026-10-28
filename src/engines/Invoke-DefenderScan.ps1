@@ -18,6 +18,7 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Defender_Scan"
+try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
 
 $ScanTypeName = if ($ScanType -eq "1") { "Quick Scan" } else { "Full Scan" }
 
@@ -74,9 +75,10 @@ try {
             ScanType = $ScanTypeName 
         }
     } elseif ($scanExitCode -eq 2) {
-        Write-AuditEntry "RESULT: Threat detected and remediation invoked by Defender engine." -Level "WARN" -Metadata @{ 
+        Write-AuditEntry "RESULT: Threat detected and remediation invoked by Defender engine." -Level "ERROR" -Metadata @{ 
             ExitCode = $scanExitCode; 
-            ScanType = $ScanTypeName 
+            ScanType = $ScanTypeName;
+            Alert    = "ActiveThreatDetected"
         }
     } else {
         Write-AuditEntry "RESULT: Scan ended with unexpected status code." -Level "WARN" -Metadata @{ 

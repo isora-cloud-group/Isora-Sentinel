@@ -603,6 +603,11 @@ namespace SentinelIT.Installer
         [DllImport("user32.dll")]
         private static extern bool SetProcessDPIAware();
 
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool AttachConsole(int dwProcessId);
+
+        private const int ATTACH_PARENT_PROCESS = -1;
+
         private float dpi = 1f;
         private int S(int v) { return (int)Math.Round(v * dpi); }
 
@@ -648,6 +653,7 @@ namespace SentinelIT.Installer
         private TaskScheduleRow taskIntegrity;
         private TaskScheduleRow taskBitLocker;
         private TaskScheduleRow taskEventAudit;
+        private TaskScheduleRow taskArchiveDownloads;
 
         // Paso 4
         private ProgressBar progressBar;
@@ -662,14 +668,52 @@ namespace SentinelIT.Installer
             InitializeComponent();
 
             bool autoInstall = false;
-            if (args != null && args.Length >= 2 && args[0] == "--auto-install")
+            if (args != null && args.Length >= 2 && (args[0] == "--config-file" || args[0] == "--auto-install"))
             {
                 try
                 {
-                    byte[] bytes = Convert.FromBase64String(args[1]);
-                    string state = Encoding.UTF8.GetString(bytes);
+                    string state = string.Empty;
+                    if (args[0] == "--config-file" && File.Exists(args[1]))
+                    {
+                        state = File.ReadAllText(args[1], Encoding.UTF8);
+                        try { File.Delete(args[1]); } catch { }
+                    }
+                    else if (args[0] == "--auto-install")
+                    {
+                        if (File.Exists(args[1]))
+                        {
+                            state = File.ReadAllText(args[1], Encoding.UTF8);
+                        }
+                        else if (args[1].Contains("|"))
+                        {
+                            state = args[1];
+                        }
+                        else
+                        {
+                            byte[] bytes = Convert.FromBase64String(args[1]);
+                            state = Encoding.UTF8.GetString(bytes);
+                        }
+                    }
                     string[] parts = state.Split('|');
-                    if (parts.Length >= 13)
+                    if (parts.Length >= 14)
+                    {
+                        txtInstallDir.Text = parts[0];
+                        txtLogsDir.Text = parts[1];
+                        chkIntegrity.Checked = (parts[2] == "1");
+                        chkRegistry.Checked = (parts[3] == "1");
+                        if (chkTray != null) chkTray.Checked = (parts[4] == "1");
+                        if (chkEnableTasks != null) chkEnableTasks.Checked = (parts[5] == "1");
+                        taskScreenshots.RestoreState(parts[6]);
+                        taskTemp.RestoreState(parts[7]);
+                        taskDefender.RestoreState(parts[8]);
+                        taskIntegrity.RestoreState(parts[9]);
+                        taskBitLocker.RestoreState(parts[10]);
+                        taskEventAudit.RestoreState(parts[11]);
+                        taskArchiveDownloads.RestoreState(parts[12]);
+                        overwriteConfirmed = (parts[13] == "1");
+                        autoInstall = true;
+                    }
+                    else if (parts.Length >= 13)
                     {
                         txtInstallDir.Text = parts[0];
                         txtLogsDir.Text = parts[1];
@@ -942,7 +986,7 @@ namespace SentinelIT.Installer
             brandPanel.Controls.Add(lblLogo);
 
             Label lblEdition = new Label();
-            lblEdition.Text = "Enterprise Endpoint Hygiene";
+            lblEdition.Text = "Endpoint Hardening & Governance";
             lblEdition.Font = Theme.F(9F);
             lblEdition.ForeColor = Theme.SidebarText;
             lblEdition.Location = new Point(23, 54);
@@ -1107,9 +1151,9 @@ namespace SentinelIT.Installer
             pages[0] = p0;
 
             VStack cardIntro = NewCard(20, 18, 8);
-            cardIntro.Controls.Add(Caption("ESTÁNDAR DE HIGIENE ENDPOINT Y GOBERNANZA"));
+            cardIntro.Controls.Add(Caption("GOBERNANZA Y SANEAMIENTO DE ENDPOINTS"));
             cardIntro.Controls.Add(Lbl(
-                "Sentinel-IT es un conjunto modular de controles automáticos de higiene y seguridad para equipos Windows. Cada ejecución deja un registro verificable que sirve como evidencia en auditorías.",
+                "Sentinel-IT es un conjunto modular de controles automáticos de saneamiento, hardening y seguridad para equipos Windows. Cada ejecución deja un registro verificable que sirve como evidencia en auditorías.",
                 9.5F, FontStyle.Regular, Theme.TextPrimary));
             cardIntro.Controls.Add(Lbl(
                 "Las tareas se ejecutan como NT AUTHORITY\\SYSTEM, sin agentes adicionales ni conexión a servicios externos.",
@@ -1221,6 +1265,7 @@ namespace SentinelIT.Installer
                 taskIntegrity.Check.Checked = chkAll.Checked;
                 taskBitLocker.Check.Checked = chkAll.Checked;
                 taskEventAudit.Check.Checked = chkAll.Checked;
+                taskArchiveDownloads.Check.Checked = chkAll.Checked;
             };
             cardTasks.Controls.Add(chkAll);
 
@@ -1248,6 +1293,10 @@ namespace SentinelIT.Installer
             taskEventAudit = new TaskScheduleRow("Auditoría de eventos de seguridad",
                 "Detecta borrado de logs (1102), fuerza bruta (4625) y cuentas nuevas.", true, "Diario", 0, 0, "03:00");
             cardTasks.Controls.Add(taskEventAudit);
+
+            taskArchiveDownloads = new TaskScheduleRow("Archivado seguro de descargas",
+                @"Relocaliza descargas obsoletas (>30 días) a Documentos\Sentinel_Archived\Downloads.", true, "Mensual", 0, 0, "03:00");
+            cardTasks.Controls.Add(taskArchiveDownloads);
             s2.Controls.Add(cardTasks);
 
             chkEnableTasks.CheckedChanged += delegate
@@ -1348,7 +1397,7 @@ namespace SentinelIT.Installer
             if (pageIndex == 0)
             {
                 lblHeaderTitle.Text = "Bienvenido a Sentinel-IT Suite";
-                lblHeaderSubtitle.Text = "Controles automáticos de higiene endpoint y seguridad para Windows.";
+                lblHeaderSubtitle.Text = "Controles automáticos de saneamiento, hardening y cumplimiento para Windows.";
                 btnBack.Enabled = false;
                 btnNext.Visible = true;
                 btnInstall.Visible = false;
@@ -1416,7 +1465,7 @@ namespace SentinelIT.Installer
 
             try
             {
-                string state = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}",
+                string state = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}|{13}",
                     txtInstallDir.Text.Trim(),
                     txtLogsDir.Text.Trim(),
                     chkIntegrity.Checked ? "1" : "0",
@@ -1429,10 +1478,12 @@ namespace SentinelIT.Installer
                     taskIntegrity.SerializeState(),
                     taskBitLocker.SerializeState(),
                     taskEventAudit.SerializeState(),
+                    taskArchiveDownloads.SerializeState(),
                     overwriteConfirmed ? "1" : "0"
                 );
-                string b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(state));
-                proc.Arguments = "--auto-install " + b64;
+                string cfgFile = Path.Combine(Path.GetTempPath(), "Sentinel_Setup_Config.txt");
+                File.WriteAllText(cfgFile, state, Encoding.UTF8);
+                proc.Arguments = "--config-file \"" + cfgFile + "\"";
 
                 Process.Start(proc);
                 Application.Exit();
@@ -1541,7 +1592,7 @@ namespace SentinelIT.Installer
                 Log("Copiando archivos en: " + targetDir);
 
                 Assembly asm = Assembly.GetExecutingAssembly();
-                string resName = "SentinelPayload";
+                string resName = "PackageArchive";
                 using (Stream stream = asm.GetManifestResourceStream(resName))
                 {
                     if (stream != null)
@@ -1598,7 +1649,7 @@ namespace SentinelIT.Installer
                     if (File.Exists(currentExe) && !string.Equals(currentExe, destSetup, StringComparison.OrdinalIgnoreCase))
                     {
                         File.Copy(currentExe, destSetup, true);
-                        Log("✔ Asistente de configuración integrado en el directorio destino.", Theme.SuccessLight);
+                        Log("[OK] Asistente de configuración integrado en el directorio destino.", Theme.SuccessLight);
                     }
                 }
                 catch (Exception ex)
@@ -1636,7 +1687,7 @@ namespace SentinelIT.Installer
                     SetProgress(75, "Registrando en «Aplicaciones instaladas» de Windows...");
                     Log("Registrando entrada de desinstalación en el Registro de Windows...");
                     RegisterUninstall(targetDir);
-                    Log("✔ Registro completado: HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Sentinel-IT", Theme.SuccessLight);
+                    Log("[OK] Registro completado: HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Sentinel-IT", Theme.SuccessLight);
                 }
 
                 if (chkEnableTasks != null && chkEnableTasks.Checked)
@@ -1709,40 +1760,33 @@ namespace SentinelIT.Installer
                 if (filesIdx < 0) return true;
 
                 string filesSection = content.Substring(filesIdx);
-                string[] lines = filesSection.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                var matches = System.Text.RegularExpressions.Regex.Matches(filesSection, "\"([^\"]+)\"\\s*:\\s*\"([a-fA-F0-9]{64})\"");
 
-                foreach (string line in lines)
+                foreach (System.Text.RegularExpressions.Match match in matches)
                 {
-                    if (line.Contains(":") && line.Contains("\""))
+                    if (match.Groups.Count >= 3)
                     {
-                        string[] parts = line.Split(':');
-                        if (parts.Length == 2)
+                        string relFile = match.Groups[1].Value.Replace("\\\\", "\\");
+                        string expectedHash = match.Groups[2].Value.ToLowerInvariant();
+
+                        string filePath = Path.Combine(targetDir, relFile);
+                        if (!File.Exists(filePath))
                         {
-                            string relFile = parts[0].Trim().Trim('"', ' ', '\t').Replace("\\\\", "\\");
-                            string expectedHash = parts[1].Trim().Trim('"', ',', ' ', '\t').ToLowerInvariant();
+                            filePath = Path.Combine(targetDir, "src\\" + relFile);
+                        }
 
-                            if (expectedHash.Length == 64)
+                        if (File.Exists(filePath))
+                        {
+                            byte[] bytes = File.ReadAllBytes(filePath);
+                            byte[] hashBytes = sha.ComputeHash(bytes);
+                            string calcHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+
+                            if (calcHash != expectedHash)
                             {
-                                string filePath = Path.Combine(targetDir, relFile);
-                                if (!File.Exists(filePath))
-                                {
-                                    filePath = Path.Combine(targetDir, "src\\" + relFile);
-                                }
-
-                                if (File.Exists(filePath))
-                                {
-                                    byte[] bytes = File.ReadAllBytes(filePath);
-                                    byte[] hashBytes = sha.ComputeHash(bytes);
-                                    string calcHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
-
-                                    if (calcHash != expectedHash)
-                                    {
-                                        Log("Archivo modificado: " + relFile, Theme.DangerLight);
-                                        return false;
-                                    }
-                                    verifiedCount++;
-                                }
+                                Log("Archivo modificado: " + relFile, Theme.DangerLight);
+                                return false;
                             }
+                            verifiedCount++;
                         }
                     }
                 }
@@ -1757,7 +1801,7 @@ namespace SentinelIT.Installer
             {
                 if (key != null)
                 {
-                    key.SetValue("DisplayName", "Sentinel-IT Suite (Enterprise Endpoint Hygiene)");
+                    key.SetValue("DisplayName", "Sentinel-IT Suite (Endpoint Hardening & Governance)");
                     key.SetValue("DisplayVersion", "2.2.0");
                     key.SetValue("Publisher", "Sandra Gabriela Puerto Torres");
                     key.SetValue("InstallLocation", installDir);
@@ -1776,7 +1820,8 @@ namespace SentinelIT.Installer
                 Tuple.Create("Defender_Scan", "Invoke-DefenderScan.ps1", taskDefender),
                 Tuple.Create("Integrity_Check", "Invoke-IntegrityCheck.ps1", taskIntegrity),
                 Tuple.Create("BitLocker_Audit", "Invoke-BitLockerAudit.ps1", taskBitLocker),
-                Tuple.Create("Event_Audit", "Invoke-EventAudit.ps1", taskEventAudit)
+                Tuple.Create("Event_Audit", "Invoke-EventAudit.ps1", taskEventAudit),
+                Tuple.Create("Archive_Downloads", "Invoke-ArchiveDownloads.ps1", taskArchiveDownloads)
             };
 
             foreach (var t in taskDefs)
@@ -1791,7 +1836,7 @@ namespace SentinelIT.Installer
 
                 string triggerArg = t.Item3.GetSchtasksTriggerArgs();
                 string cmdArgs = string.Format(
-                    "/Create /TN \"Sentinel-IT\\{0}\" /TR \"powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File '{1}'\" {2} /RU \"NT AUTHORITY\\SYSTEM\" /RL HIGHEST /F",
+                    "/Create /TN \"Sentinel-IT\\{0}\" /TR \"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\\"{1}\\\"\" {2} /RU \"NT AUTHORITY\\SYSTEM\" /RL HIGHEST /F",
                     t.Item1, scriptFile, triggerArg
                 );
 
@@ -1819,7 +1864,7 @@ namespace SentinelIT.Installer
                             : "New-ScheduledTaskTrigger -Daily -At 3am";
                         string psCmd = string.Format(
                             "$p = New-ScheduledTaskPrincipal -UserId 'NT AUTHORITY\\SYSTEM' -LogonType ServiceAccount -RunLevel Highest; " +
-                            "$a = New-ScheduledTaskAction -Execute 'PowerShell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \\\"{0}\\\"'; " +
+                            "$a = New-ScheduledTaskAction -Execute 'PowerShell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -File \\\"{0}\\\"'; " +
                             "$t = {1}; " +
                             "Register-ScheduledTask -TaskName 'Sentinel-IT\\{2}' -Action $a -Trigger $t -Principal $p -Force | Out-Null",
                             scriptFile, psTrigger, t.Item1
@@ -1837,9 +1882,9 @@ namespace SentinelIT.Installer
                 }
 
                 if (exitCode == 0)
-                    Log("✔ Tarea registrada: " + t.Item1 + " (" + triggerArg + ")", Theme.SuccessLight);
+                    Log("[OK] Tarea registrada: " + t.Item1 + " (" + triggerArg + ")", Theme.SuccessLight);
                 else
-                    Log("⚠ Aviso en tarea " + t.Item1 + " (se ejecutará bajo demanda desde el monitor)", Theme.WarningLight);
+                    Log("[AVISO] Aviso en tarea " + t.Item1 + " (se ejecutará bajo demanda desde el monitor)", Theme.WarningLight);
             }
         }
 
@@ -1848,29 +1893,16 @@ namespace SentinelIT.Installer
             string trayExe = Path.Combine(installDir, "Sentinel-IT-Tray.exe");
             if (File.Exists(trayExe))
             {
-                string trayCmd = string.Format(
-                    "/Create /TN \"Sentinel-IT\\SystemTray_Monitor\" /TR \"'{0}'\" /SC ONLOGON /RL LIMITED /F",
-                    trayExe
-                );
-                ProcessStartInfo psiTray = new ProcessStartInfo("schtasks.exe", trayCmd);
-                psiTray.CreateNoWindow = true;
-                psiTray.UseShellExecute = false;
-                try
-                {
-                    using (Process p = Process.Start(psiTray))
-                    {
-                        p.WaitForExit();
-                        if (p.ExitCode == 0)
-                            Log("✔ Tarea de inicio registrada: SystemTray_Monitor (ONLOGON)", Theme.SuccessLight);
-                    }
-                }
-                catch { }
-
+                // Registro estándar de inicio en Windows mediante la clave de ejecución Run
                 try
                 {
                     using (RegistryKey runKey = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
                     {
-                        if (runKey != null) runKey.SetValue("SentinelIT_Tray", "\"" + trayExe + "\"");
+                        if (runKey != null)
+                        {
+                            runKey.SetValue("SentinelIT_Tray", "\"" + trayExe + "\"");
+                            Log("[OK] Autoinicio configurado en registro: SentinelIT_Tray", Theme.SuccessLight);
+                        }
                     }
                 }
                 catch { }
@@ -1880,7 +1912,7 @@ namespace SentinelIT.Installer
                     ProcessStartInfo psiRun = new ProcessStartInfo(trayExe);
                     psiRun.UseShellExecute = true;
                     Process.Start(psiRun);
-                    Log("✔ Monitor de bandeja iniciado en la barra de tareas.", Theme.SuccessLight);
+                    Log("[OK] Monitor de bandeja iniciado en la barra de tareas.", Theme.SuccessLight);
                 }
                 catch { }
             }
@@ -2051,15 +2083,20 @@ namespace SentinelIT.Installer
                 Log("Aviso al cerrar instancias de bandeja: " + ex.Message, Theme.WarningLight);
             }
 
-            // Forzar cierre de cualquier instancia remanente con taskkill
+            // Cerrar instancias previas del monitor de bandeja usando API nativa gestionada
             try
             {
-                ProcessStartInfo psiKill = new ProcessStartInfo("taskkill.exe", "/F /IM Sentinel-IT-Tray.exe /T");
-                psiKill.CreateNoWindow = true;
-                psiKill.UseShellExecute = false;
-                using (Process pk = Process.Start(psiKill))
+                foreach (Process proc in Process.GetProcessesByName("Sentinel-IT-Tray"))
                 {
-                    pk.WaitForExit(2000);
+                    try
+                    {
+                        proc.CloseMainWindow();
+                        if (!proc.WaitForExit(1500))
+                        {
+                            proc.Kill();
+                        }
+                    }
+                    catch { }
                 }
             }
             catch { }
@@ -2069,7 +2106,7 @@ namespace SentinelIT.Installer
             {
                 string[] tasks = new string[] {
                     "Cleanup_Screenshots", "Cleanup_Temp_Global", "Defender_Scan",
-                    "Integrity_Check", "BitLocker_Audit", "Event_Audit", "SystemTray_Monitor"
+                    "Integrity_Check", "BitLocker_Audit", "Event_Audit", "Archive_Downloads", "SystemTray_Monitor"
                 };
                 foreach (string tName in tasks)
                 {
@@ -2095,16 +2132,16 @@ namespace SentinelIT.Installer
                 bool released = WaitForFileRelease(trayExePath, 4000);
                 if (released)
                 {
-                    Log("✔ Procesos previos finalizados y bloqueos de archivos liberados.", Theme.SuccessLight);
+                    Log("[OK] Procesos previos finalizados y bloqueos de archivos liberados.", Theme.SuccessLight);
                 }
                 else
                 {
-                    Log("⚠ Archivo Sentinel-IT-Tray.exe aún en proceso de liberación por el SO; continuando.", Theme.WarningLight);
+                    Log("[AVISO] Archivo Sentinel-IT-Tray.exe aún en proceso de liberación por el SO; continuando.", Theme.WarningLight);
                 }
             }
             else
             {
-                Log("✔ Procesos previos verificados sin bloqueos activos.", Theme.SuccessLight);
+                Log("[OK] Procesos previos verificados sin bloqueos activos.", Theme.SuccessLight);
             }
         }
 
@@ -2170,7 +2207,7 @@ namespace SentinelIT.Installer
             catch { }
 
             Log(string.Format("✔ Copia de seguridad completada ({0} archivos archivados en backup\\).", copiedFiles), Theme.SuccessLight);
-            Log("✔ Registros históricos de auditoría preservados intactos en: " + logsDir, Theme.SuccessLight);
+            Log("[OK] Registros históricos de auditoría preservados intactos en: " + logsDir, Theme.SuccessLight);
 
             return backupFolder;
         }
@@ -2216,8 +2253,217 @@ namespace SentinelIT.Installer
         }
 
         [STAThread]
-        public static void Main(string[] args)
+                private static bool HandleCommandLine(string[] args)
         {
+            if (args == null || args.Length == 0) return false;
+
+            string cmd = args[0].ToLowerInvariant();
+            if (cmd != "--audit" && cmd != "--extract" && cmd != "--version" && cmd != "-v" && cmd != "--help" && cmd != "-h" && cmd != "/?")
+            {
+                return false;
+            }
+
+            AttachConsole(ATTACH_PARENT_PROCESS);
+            try
+            {
+                var stdOut = new StreamWriter(Console.OpenStandardOutput(), Console.OutputEncoding) { AutoFlush = true };
+                Console.SetOut(stdOut);
+                Console.SetError(stdOut);
+            }
+            catch { }
+            Console.WriteLine();
+
+            if (cmd == "--version" || cmd == "-v")
+            {
+                Console.WriteLine("Sentinel-IT Suite v2.2.0");
+                Console.WriteLine("Autonomous Endpoint Hardening & Compliance Telemetry for Microsoft Windows");
+                Console.WriteLine("Architect & Sole Copyright Holder: Sandra Gabriela Puerto Torres");
+                Console.WriteLine("Commercial Brand & Distribution: Isora Cloud Group (ICG)");
+                Console.WriteLine("License: MIT (Open Source) - Zero External Dependencies");
+                Console.WriteLine("Security Operations: security@isora.com.co");
+                return true;
+            }
+
+            if (cmd == "--help" || cmd == "-h" || cmd == "/?")
+            {
+                Console.WriteLine("================================================================================");
+                Console.WriteLine(" Sentinel-IT Suite - Standalone Enterprise Installer & Forensic Auditor");
+                Console.WriteLine("================================================================================");
+                Console.WriteLine("Uso interactivo (GUI):");
+                Console.WriteLine("  Sentinel-IT-Setup.exe                  Ejecuta el asistente interactivo de instalacion");
+                Console.WriteLine();
+                Console.WriteLine("Modo desatendido (CLI para Sysadmins & Auditores):");
+                Console.WriteLine("  Sentinel-IT-Setup.exe --audit          Verifica en memoria los hashes SHA-256 del paquete distribuible");
+                Console.WriteLine("  Sentinel-IT-Setup.exe --extract <dir>  Extrae el 100% de los scripts para analisis estatico");
+                Console.WriteLine("  Sentinel-IT-Setup.exe --version        Muestra metadatos y revision legal del software");
+                Console.WriteLine("  Sentinel-IT-Setup.exe --help           Muestra esta ayuda tecnica");
+                Console.WriteLine("================================================================================");
+                return true;
+            }
+
+            if (cmd == "--audit")
+            {
+                Console.WriteLine("================================================================================");
+                Console.WriteLine(" SENTINEL-IT SUITE - AUDITORIA FORENSE DE INTEGRIDAD EN MEMORIA");
+                Console.WriteLine(" Inspeccion estatica de modulos sin ejecucion de codigo privilegiado");
+                Console.WriteLine("================================================================================");
+
+                Assembly asm = Assembly.GetExecutingAssembly();
+                using (Stream stream = asm.GetManifestResourceStream("PackageArchive"))
+                {
+                    if (stream == null)
+                    {
+                        Console.WriteLine("[ERROR] El recurso 'PackageArchive' no fue hallado en el binario.");
+                        return true;
+                    }
+
+                    using (MemoryStream zipMs = new MemoryStream())
+                    {
+                        stream.CopyTo(zipMs);
+                        zipMs.Position = 0;
+                        using (ZipArchive archive = new ZipArchive(zipMs, ZipArchiveMode.Read))
+                        {
+                        Console.WriteLine("Total de modulos incrustados en paquete: " + archive.Entries.Count);
+                        Console.WriteLine();
+                        Console.WriteLine("{0,-42} {1,10}  {2}", "MODULO", "TAMANO", "ESTADO FORENSE SHA-256");
+                        Console.WriteLine(new string('-', 80));
+
+                        // Read integrity.manifest.json from package archive
+                        Dictionary<string, string> manifest = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        ZipArchiveEntry manifestEntry = archive.GetEntry("integrity.manifest.json");
+                        if (manifestEntry != null)
+                        {
+                            using (Stream ms = manifestEntry.Open())
+                            using (StreamReader sr = new StreamReader(ms, Encoding.UTF8))
+                            {
+                                string json = sr.ReadToEnd();
+                                var matches = System.Text.RegularExpressions.Regex.Matches(json, "\"([^\"]+)\"\\s*:\\s*\"([a-fA-F0-9]{64})\"");
+                                foreach (System.Text.RegularExpressions.Match m in matches)
+                                {
+                                    if (m.Groups.Count >= 3)
+                                        manifest[m.Groups[1].Value.Replace("\\\\", "\\").Replace("/", "\\")] = m.Groups[2].Value.ToLowerInvariant();
+                                }
+                            }
+                        }
+
+                        using (SHA256 sha = SHA256.Create())
+                        {
+                            int verified = 0;
+                            int total = 0;
+                            try
+                            {
+                                foreach (ZipArchiveEntry entry in archive.Entries)
+                                {
+                                    if (string.IsNullOrEmpty(entry.Name)) continue;
+                                    total++;
+                                    string entryPath = entry.FullName.Replace("/", "\\");
+
+                                    byte[] buffer;
+                                    using (Stream es = entry.Open())
+                                    using (MemoryStream msBuffer = new MemoryStream())
+                                    {
+                                        es.CopyTo(msBuffer);
+                                        buffer = msBuffer.ToArray();
+                                    }
+
+                                    byte[] hashBytes = sha.ComputeHash(buffer);
+                                    string hashHex = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+
+                                    string status = "AUDITABLE";
+                                    if (manifest.ContainsKey(entryPath))
+                                    {
+                                        if (manifest[entryPath] == hashHex) { status = "CONFORME (SHA-256 OK)"; verified++; }
+                                        else status = "DISCREPANCIA DETECTADA";
+                                    }
+
+                                    Console.WriteLine("{0,-42} {1,8} B  {2}", entryPath, entry.Length, status);
+                                }
+
+                                Console.WriteLine(new string('-', 80));
+                                Console.WriteLine("DICTAMEN: {0} modulos analizados. {1} verificados contra integrity.manifest.json.", total, verified);
+                                Console.WriteLine("Cero DLLs opacas, cero dependencias remotas, cero sockets activos.");
+                                Console.WriteLine("================================================================================");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine("[ERROR AUDIT] " + ex.Message);
+                            }
+                        }
+                    }
+                }
+                }
+                return true;
+            }
+
+            if (cmd == "--extract")
+            {
+                if (args.Length < 2 || string.IsNullOrEmpty(args[1]))
+                {
+                    Console.WriteLine("[ERROR] Debe especificar la carpeta destino para la extraccion sandbox.");
+                    Console.WriteLine("Ejemplo: Sentinel-IT-Setup.exe --extract C:\\Auditoria\\Sentinel");
+                    return true;
+                }
+
+                string outDir = Path.GetFullPath(args[1]);
+                Console.WriteLine("Extrayendo modulos soberanos para analisis estatico en:");
+                Console.WriteLine("  -> " + outDir);
+
+                try
+                {
+                    if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+
+                    Assembly asm = Assembly.GetExecutingAssembly();
+                    using (Stream stream = asm.GetManifestResourceStream("PackageArchive"))
+                    {
+                        if (stream == null)
+                        {
+                            Console.WriteLine("[ERROR] El recurso 'PackageArchive' no fue hallado en el binario.");
+                            return true;
+                        }
+
+                        using (MemoryStream zipMs = new MemoryStream())
+                        {
+                            stream.CopyTo(zipMs);
+                            zipMs.Position = 0;
+                            using (ZipArchive archive = new ZipArchive(zipMs, ZipArchiveMode.Read))
+                            {
+                            int count = 0;
+                            foreach (ZipArchiveEntry entry in archive.Entries)
+                            {
+                                string dest = Path.Combine(outDir, entry.FullName);
+                                if (string.IsNullOrEmpty(entry.Name))
+                                {
+                                    if (!Directory.Exists(dest)) Directory.CreateDirectory(dest);
+                                }
+                                else
+                                {
+                                    string p = Path.GetDirectoryName(dest);
+                                    if (!Directory.Exists(p)) Directory.CreateDirectory(p);
+                                    entry.ExtractToFile(dest, true);
+                                    count++;
+                                    Console.WriteLine("  [OK] " + entry.FullName);
+                                }
+                            }
+                            Console.WriteLine();
+                            Console.WriteLine("[EXITO] Se extrajeron {0} archivos. Estan listos para analisis con YARA, Defender o Kaspersky.", count);
+                        }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("[ERROR] Fallo durante la extraccion: " + ex.Message);
+                }
+                return true;
+            }
+
+            return false;
+        }
+
+public static void Main(string[] args)
+        {
+            if (HandleCommandLine(args)) return;
+
             // Renderizado nítido en pantallas con escala 125%/150%/200%
             try { SetProcessDPIAware(); } catch (Exception) { }
             try

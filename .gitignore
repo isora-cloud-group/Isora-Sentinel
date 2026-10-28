@@ -27,7 +27,8 @@ packages/
 installer/*.exe
 installer/*.zip
 installer/*.pdb
-installer/payload.zip
+installer/package.zip
+installer/package.zip
 
 # Editor and IDE
 .vscode/

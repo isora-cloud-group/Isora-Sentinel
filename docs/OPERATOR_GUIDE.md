@@ -2,7 +2,6 @@
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Agentic AI Implementation:** Google Antigravity AI Engine  
 **Software Version:** 2.2.0  
 **Target Operating Systems:** Windows 10 (1809+), Windows 11, Windows Server 2016 / 2019 / 2022 / 2025  
 **Execution Runtimes:** Windows PowerShell 5.1+ or PowerShell Core 7+ (`pwsh`)  
@@ -12,7 +11,7 @@
 
 ## 1. Introduction & Operational Scope
 
-**Sentinel-IT** is an enterprise endpoint hygiene and regulatory governance suite for corporate Microsoft Windows environments. Designed under a modular **Hub-and-Spoke** architecture, it separates shared core libraries and telemetry modules (`src/lib/`) from isolated, purpose-built execution engines (`src/engines/`).
+**Sentinel-IT** is an enterprise endpoint hardening and regulatory governance suite for corporate Microsoft Windows environments. Designed under a modular **Hub-and-Spoke** architecture, it separates shared core libraries and telemetry modules (`src/lib/`) from isolated, purpose-built execution engines (`src/engines/`).
 
 Each routine maps directly to international standards (**ISO/IEC 27001:2022** and **ISO/IEC 20000-1:2018**), outputting immutable, RFC 8259-compliant NDJSON forensic logs ready for immediate ingestion by enterprise SIEM platforms (Splunk, Elastic, Datadog, Microsoft Sentinel).
 
@@ -36,17 +35,27 @@ Sentinel-IT offers three deployment workflows tailored to different operational 
 Ideal for systems administrators, desktop support engineers, and standalone workstations:
 
 1. Launch `Sentinel-IT-Setup.exe` with Administrator privileges (prompts for standard Windows UAC elevation).
-2. The installation wizard features an enterprise dark-mode sidebar with four structured steps:
+2. The installation wizard features an enterprise setup wizard with four structured steps:
    * **Step 1 (Welcome & Scope):** Displays compliance overview (ISO 27001 / ISO 20000-1 / SOC 2) and validates local administrator privileges.
    * **Step 2 (Paths & Integrity):**
      * Installation Directory: Defaults to `C:\Program Files\Sentinel-IT` (hardened with strict NTFS ACLs).
      * Forensic Log Directory: Defaults to `C:\Program Files\Sentinel-IT\logs`.
-     * Pre-Flight SHA-256 Validation: Verifies payload hashes against `integrity.manifest.json` before writing files to disk.
+     * Pre-Flight SHA-256 Validation: Verifies package hashes against `integrity.manifest.json` before writing files to disk.
      * Control Panel Registration: Enables Windows *Installed Apps* / *Programs and Features* registration.
-   * **Step 3 (SYSTEM Scheduled Tasks):** Select which of the 6 automated routines to schedule, with configurable execution frequencies (Daily / Weekly).
+   * **Step 3 (SYSTEM Scheduled Tasks):** Select which of the 7 automated routines to schedule, with configurable execution frequencies (Daily / Weekly / Monthly).
    * **Step 4 (Installation & Telemetry):**
-     * Click **"🚀 Instalar Suite"**.
+     * Click **"Instalar Suite"**.
      * The installer detects any pre-existing installation, prompts for confirmation, gracefully closes old running processes, creates an audit backup archive (`backup/archive_YYYYMMDD_HHMMSS_vX_Y_Z/`), preserves historical logs, extracts fresh modules, validates SHA-256 hashes, registers the tasks under `NT AUTHORITY\SYSTEM`, and launches the System Tray Monitor.
+
+#### Non-Interactive & Forensic CLI Flags for `Sentinel-IT-Setup.exe`:
+Enterprise SOC teams, auditors, and blue teams can inspect the installer without launching the GUI:
+
+| Parameter | Function | Example |
+| :--- | :--- | :--- |
+| `--audit` | Performs an in-memory SHA-256 integrity check of all embedded package files against the internal manifest. Returns exit code 0 if all digests match. | `.\Sentinel-IT-Setup.exe --audit` |
+| `--extract <dir>` | Decompresses and extracts the full source package into the designated directory for offline static code analysis. | `.\Sentinel-IT-Setup.exe --extract C:\Sandbox\Review` |
+| `--version` | Prints the assembly product, version, and copyright details. | `.\Sentinel-IT-Setup.exe --version` |
+| `--help` | Displays command line usage and available parameters. | `.\Sentinel-IT-Setup.exe --help` |
 
 ---
 
@@ -146,6 +155,18 @@ powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-EventAudit.ps1
 
 # Audit past 48 hours with custom failed logon threshold (5):
 powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-EventAudit.ps1 -Hours 48 -FailedLogonThreshold 5
+```
+
+### 4.7. Aged Downloads Relocation & Archival (ISO 27001 A.8.10)
+```powershell
+# Safe simulation (identifies aged downloads without moving files):
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1 -AuditOnly
+
+# Production execution (relocates files older than 30 days to Documents\Sentinel_Archived\Downloads):
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1
+
+# Custom aging threshold (60 days) with explicit destination path:
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1 -DaysOld 60 -CustomArchiveDir "D:\CorporateArchive\Downloads"
 ```
 
 ---

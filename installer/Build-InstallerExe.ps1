@@ -3,13 +3,14 @@
     Builds the standalone GUI Installer executable (Sentinel-IT-Setup.exe) for Sentinel-IT.
 .DESCRIPTION
     1. Updates cryptographic integrity manifest (integrity.manifest.json).
-    2. Packages source modules, license, uninstaller, and manifest into an embedded payload.
+    2. Packages source modules, license, uninstaller, and manifest into an embedded package archive.
     3. Compiles the C# Windows Forms installer using Microsoft .NET Framework csc.exe.
     4. Generates an institutional audit provenance receipt (BUILD_PROVENANCE.json).
     Requires ZERO administrator privileges to compile.
 #>
 param(
-    [string]$OutputName = "Sentinel-IT-Setup.exe"
+    [string]$OutputName = "Sentinel-IT-Setup.exe",
+    [string]$CertThumbprint = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,6 +35,22 @@ $AsmInfo = Join-Path $ScriptDir "src\AssemblyInfo.cs"
 $AppManifest = Join-Path $ScriptDir "src\app.manifest"
 $AppIcon = Join-Path $ScriptDir "src\app.ico"
 $AppSvg  = Join-Path $ScriptDir "src\app.svg"
+
+# Discover Authenticode Code Signing Certificate
+$codeCert = $null
+if ($CertThumbprint) {
+    $codeCert = Get-Item "Cert:\CurrentUser\My\$CertThumbprint", "Cert:\LocalMachine\My\$CertThumbprint" -ErrorAction SilentlyContinue | Select-Object -First 1
+} else {
+    $codeCert = Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My -CodeSigningCert -ErrorAction SilentlyContinue | 
+        Where-Object { $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date) } | 
+        Sort-Object NotAfter -Descending | 
+        Select-Object -First 1
+}
+if ($codeCert) {
+    Write-Host "[*] Certificado Code Signing localizado: $($codeCert.Subject) (Vence: $($codeCert.NotAfter))" -ForegroundColor Cyan
+} else {
+    Write-Host "[i] No se detecto certificado Code Signing. El binario se compilara sin firma." -ForegroundColor Gray
+}
 
 # 2. Compile System Tray Monitor to temporary staging location (to embed inside Setup)
 Write-Host "`n[*] Compilando monitor de bandeja en entorno temporal para incrustación..." -ForegroundColor Yellow
@@ -67,18 +84,29 @@ $procTray = Start-Process -FilePath $cscPath -ArgumentList $trayArgs -NoNewWindo
 if ($procTray.ExitCode -ne 0 -or -not (Test-Path $TrayExe)) {
     throw "Fallo al compilar Sentinel-IT-Tray.exe (código de salida: $($procTray.ExitCode))."
 }
-Write-Host "[SUCCESS] Monitor de bandeja compilado y listo para incrustar en el instalador ($([math]::Round((Get-Item $TrayExe).Length / 1024, 2)) KB)" -ForegroundColor Green
+Write-Host "[SUCCESS] Monitor de bandeja compilado ($([math]::Round((Get-Item $TrayExe).Length / 1024, 2)) KB)" -ForegroundColor Green
+if ($codeCert) {
+    try {
+        Write-Host "[*] Firmando digitalmente Sentinel-IT-Tray.exe con Authenticode..." -ForegroundColor Yellow
+        $sigTray = Set-AuthenticodeSignature -FilePath $TrayExe -Certificate $codeCert -HashAlgorithm SHA256 -TimestampServer "http://timestamp.digicert.com" -ErrorAction SilentlyContinue
+        if ($sigTray.Status -eq "Valid") {
+            Write-Host "[SUCCESS] Sentinel-IT-Tray.exe firmado con éxito por $($codeCert.Subject)" -ForegroundColor Green
+        }
+    } catch {
+        Write-Warning "No se pudo firmar Sentinel-IT-Tray.exe: $($_.Exception.Message)"
+    }
+}
 
 # 3. Regenerate SHA-256 Integrity Manifest
 Write-Host "`n[*] Regenerando manifiesto de integridad SHA-256..." -ForegroundColor Yellow
 $manifestScript = Join-Path $ScriptDir "Build-IntegrityManifest.ps1"
 & $manifestScript -ProjectRoot $ProjectRoot
 
-# 4. Prepare Embedded Payload Zip
-$TempZip = Join-Path $ScriptDir "payload.zip"
+# 4. Prepare Embedded Package Archive Zip
+$TempZip = Join-Path $ScriptDir "package.zip"
 if (Test-Path $TempZip) { Remove-Item $TempZip -Force }
 
-Write-Host "[*] Empaquetando payload soberano auto-contenido..." -ForegroundColor Yellow
+Write-Host "[*] Empaquetando distribución soberana auto-contenida..." -ForegroundColor Yellow
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
@@ -165,7 +193,7 @@ try {
 }
 
 $zipSizeKb = (Get-Item $TempZip).Length / 1024
-Write-Host "[SUCCESS] Payload empaquetado ($([math]::Round($zipSizeKb, 2)) KB) con $($bundledFiles.Count) modulos soberanos." -ForegroundColor Green
+Write-Host "[SUCCESS] Paquete de instalación empaquetado ($([math]::Round($zipSizeKb, 2)) KB) con $($bundledFiles.Count) modulos soberanos." -ForegroundColor Green
 
 # 5. Determine Target Output Executable Path
 $OutputExe = Join-Path $ScriptDir $OutputName
@@ -204,7 +232,7 @@ $cscArgs = @(
     "/reference:System.Drawing.dll",
     "/reference:System.IO.Compression.dll",
     "/reference:System.IO.Compression.FileSystem.dll",
-    "/resource:$TempZip,SentinelPayload",
+    "/resource:$TempZip,PackageArchive",
     "/out:$OutputExe",
     $CsSource,
     $AsmInfo
@@ -216,7 +244,7 @@ if (Test-Path $AppIcon) {
 
 $proc = Start-Process -FilePath $cscPath -ArgumentList $cscArgs -NoNewWindow -Wait -PassThru
 
-# 5. Clean up temporary payload zip and intermediate build directory
+# 5. Clean up temporary package zip and intermediate build directory
 if (Test-Path $TempZip) {
     Remove-Item $TempZip -Force
 }
@@ -233,8 +261,24 @@ $looseTrayPdb = Join-Path $ScriptDir "Sentinel-IT-Tray.pdb"
 if (Test-Path $looseTrayPdb) { Remove-Item $looseTrayPdb -Force -ErrorAction SilentlyContinue }
 
 if ($proc.ExitCode -eq 0 -and (Test-Path $OutputExe)) {
+    # Firmar digitalmente el ejecutable del instalador con Authenticode y Timestamp RFC 3161
+    if ($codeCert) {
+        Write-Host "`n[*] Aplicando firma digital Authenticode (SHA-256) con DigiCert Timestamp..." -ForegroundColor Yellow
+        try {
+            $sigExe = Set-AuthenticodeSignature -FilePath $OutputExe -Certificate $codeCert -HashAlgorithm SHA256 -TimestampServer "http://timestamp.digicert.com" -ErrorAction SilentlyContinue
+            if ($sigExe.Status -eq "Valid") {
+                Write-Host "[SUCCESS] Firma digital Authenticode verificada con éxito: Status=Valid" -ForegroundColor Green
+            } else {
+                Write-Host "[!] Estado de firma: $($sigExe.Status) ($($sigExe.StatusMessage))" -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Warning "Fallo durante el firmado Authenticode: $($_.Exception.Message)"
+        }
+    }
+
     $exeSizeKb = (Get-Item $OutputExe).Length / 1024
     $exeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $OutputExe).Hash
+    $sigCheck = Get-AuthenticodeSignature -FilePath $OutputExe -ErrorAction SilentlyContinue
 
     # 6. Generate Institutional Provenance Receipt (BUILD_PROVENANCE.json)
     $provenance = [ordered]@{
@@ -247,6 +291,10 @@ if ($proc.ExitCode -eq 0 -and (Test-Path $OutputExe)) {
         compiler_flags = "/target:winexe /optimize+ /platform:anycpu"
         sha256 = $exeHash
         size_bytes = (Get-Item $OutputExe).Length
+        signed = ($sigCheck.Status -eq "Valid")
+        signer = if ($sigCheck.SignerCertificate) { $sigCheck.SignerCertificate.Subject } else { "Unsigned" }
+        signer_thumbprint = if ($sigCheck.SignerCertificate) { $sigCheck.SignerCertificate.Thumbprint } else { $null }
+        timestamp_server = if ($sigCheck.TimeStamperCertificate) { $sigCheck.TimeStamperCertificate.Subject } else { $null }
         bundled_files = $bundledFiles
     }
     $provJsonPath = Join-Path $ScriptDir "BUILD_PROVENANCE.json"

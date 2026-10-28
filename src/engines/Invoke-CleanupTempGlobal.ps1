@@ -8,7 +8,8 @@
 #>
 [CmdletBinding()]
 param(
-    [switch]$AuditOnly
+    [switch]$AuditOnly,
+    [int]$DaysOld = 0
 )
 
 $ErrorActionPreference = "Continue"
@@ -17,6 +18,7 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Cleanup_Temp_Global"
+try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Cleanup_Temp_Global] - CAPACITY RECLAMATION START"
@@ -50,7 +52,11 @@ function Clean-Directory {
 
             # Sort descending by length so child items and subfiles are deleted before parent folders
             $SortedItems = $Items | Sort-Object { $_.FullName.Length } -Descending
+            $cutoffDate = if ($DaysOld -gt 0) { (Get-Date).AddDays(-$DaysOld) } else { $null }
             foreach ($Item in $SortedItems) {
+                if ($cutoffDate -and $Item.LastWriteTime -ge $cutoffDate) {
+                    continue
+                }
                 if ($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
                     continue
                 }

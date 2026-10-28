@@ -2,8 +2,9 @@
 .SYNOPSIS
     Unit tests for Sentinel-Core utility module.
 .DESCRIPTION
-    Verifies administrative privilege assertion (Assert-IsAdmin) and Microsoft Defender
-    executable path resolution (Get-DefenderPlatformPath) aligned with ISO/IEC 27001:2022.
+    Verifies administrative privilege assertion (Assert-IsAdmin), Microsoft Defender
+    executable path resolution (Get-DefenderPlatformPath), and cryptographic manifest
+    integrity gating (Assert-SentinelIntegrity) aligned with ISO/IEC 27001:2022.
 #>
 
 $ModulePath = Join-Path $PSScriptRoot "..\src\lib\Sentinel-Core.psm1"
@@ -35,5 +36,19 @@ Describe "Sentinel-Core Module Tests" {
             ($path -match "MpCmdRun\.exe$") | Should -Be $true
         }
     }
-}
 
+    Context "Assert-SentinelIntegrity Function" {
+        It "Should be exported and accept -TargetDir and -AllowMissingManifest parameters" {
+            $cmd = Get-Command -Module Sentinel-Core -Name Assert-SentinelIntegrity -ErrorAction SilentlyContinue
+            $cmd | Should -Not -BeNullOrEmpty
+            $cmd.Parameters.ContainsKey("TargetDir") | Should -Be $true
+            $cmd.Parameters.ContainsKey("AllowMissingManifest") | Should -Be $true
+            $cmd.Parameters.ContainsKey("ManifestPath") | Should -Be $true
+        }
+
+        It "Succeeds gracefully when -AllowMissingManifest is passed with non-existent path" {
+            $fakeManifest = Join-Path $env:TEMP ("nonexistent_" + [Guid]::NewGuid().ToString("N") + ".json")
+            { Assert-SentinelIntegrity -ManifestPath $fakeManifest -AllowMissingManifest } | Should -Not -Throw
+        }
+    }
+}

@@ -2,7 +2,6 @@
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Agentic AI Implementation:** Google Antigravity AI Engine  
 **Compliance Standard:** ISO/IEC 27001:2022 Control A.8.15 (Logging and Monitoring)  
 **Telemetry Format:** UTF-8 JSON (RFC 8259) delimited by newlines (NDJSON)  
 **Supported Platforms:** Splunk Enterprise / Cloud, Elastic Stack (ELK), Datadog Log Management, Microsoft Sentinel (Azure Monitor)  

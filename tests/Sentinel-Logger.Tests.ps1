@@ -3,7 +3,7 @@
     Enterprise unit tests for Sentinel-Logger module.
 .DESCRIPTION
     Validates audit trail integrity, dual-format forensic logging (Text & JSON),
-    and SIEM payload serialization aligned with ISO/IEC 27001:2022 Control A.8.15.
+    and SIEM event serialization aligned with ISO/IEC 27001:2022 Control A.8.15.
 #>
 
 $script:ModulePath = Join-Path $PSScriptRoot "..\src\lib\Sentinel-Logger.psm1"
@@ -103,6 +103,22 @@ Describe "Sentinel-Logger Module Tests" {
             $parsed.PID | Should -Not -BeNullOrEmpty
             $parsed.Timestamp | Should -Not -BeNullOrEmpty
             $parsed.Metadata.HostRole | Should -Be "DC"
+        }
+    }
+
+    Context "Log Retention and Pruning" {
+        It "Clear-OldSentinelLogs is exported and removes expired logs" {
+            $cmd = Get-Command -Module Sentinel-Logger -Name Clear-OldSentinelLogs -ErrorAction SilentlyContinue
+            $cmd | Should -Not -BeNullOrEmpty
+
+            $testSubdir = Join-Path $TestDir "RetentionTest"
+            New-Item -ItemType Directory -Path $testSubdir -Force | Out-Null
+            $oldLog = Join-Path $testSubdir "OldLog_20200101.log"
+            [System.IO.File]::WriteAllText($oldLog, "old log content")
+            (Get-Item $oldLog).LastWriteTime = (Get-Date).AddDays(-120)
+
+            Clear-OldSentinelLogs -LogDir $testSubdir -RetentionDays 90
+            (Test-Path $oldLog) | Should -Be $false
         }
     }
 }

@@ -4,7 +4,7 @@
 * **Author & Architect:** Sandra Gabriela Puerto Torres / Isora Cloud Group
 * **Portals:** https://sandrapuerto.com | https://isora.com.co
 * **License:** MIT License
-* **Core Philosophy:** Zero-dependency native PowerShell automation for Windows endpoint hygiene, structured SIEM logging, and ISO/IEC 27001:2022 / ISO/IEC 20000-1 compliance.
+* **Core Philosophy:** Zero-dependency native PowerShell automation for Windows endpoint hardening and governance, structured SIEM logging, and ISO/IEC 27001:2022 / ISO/IEC 20000-1 compliance.
 
 ## 2. Architectural Principles (Hub-and-Spoke)
 * **Hub (`src/lib/`):** Contains shared utilities and cross-cutting concerns:

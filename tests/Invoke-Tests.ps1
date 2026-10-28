@@ -21,7 +21,7 @@ $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyI
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Sentinel-IT Automated Test Suite" -ForegroundColor Cyan
 Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor Gray
-Write-Host " Implementación: Google Antigravity AI (Pair Programming)" -ForegroundColor DarkGray
+Write-Host " Operaciones de Seguridad: security@isora.com.co" -ForegroundColor DarkGray
 Write-Host " GitHub: https://github.com/sandra-puerto | LinkedIn: https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
@@ -77,7 +77,7 @@ $total  = if ($null -ne $result.TotalCount)  { $result.TotalCount }  else { $pas
 Write-Host "`n------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " Test Summary: Passed=$passed, Failed=$failed, Total=$total" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })
 Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor White
-Write-Host " Marca & Distribución: Isora Cloud Group | Powered by Google Antigravity AI" -ForegroundColor Gray
+Write-Host " Marca & Distribución: Isora Cloud Group | Seguridad: security@isora.com.co" -ForegroundColor Gray
 Write-Host " https://github.com/sandra-puerto | https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 

@@ -7,18 +7,22 @@
 #>
 param(
     [switch]$Silent,
+    [string]$InstallDir = "C:\Program Files\Sentinel-IT",
+    [string]$LogsDir = "",
+    [switch]$SkipIntegrityCheck,
     [string]$ScheduleScreenshots = "Daily",
     [string]$ScheduleTemp = "Daily",
     [string]$ScheduleDefender = "Weekly",
     [string]$ScheduleIntegrity = "Weekly",
     [string]$ScheduleBitLocker = "Daily",
-    [string]$ScheduleEventAudit = "Daily"
+    [string]$ScheduleEventAudit = "Daily",
+    [string]$ScheduleDownloads = "Monthly"
 )
 
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Sentinel-IT Suite" -ForegroundColor Cyan
 Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor Gray
-Write-Host " Implementación: Google Antigravity AI (Pair Programming)" -ForegroundColor DarkGray
+Write-Host " Operaciones de Seguridad: security@isora.com.co" -ForegroundColor DarkGray
 Write-Host " GitHub: https://github.com/sandra-puerto | LinkedIn: https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 
@@ -27,10 +31,10 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     Exit
 }
 
-$InstallDir = "C:\Program Files\Sentinel-IT"
-$LogsDir = "C:\Program Files\Sentinel-IT\logs"
-if (!(Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }
-if (!(Test-Path $LogsDir)) { New-Item -ItemType Directory -Path $LogsDir -Force | Out-Null }
+$effectiveLogsDir = if ($LogsDir) { $LogsDir } else { Join-Path $InstallDir "logs" }
+if (!(Test-Path -LiteralPath $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }
+if (!(Test-Path -LiteralPath $effectiveLogsDir)) { New-Item -ItemType Directory -Path $effectiveLogsDir -Force | Out-Null }
+$LogsDir = $effectiveLogsDir
 
 Write-Host "[*] Deploying Enterprise Modules..."
 Copy-Item -Path "$PSScriptRoot\..\src\*" -Destination $InstallDir -Force -Recurse
@@ -43,11 +47,22 @@ if (Test-Path "$PSScriptRoot\..\integrity.manifest.json") {
 Copy-Item -Path "$PSScriptRoot\Uninstall-Sentinel.ps1" -Destination (Join-Path $InstallDir "Uninstall-Sentinel.ps1") -Force
 Write-Host "[SUCCESS] Modules deployed to $InstallDir" -ForegroundColor Green
 
+# Enforce strict enterprise NTFS ACLs (ISO 27001 Control A.5.15 / LPE Defense)
+Write-Host "[*] Hardening NTFS Access Control Lists (LPE Defense)..."
+try {
+    # *S-1-5-32-544 (Administrators: Full), *S-1-5-18 (SYSTEM: Full), *S-1-5-32-545 (Users: Read/Execute only)
+    & icacls.exe "$InstallDir" /grant "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-545:(OI)(CI)RX" /inheritance:r /T /Q 2>$null
+    & icacls.exe "$LogsDir" /grant "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-545:(OI)(CI)M" /inheritance:r /T /Q 2>$null
+    Write-Host "[SUCCESS] NTFS ACLs locked down to Administrators/SYSTEM with restricted User rights." -ForegroundColor Green
+} catch {
+    Write-Host "[WARN] Could not apply strict icacls hardening: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
 # Register in Windows Add/Remove Programs (Registry)
 try {
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel-IT"
     if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
-    Set-ItemProperty -Path $regPath -Name "DisplayName" -Value "Sentinel-IT Suite (Enterprise Endpoint Hygiene)" -Force
+    Set-ItemProperty -Path $regPath -Name "DisplayName" -Value "Sentinel-IT Suite (Endpoint Hardening & Governance)" -Force
     Set-ItemProperty -Path $regPath -Name "DisplayVersion" -Value "2.2.0" -Force
     Set-ItemProperty -Path $regPath -Name "Publisher" -Value "Sandra Gabriela Puerto Torres" -Force
     Set-ItemProperty -Path $regPath -Name "InstallLocation" -Value $InstallDir -Force
@@ -84,7 +99,7 @@ if ($RegisterTasks -match "^y") {
         }
 
         $Trigger = if ($TriggerInput -eq "Weekly") { New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 2am } else { New-ScheduledTaskTrigger -Daily -At 3am }
-        $Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$InstallDir\engines\$ScriptFile`""
+        $Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$InstallDir\engines\$ScriptFile`""
         
         Register-ScheduledTask -TaskName "Sentinel-IT\$TaskName" -Action $Action -Trigger $Trigger -Principal $Principal -Force | Out-Null
         Write-Host "[SUCCESS] Task '$TaskName' registered ($TriggerInput)." -ForegroundColor Green
@@ -96,6 +111,7 @@ if ($RegisterTasks -match "^y") {
     Register-SentinelTask -TaskName "Integrity_Check" -ScriptFile "Invoke-IntegrityCheck.ps1" -DefaultTrigger $ScheduleIntegrity
     Register-SentinelTask -TaskName "BitLocker_Audit" -ScriptFile "Invoke-BitLockerAudit.ps1" -DefaultTrigger $ScheduleBitLocker
     Register-SentinelTask -TaskName "Event_Audit" -ScriptFile "Invoke-EventAudit.ps1" -DefaultTrigger $ScheduleEventAudit
+    Register-SentinelTask -TaskName "Archive_Downloads" -ScriptFile "Invoke-ArchiveDownloads.ps1" -DefaultTrigger $ScheduleDownloads
     
     Write-Host "`n[SUCCESS] Orchestration Complete!" -ForegroundColor Cyan
 } else {
@@ -105,6 +121,6 @@ if ($RegisterTasks -match "^y") {
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Sentinel-IT Suite" -ForegroundColor Cyan
 Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor White
-Write-Host " Powered by: Google Antigravity AI" -ForegroundColor Gray
+Write-Host " Operaciones de Seguridad: security@isora.com.co" -ForegroundColor Gray
 Write-Host " https://github.com/sandra-puerto | https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan

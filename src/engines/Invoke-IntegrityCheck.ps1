@@ -8,7 +8,8 @@
 #>
 [CmdletBinding()]
 param(
-    [switch]$AutoRepair
+    [switch]$AutoRepair,
+    [switch]$QuickCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,6 +18,7 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Integrity_Check"
+try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Integrity_Check] - SYSTEM INTEGRITY AUDIT START"
@@ -44,7 +46,9 @@ try {
     }
 
     Write-AuditEntry "AUDIT: Dispatching DISM online scan health event..." -Metadata @{ DismPath = $dismPath }
-    $dismResult = & $dismPath /Online /Cleanup-Image /ScanHealth 2>&1 | Out-String
+    $dismArg = if ($QuickCheck) { "/CheckHealth" } else { "/ScanHealth" }
+    Write-AuditEntry "AUDIT: Dispatching DISM online scan mode: $dismArg..."
+    $dismResult = & $dismPath /Online /Cleanup-Image $dismArg 2>&1 | Out-String
     $dismCode = $LASTEXITCODE
 
     if ($dismResult) {

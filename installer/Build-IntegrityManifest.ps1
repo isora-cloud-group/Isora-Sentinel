@@ -12,6 +12,7 @@ param(
 $TargetFiles = @(
     "src/lib/Sentinel-Core.psm1",
     "src/lib/Sentinel-Logger.psm1",
+    "src/engines/Invoke-ArchiveDownloads.ps1",
     "src/engines/Invoke-BitLockerAudit.ps1",
     "src/engines/Invoke-CleanupScreenshots.ps1",
     "src/engines/Invoke-CleanupTempGlobal.ps1",
