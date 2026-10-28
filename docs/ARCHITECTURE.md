@@ -27,9 +27,9 @@ The platform is designed upon four uncompromising architectural tenets:
 flowchart TD
     subgraph Schedulers["Execution & Orchestration Layer"]
         direction TB
-        TaskSched["Windows Task Scheduler (Kernel Engine)\n• RunLevel: Highest (NT AUTHORITY\\SYSTEM)\n• Triggers: Daily 03:00 / Weekly Sun 02:00"]
-        Tray["System Tray Monitor (Sentinel-IT-Tray.exe)\n• Single-Instance Process (Local\\SentinelIT.TrayMonitor)\n• Real-Time Integrity Status (SHA-256)\n• On-Demand UAC Elevation Dispatcher"]
-        ConfigForm["TaskConfigForm (Task Configurator GUI)\n• Direct Task Scheduler XML Query / Update\n• Interactive ToggleSwitches & Schedule Controls"]
+        TaskSched["Windows Task Scheduler (Kernel Engine)\n- RunLevel: Highest (NT AUTHORITY\\SYSTEM)\n- Triggers: Daily 03:00 / Weekly Sun 02:00"]
+        Tray["System Tray Monitor (Sentinel-IT-Tray.exe)\n- Single-Instance Process (Local\\SentinelIT.TrayMonitor)\n- Real-Time Integrity Status (SHA-256)\n- On-Demand UAC Elevation Dispatcher"]
+        ConfigForm["TaskConfigForm (Task Configurator GUI)\n- Direct Task Scheduler XML Query / Update\n- Interactive ToggleSwitches & Schedule Controls"]
     end
 
     subgraph SecurityBoundary["Privilege & Integrity Security Boundary"]
@@ -41,8 +41,8 @@ flowchart TD
 
     subgraph CentralHub["Shared Hub Modules (src/lib/)"]
         direction TB
-        Core["Sentinel-Core.psm1\n• Platform Path Discovery (Defender, DISM)\n• Privilege & Integrity Enforcement"]
-        Logger["Sentinel-Logger.psm1\n• Dual Format Engine (Human Text & NDJSON)\n• Precise Microsecond Timestamps\n• Safe Metadata Serialization"]
+        Core["Sentinel-Core.psm1\n- Platform Path Discovery (Defender, DISM)\n- Privilege & Integrity Enforcement"]
+        Logger["Sentinel-Logger.psm1\n- Dual Format Engine (Human Text & NDJSON)\n- Precise Microsecond Timestamps\n- Safe Metadata Serialization"]
     end
 
     subgraph ExecutionSpokes["Atomic Execution Engines (src/engines/)"]
@@ -57,7 +57,7 @@ flowchart TD
 
     subgraph LocalStorage["Forensic Telemetry Store"]
         direction TB
-        LogsDir["C:\\Program Files\\Sentinel-IT\\logs\\\n• Restricted ACLs (Administrators / SYSTEM)\n• Engine-Dedicated Subdirectories"]
+        LogsDir["C:\\Program Files\\Sentinel-IT\\logs\n- Restricted ACLs (Administrators / SYSTEM)\n- Engine-Dedicated Subdirectories"]
         NDJSONStream["NDJSON Real-Time Telemetry Stream\n(RFC 8259 Standardized Fields)"]
     end
 
@@ -68,11 +68,12 @@ flowchart TD
         Sentinel["Microsoft Sentinel (Azure Monitor Agent)"]
     end
 
-    Schedulers --> SecurityBoundary
-    SecurityBoundary --> CentralHub
-    CentralHub --> ExecutionSpokes
-    ExecutionSpokes --> LocalStorage
-    LocalStorage --> SIEMLayer
+    TaskSched & Tray & ConfigForm --> AssertAdmin & AssertIntegrity
+    AssertIntegrity --> Manifest
+    AssertAdmin & AssertIntegrity --> Core & Logger
+    Core & Logger --> E1 & E2 & E3 & E4 & E5 & E6
+    E1 & E2 & E3 & E4 & E5 & E6 --> LogsDir & NDJSONStream
+    LogsDir & NDJSONStream --> Splunk & Elastic & Datadog & Sentinel
 ```
 
 ---
@@ -91,9 +92,9 @@ Because scripts run with `SYSTEM` privileges, the installation directory (`C:\Pr
 
 ```mermaid
 flowchart LR
-    A["C:\\Program Files\\Sentinel-IT\\"] --> B["BUILTIN\\Administrators\n(Full Control: Read, Write, Execute, Delete)"]
+    A["C:\\Program Files\\Sentinel-IT"] --> B["BUILTIN\\Administrators\n(Full Control: Read, Write, Execute, Delete)"]
     A --> C["NT AUTHORITY\\SYSTEM\n(Full Control: Read, Write, Execute, Delete)"]
-    A --> D["BUILTIN\\Users\n(Read & Execute Only — Write Denied)"]
+    A --> D["BUILTIN\\Users\n(Read and Execute Only - Write Denied)"]
 ```
 
 Standard users cannot alter script content, overwrite manifest files, or plant rogue modules to gain elevated privileges.
@@ -121,15 +122,15 @@ sequenceDiagram
         Tray-->>User: Amber Status Badge (Tampering Detected)
     end
 
-    User->>Tray: Select "DISM Component Store Audit" (Requires Admin)
-    Tray->>User: Display Confirmation Dialog ("Elevation required. Proceed?")
+    User->>Tray: Select DISM Component Store Audit (Requires Admin)
+    Tray->>User: Display Confirmation Dialog (Elevation required - Proceed?)
     User->>Tray: Confirm (Yes)
-    Tray->>UAC: ProcessStartInfo (Verb='runas', WindowStyle=Normal)
+    Tray->>UAC: ProcessStartInfo (Verb: runas, WindowStyle: Normal)
     UAC-->>User: Display Secure Desktop Credential Prompt
     User->>UAC: Consent / Provide Credentials
-    UAC->>Sched: Dispatch schtasks.exe /Run /TN 'Sentinel-IT\Integrity_Check'
+    UAC->>Sched: Dispatch schtasks.exe /Run /TN Sentinel-IT/Integrity_Check
     Sched-->>Tray: Return Process Exit Code
-    Tray-->>User: Display Notification Balloon ("Task completed successfully")
+    Tray-->>User: Display Notification Balloon (Task completed successfully)
 ```
 
 ### Technical Highlights of `Sentinel-IT-Tray.exe`:
@@ -146,13 +147,13 @@ The screenshot purging engine (`Invoke-CleanupScreenshots.ps1`) implements intel
 
 ```mermaid
 flowchart TD
-    Start["Invoke-CleanupScreenshots.ps1"] --> Discover["Query HKLM ProfileList & C:\\Users\\*"]
+    Start["Invoke-CleanupScreenshots.ps1"] --> Discover["Query HKLM ProfileList and C:\\Users\\*"]
     Discover --> LoopProfiles["Iterate Through Each User Profile"]
-    LoopProfiles --> CheckRegistry["Query HKCU & User Hive for KnownFolder Screenshot Path"]
-    CheckRegistry --> CheckOneDrive["Scan OneDrive & OneDrive Commercial Paths"]
-    CheckOneDrive --> FilterReparse["Evaluate File Attributes\n• Check for ReparsePoint (0x00000400)\n• Check for Offline/RecallOnDataAccess (0x00400000)"]
+    LoopProfiles --> CheckRegistry["Query HKCU and User Hive for KnownFolder Screenshot Path"]
+    CheckRegistry --> CheckOneDrive["Scan OneDrive and OneDrive Commercial Paths"]
+    CheckOneDrive --> FilterReparse["Evaluate File Attributes\n- Check for ReparsePoint (0x00000400)\n- Check for Offline/RecallOnDataAccess (0x00400000)"]
     FilterReparse -->|Cloud-Only Stub| Skip["Skip Cloud-Only File\n(Prevents Forced Bandwidth Download)"]
-    FilterReparse -->|Locally Pinned / On-Disk| Purge["Secure Deletion via Remove-Item"]
+    FilterReparse -->|Locally Pinned or On-Disk| Purge["Secure Deletion via Remove-Item"]
     Purge --> LogEntry["Write Forensic Metadata\n(ProfileCount, PurgedCount, BytesReclaimed)"]
 ```
 

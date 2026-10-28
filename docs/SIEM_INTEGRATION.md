@@ -31,22 +31,24 @@ flowchart TD
         LogIntegrity["logs\\ISO_Integrity_Check\\*.log"]
     end
 
-    subgraph ForwarderLayer["Enterprise Shippers & Log Forwarders"]
+    subgraph ForwarderLayer["Enterprise Shippers and Log Forwarders"]
+        direction TB
         SplunkShipper["Splunk Universal Forwarder"]
         ElasticShipper["Elastic Filebeat"]
         DatadogShipper["Datadog Log Agent"]
         AzureShipper["Azure Monitor Agent (AMA)"]
     end
 
-    subgraph CentralSIEM["Enterprise SIEM & SOC Central"]
+    subgraph CentralSIEM["Enterprise SIEM and SOC Central"]
+        direction TB
         SplunkCloud["Splunk Enterprise / Cloud"]
         ElasticCloud["Elasticsearch / Kibana"]
         DatadogCloud["Datadog Security Monitoring"]
         SentinelCloud["Microsoft Sentinel (Log Analytics)"]
     end
 
-    Engines -->|Atomic NDJSON Append| LocalForensicStore
-    LocalForensicStore --> ForwarderLayer
+    Engines -->|Atomic NDJSON Append| LogBitLocker & LogScreenshots & LogTemp & LogDefender & LogEvents & LogIntegrity
+    LogBitLocker & LogScreenshots & LogTemp & LogDefender & LogEvents & LogIntegrity --> SplunkShipper & ElasticShipper & DatadogShipper & AzureShipper
     SplunkShipper --> SplunkCloud
     ElasticShipper --> ElasticCloud
     DatadogShipper --> DatadogCloud

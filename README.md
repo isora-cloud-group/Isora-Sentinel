@@ -52,14 +52,14 @@ Sentinel-IT decouples shared governance, cryptographic verification, and logging
 flowchart TD
     subgraph Orchestration["Windows Task Scheduler / System Tray"]
         direction TB
-        Sched["Task Scheduler (NT AUTHORITY\\SYSTEM)\n• High-Integrity Tasks"]
-        Tray["System Tray Monitor (Sentinel-IT-Tray.exe)\n• Real-Time Integrity Status\n• TaskConfigForm GUI\n• UAC Elevation On-Demand"]
+        Sched["Task Scheduler (NT AUTHORITY\\SYSTEM)\n- High-Integrity Tasks"]
+        Tray["System Tray Monitor (Sentinel-IT-Tray.exe)\n- Real-Time Integrity Status\n- TaskConfigForm GUI\n- UAC Elevation On-Demand"]
     end
 
     subgraph CoreHub["Central Hub (src/lib/)"]
         direction TB
-        Core["Sentinel-Core.psm1\n• Assert-IsAdmin (Privilege Gate)\n• Assert-SentinelIntegrity (SHA-256 Gate)\n• Get-DefenderPlatformPath"]
-        Logger["Sentinel-Logger.psm1\n• Initialize-SentinelLog\n• Write-AuditEntry (Text / NDJSON)\n• Precise Microsecond Timestamps"]
+        Core["Sentinel-Core.psm1\n- Assert-IsAdmin (Privilege Gate)\n- Assert-SentinelIntegrity (SHA-256 Gate)\n- Get-DefenderPlatformPath"]
+        Logger["Sentinel-Logger.psm1\n- Initialize-SentinelLog\n- Write-AuditEntry (Text / NDJSON)\n- Precise Microsecond Timestamps"]
     end
 
     subgraph AtomicEngines["Execution Engines (src/engines/)"]
@@ -74,7 +74,7 @@ flowchart TD
 
     subgraph ForensicStorage["Forensic Telemetry Store"]
         direction TB
-        LogDir["C:\\Program Files\\Sentinel-IT\\logs\\\n• Immutable ACLs (Administrators / SYSTEM)\n• Engine-Dedicated Subdirectories"]
+        LogDir["C:\\Program Files\\Sentinel-IT\\logs\n- Immutable ACLs (Administrators / SYSTEM)\n- Engine-Dedicated Subdirectories"]
         NDJSON["NDJSON Real-Time Telemetry Stream\n(RFC 8259 Standardized Fields)"]
     end
 
@@ -85,10 +85,10 @@ flowchart TD
         Sentinel["Microsoft Sentinel (Azure Monitor Agent)"]
     end
 
-    Orchestration --> CoreHub
-    CoreHub --> AtomicEngines
-    AtomicEngines --> ForensicStorage
-    ForensicStorage --> SIEMCollectors
+    Sched & Tray --> Core
+    Core & Logger --> E1 & E2 & E3 & E4 & E5 & E6
+    E1 & E2 & E3 & E4 & E5 & E6 --> LogDir & NDJSON
+    LogDir & NDJSON --> Splunk & Elastic & Datadog & Sentinel
 ```
 
 ### Core Architecture Pillars:
@@ -128,14 +128,14 @@ sequenceDiagram
     Engine->>Core: Invoke Assert-SentinelIntegrity
     Core->>Manifest: Load Expected SHA-256 Hashes
     alt Manifest Missing
-        Core-->>Engine: Throw SecurityException ("Manifest missing; execution halted")
+        Core-->>Engine: Throw SecurityException (Manifest Missing - Execution Halted)
     else Manifest Present
         loop For Each Monitored File
             Core->>System: Compute Current SHA-256 Hash
             System-->>Core: Computed Hash String
             Core->>Core: Compare Computed vs Expected Hash
             opt Hash Mismatch Detected
-                Core-->>Engine: Throw SecurityException ("Tampering detected in module; aborting")
+                Core-->>Engine: Throw SecurityException (Tampering Detected - Execution Aborted)
             end
         end
         Core-->>Engine: Integrity Validated (Audit Log: SUCCESS)
@@ -161,10 +161,10 @@ Sentinel-IT-Setup.exe
 
 ```mermaid
 flowchart LR
-    A["Sentinel-IT-Setup.exe\n(Single-File Binary)"] --> B["Step 1: Welcome & Scope\n(ISO 27001 / SOC 2 Validation)"]
-    B --> C["Step 2: Paths & Integrity\n(Pre-Flight SHA-256 Check)"]
+    A["Sentinel-IT-Setup.exe\n(Single-File Binary)"] --> B["Step 1: Welcome and Scope\n(ISO 27001 / SOC 2 Validation)"]
+    B --> C["Step 2: Paths and Integrity\n(Pre-Flight SHA-256 Check)"]
     C --> D["Step 3: Task Selection\n(SYSTEM Scheduled Tasks)"]
-    D --> E["Step 4: Installation & Logging\n(Live Forensic Output)"]
+    D --> E["Step 4: Installation and Logging\n(Live Forensic Output)"]
     E --> F["System Tray Monitor Launched\n(Sentinel-IT-Tray.exe)"]
 ```
 
