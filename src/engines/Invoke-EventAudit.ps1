@@ -27,59 +27,80 @@ Write-AuditEntry "   WINDOW: Past $Hours hour(s) | FailedLogonThreshold: $Failed
 Write-AuditEntry "=========================================================="
 
 try {
-    Assert-IsAdmin
+    $IsAdmin = Test-IsAdmin
+    if (-not $IsAdmin) {
+        Write-AuditEntry "NOTICE: Security Event Log analysis typically requires Administrator or SYSTEM privileges. Attempting read-only query..." -Level "WARN" -Metadata @{ User = $env:USERNAME }
+    }
 
     $StartTime = (Get-Date).AddHours(-$Hours)
     $AnomaliesDetected = 0
+    $AccessDeniedDetected = $false
 
     # 1. Event 1102: Audit Log Cleared (High Severity Anti-Forensics Flag)
+    $ClearLogEvents = $null
     try {
         $ClearLogEvents = Get-WinEvent -FilterHashtable @{
             LogName   = "Security"
             Id        = 1102
             StartTime = $StartTime
-        } -ErrorAction SilentlyContinue
-
-        if ($ClearLogEvents) {
-            $AnomaliesDetected += $ClearLogEvents.Count
-            foreach ($ev in $ClearLogEvents) {
-                Write-AuditEntry "CRITICAL ANTI-FORENSICS ALERT: Security Audit Log was cleared." -Level "ERROR" -Metadata @{
-                    EventID   = 1102
-                    Timestamp = $ev.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
-                    User      = $ev.UserId
-                }
-            }
-        } else {
-            Write-AuditEntry "AUDIT: No audit log clearance events detected in window." -Level "SUCCESS"
-        }
+        } -ErrorAction Stop
     } catch {
-        Write-AuditEntry "AUDIT: Could not query Event 1102: $($_.Exception.Message)" -Level "WARN"
+        if ($_.FullyQualifiedErrorId -match "NoMatchingEventsFound" -or $_.Exception.Message -match "No events were found|No se encontraron eventos") {
+            # 0 events is the healthy expected baseline
+            $ClearLogEvents = @()
+        } elseif ($_.Exception -is [System.UnauthorizedAccessException] -or $_.Exception.Message -match "Access is denied|Acceso denegado|authorized") {
+            $AccessDeniedDetected = $true
+            Write-AuditEntry "AUDIT PERMISSION NOTICE: Access denied querying Event 1102 in Security Event Log (requires Administrator/SYSTEM)." -Level "WARN"
+        } else {
+            Write-AuditEntry "AUDIT: Could not query Event 1102: $($_.Exception.Message)" -Level "WARN"
+        }
+    }
+
+    if ($ClearLogEvents -and $ClearLogEvents.Count -gt 0) {
+        $AnomaliesDetected += $ClearLogEvents.Count
+        foreach ($ev in $ClearLogEvents) {
+            Write-AuditEntry "CRITICAL ANTI-FORENSICS ALERT: Security Audit Log was cleared." -Level "ERROR" -Metadata @{
+                EventID   = 1102
+                Timestamp = $ev.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
+                User      = $ev.UserId
+            }
+        }
+    } elseif (-not $AccessDeniedDetected) {
+        Write-AuditEntry "AUDIT: No audit log clearance events detected in window." -Level "SUCCESS"
     }
 
     # 2. Event 4625: Failed Logon Attempts (Brute Force Monitoring)
+    $FailedLogons = $null
     try {
         $FailedLogons = Get-WinEvent -FilterHashtable @{
             LogName   = "Security"
             Id        = 4625
             StartTime = $StartTime
-        } -ErrorAction SilentlyContinue
-
-        $FailCount = if ($FailedLogons) { $FailedLogons.Count } else { 0 }
-
-        if ($FailCount -ge $FailedLogonThreshold) {
-            $AnomaliesDetected += $FailCount
-            Write-AuditEntry "BRUTE-FORCE ALERT: Elevated failed logon count exceeds threshold." -Level "WARN" -Metadata @{
-                EventID   = 4625
-                Count     = $FailCount
-                Threshold = $FailedLogonThreshold
-            }
-        } else {
-            Write-AuditEntry "AUDIT: Failed logon count within baseline threshold." -Level "INFO" -Metadata @{
-                FailedLogonCount = $FailCount
-            }
-        }
+        } -ErrorAction Stop
     } catch {
-        Write-AuditEntry "AUDIT: Could not query Event 4625: $($_.Exception.Message)" -Level "WARN"
+        if ($_.FullyQualifiedErrorId -match "NoMatchingEventsFound" -or $_.Exception.Message -match "No events were found|No se encontraron eventos") {
+            $FailedLogons = @()
+        } elseif ($_.Exception -is [System.UnauthorizedAccessException] -or $_.Exception.Message -match "Access is denied|Acceso denegado|authorized") {
+            $AccessDeniedDetected = $true
+            Write-AuditEntry "AUDIT PERMISSION NOTICE: Access denied querying Event 4625 in Security Event Log (requires Administrator/SYSTEM)." -Level "WARN"
+        } else {
+            Write-AuditEntry "AUDIT: Could not query Event 4625: $($_.Exception.Message)" -Level "WARN"
+        }
+    }
+
+    $FailCount = if ($FailedLogons) { $FailedLogons.Count } else { 0 }
+
+    if ($FailCount -ge $FailedLogonThreshold) {
+        $AnomaliesDetected += $FailCount
+        Write-AuditEntry "BRUTE-FORCE ALERT: Elevated failed logon count exceeds threshold." -Level "WARN" -Metadata @{
+            EventID   = 4625
+            Count     = $FailCount
+            Threshold = $FailedLogonThreshold
+        }
+    } elseif (-not $AccessDeniedDetected) {
+        Write-AuditEntry "AUDIT: Failed logon count within baseline threshold." -Level "INFO" -Metadata @{
+            FailedLogonCount = $FailCount
+        }
     }
 
     # 3. Event 4720 & 4726: Account Provisioning & Deletion Auditing
@@ -101,14 +122,15 @@ try {
             }
         }
     } catch {
-        # Expected if no events exist in filter window
+        # Expected if no events exist in filter window or permission restricted
     }
 
-    $summaryLevel = if ($AnomaliesDetected -eq 0) { "SUCCESS" } else { "WARN" }
+    $summaryLevel = if ($AccessDeniedDetected) { "WARN" } elseif ($AnomaliesDetected -eq 0) { "SUCCESS" } else { "WARN" }
     Write-AuditEntry "RESULT: Security Event Log audit concluded." -Level $summaryLevel -Metadata @{
-        WindowHours       = $Hours
-        AnomaliesDetected = $AnomaliesDetected
-        AuditStandard     = "ISO/IEC 27001:2022 A.8.15"
+        WindowHours          = $Hours
+        AnomaliesDetected    = $AnomaliesDetected
+        AccessDeniedDetected = $AccessDeniedDetected
+        AuditStandard        = "ISO/IEC 27001:2022 A.8.15"
     }
 } catch {
     Write-AuditEntry "CRITICAL FAILURE: $($_.Exception.Message)" -Level "ERROR"

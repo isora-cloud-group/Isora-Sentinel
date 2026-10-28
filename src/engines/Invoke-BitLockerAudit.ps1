@@ -23,48 +23,65 @@ Write-AuditEntry "   [ISO_BitLocker_Audit] - CRYPTOGRAPHIC COMPLIANCE START"
 Write-AuditEntry "=========================================================="
 
 try {
-    Assert-IsAdmin
+    $IsAdmin = Test-IsAdmin
+    if (-not $IsAdmin) {
+        Write-AuditEntry "NOTICE: BitLocker volume encryption queries require Administrator or SYSTEM privileges. Attempting read-only check..." -Level "WARN"
+    }
 
     # Check for Get-BitLockerVolume cmdlet; fallback to manage-bde.exe if unavailable
     $hasBitLockerCmdlet = [bool](Get-Command -Name Get-BitLockerVolume -ErrorAction SilentlyContinue)
     $volumesAudited = 0
     $unprotectedCount = 0
+    $cmdletSucceeded = $false
 
     if ($hasBitLockerCmdlet) {
-        $volumes = Get-BitLockerVolume -ErrorAction Stop
-        if ($TargetMountPoint) {
-            $volumes = $volumes | Where-Object { $_.MountPoint -eq $TargetMountPoint }
-        }
-
-        foreach ($vol in $volumes) {
-            $volumesAudited++
-            $isProtected = ($vol.ProtectionStatus -eq "On")
-            $isFullyEncrypted = ($vol.VolumeStatus -eq "FullyEncrypted")
-            $protectorTypes = ($vol.KeyProtector | ForEach-Object { $_.KeyProtectorType }) -join ";"
-
-            $meta = @{
-                MountPoint       = $vol.MountPoint
-                VolumeType       = [string]$vol.VolumeType
-                ProtectionStatus = [string]$vol.ProtectionStatus
-                VolumeStatus     = [string]$vol.VolumeStatus
-                EncryptionPct    = [string]$vol.EncryptionPercentage
-                KeyProtectors    = if ($protectorTypes) { $protectorTypes } else { "None" }
+        try {
+            $volumes = Get-BitLockerVolume -ErrorAction Stop
+            if ($TargetMountPoint) {
+                $volumes = $volumes | Where-Object { $_.MountPoint -eq $TargetMountPoint }
             }
 
-            if ($isProtected -and $isFullyEncrypted) {
-                Write-AuditEntry "VOLUME COMPLIANT: $($vol.MountPoint) is fully encrypted with active protection." -Level "SUCCESS" -Metadata $meta
-            } else {
-                $unprotectedCount++
-                Write-AuditEntry "NON-COMPLIANCE DETECTED: $($vol.MountPoint) does not meet cryptographic encryption policy." -Level "WARN" -Metadata $meta
+            foreach ($vol in $volumes) {
+                $volumesAudited++
+                $isProtected = ($vol.ProtectionStatus -eq "On")
+                $isFullyEncrypted = ($vol.VolumeStatus -eq "FullyEncrypted")
+                $protectorTypes = ($vol.KeyProtector | ForEach-Object { $_.KeyProtectorType }) -join ";"
+
+                $meta = @{
+                    MountPoint       = $vol.MountPoint
+                    VolumeType       = [string]$vol.VolumeType
+                    ProtectionStatus = [string]$vol.ProtectionStatus
+                    VolumeStatus     = [string]$vol.VolumeStatus
+                    EncryptionPct    = [string]$vol.EncryptionPercentage
+                    KeyProtectors    = if ($protectorTypes) { $protectorTypes } else { "None" }
+                }
+
+                if ($isProtected -and $isFullyEncrypted) {
+                    Write-AuditEntry "VOLUME COMPLIANT: $($vol.MountPoint) is fully encrypted with active protection." -Level "SUCCESS" -Metadata $meta
+                } else {
+                    $unprotectedCount++
+                    Write-AuditEntry "NON-COMPLIANCE DETECTED: $($vol.MountPoint) does not meet cryptographic encryption policy." -Level "WARN" -Metadata $meta
+                }
             }
+            $cmdletSucceeded = $true
+        } catch {
+            Write-AuditEntry "AUDIT: Get-BitLockerVolume threw exception ($($_.Exception.Message)). Attempting manage-bde.exe fallback..." -Level "WARN"
         }
-    } else {
+    }
+
+    if (-not $cmdletSucceeded) {
         # Fallback to manage-bde.exe parsing
-        Write-AuditEntry "AUDIT: Get-BitLockerVolume unavailable. Invoking manage-bde.exe fallback..."
-        $bdeOutput = & manage-bde.exe -status 2>&1 | Out-String
-        $lines = $bdeOutput -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        foreach ($line in $lines) {
-            Write-AuditEntry $line.Trim() -Level "INFO"
+        Write-AuditEntry "AUDIT: Invoking manage-bde.exe fallback..."
+        try {
+            $bdeExe = Join-Path $env:SystemRoot "System32\manage-bde.exe"
+            if (-not (Test-Path $bdeExe)) { $bdeExe = "manage-bde.exe" }
+            $bdeOutput = & $bdeExe -status 2>&1 | Out-String
+            $lines = $bdeOutput -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            foreach ($line in $lines) {
+                Write-AuditEntry $line.Trim() -Level "INFO"
+            }
+        } catch {
+            Write-AuditEntry "AUDIT NOTICE: BitLocker management utilities are not available or not supported on this Windows edition." -Level "WARN" -Metadata @{ Error = $_.Exception.Message }
         }
     }
 

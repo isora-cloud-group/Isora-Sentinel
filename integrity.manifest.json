@@ -1,0 +1,18 @@
+﻿{
+    "version":  "2.2.0",
+    "algorithm":  "SHA256",
+    "author":  "Sandra Gabriela Puerto Torres",
+    "brand":  "Isora Cloud Group",
+    "generated_at":  "2026-10-28T06:26:58Z",
+    "files":  {
+                  "lib\\Sentinel-Core.psm1":  "f9b36011efdeda2dee3c15695243c351844e490240a38176616032855086e132",
+                  "lib\\Sentinel-Logger.psm1":  "adb4463d6c2006317dfa56720bc0d028295eaed8d74ef20590a87f552b7cae4e",
+                  "engines\\Invoke-BitLockerAudit.ps1":  "0b6019494d5aad4f4b6b28940156b2333bfbf25748f4d3bbba1ff33f331d47a1",
+                  "engines\\Invoke-CleanupScreenshots.ps1":  "075a03a66aad8911ed2d0a9f655a324abce5e84afce6b3e3e5ae9ce0c7531a4b",
+                  "engines\\Invoke-CleanupTempGlobal.ps1":  "ae2ced589ff98051f7f51ec22348e1f51ebedce02fabf415d11e87290fc88ae8",
+                  "engines\\Invoke-DefenderScan.ps1":  "d44621270528398416a32c0299541a9463c84d9be8784889c186ab5e2cc41e92",
+                  "engines\\Invoke-EventAudit.ps1":  "d92df85321d5189461ccf8e4b14b98098130288c649ec1c134bf513431f28c4d",
+                  "engines\\Invoke-IntegrityCheck.ps1":  "8b847b5d5d7ea8c55aa7e01f83f8065b51b146a8b5d16ea4ddd0ce57cdbd71a9",
+                  "LICENSE":  "2e71759df791091a620a5b6a13c0c6a479bb776b47fd2dddf2af390ffb8bb91d"
+              }
+}

@@ -2,7 +2,7 @@
 .SYNOPSIS
     Enterprise Installer for Sentinel-IT Suite
 .DESCRIPTION
-    Deploys the modularized scripts to C:\Program Files\IT_Maintenance\
+    Deploys the modularized scripts to C:\Program Files\Sentinel-IT\
     Registers Scheduled Tasks based on user interaction or silent arguments.
 #>
 param(
@@ -27,14 +27,36 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     Exit
 }
 
-$InstallDir = "C:\Program Files\IT_Maintenance\Sentinel-IT"
-$LogsDir = "C:\Program Files\IT_Maintenance\logs"
+$InstallDir = "C:\Program Files\Sentinel-IT"
+$LogsDir = "C:\Program Files\Sentinel-IT\logs"
 if (!(Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }
 if (!(Test-Path $LogsDir)) { New-Item -ItemType Directory -Path $LogsDir -Force | Out-Null }
 
 Write-Host "[*] Deploying Enterprise Modules..."
 Copy-Item -Path "$PSScriptRoot\..\src\*" -Destination $InstallDir -Force -Recurse
+if (Test-Path "$PSScriptRoot\..\LICENSE") {
+    Copy-Item -Path "$PSScriptRoot\..\LICENSE" -Destination (Join-Path $InstallDir "LICENSE") -Force
+}
+if (Test-Path "$PSScriptRoot\..\integrity.manifest.json") {
+    Copy-Item -Path "$PSScriptRoot\..\integrity.manifest.json" -Destination (Join-Path $InstallDir "integrity.manifest.json") -Force
+}
+Copy-Item -Path "$PSScriptRoot\Uninstall-Sentinel.ps1" -Destination (Join-Path $InstallDir "Uninstall-Sentinel.ps1") -Force
 Write-Host "[SUCCESS] Modules deployed to $InstallDir" -ForegroundColor Green
+
+# Register in Windows Add/Remove Programs (Registry)
+try {
+    $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel-IT"
+    if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+    Set-ItemProperty -Path $regPath -Name "DisplayName" -Value "Sentinel-IT Suite (Enterprise Endpoint Hygiene)" -Force
+    Set-ItemProperty -Path $regPath -Name "DisplayVersion" -Value "2.2.0" -Force
+    Set-ItemProperty -Path $regPath -Name "Publisher" -Value "Sandra Gabriela Puerto Torres" -Force
+    Set-ItemProperty -Path $regPath -Name "InstallLocation" -Value $InstallDir -Force
+    Set-ItemProperty -Path $regPath -Name "UninstallString" -Value "PowerShell.exe -NoProfile -ExecutionPolicy Bypass -File `"$InstallDir\Uninstall-Sentinel.ps1`"" -Force
+    Set-ItemProperty -Path $regPath -Name "NoModify" -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path $regPath -Name "NoRepair" -Value 1 -Type DWord -Force
+} catch {
+    Write-Host "[WARN] Could not register in Windows Uninstall registry: $($_.Exception.Message)" -ForegroundColor Yellow
+}
 
 Write-Host "`n[*] Scheduled Task Registration" -ForegroundColor Cyan
 $RegisterTasks = "Y"

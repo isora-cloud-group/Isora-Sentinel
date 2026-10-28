@@ -30,9 +30,14 @@ $TotalIdentified = 0
 
 function Clean-Directory {
     param([string]$Path)
-    if (Test-Path $Path) {
+    if (Test-Path -LiteralPath $Path) {
+        $baseItem = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        if ($baseItem -and ($baseItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+            Write-AuditEntry "SECURITY: Target directory is a reparse point. Skipping for safety." -Level "WARN" -Metadata @{ Path = $Path }
+            return
+        }
         try {
-            $Items = Get-ChildItem -Path $Path -Recurse -Force -ErrorAction SilentlyContinue
+            $Items = Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
             if (-not $Items) { return }
             
             $Count = 0
@@ -43,9 +48,17 @@ function Clean-Directory {
                 return
             }
 
-            foreach ($Item in $Items) {
+            # Sort descending by length so child items and subfiles are deleted before parent folders
+            $SortedItems = $Items | Sort-Object { $_.FullName.Length } -Descending
+            foreach ($Item in $SortedItems) {
+                if ($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                    continue
+                }
+                if ($Item.Attributes -band [System.IO.FileAttributes]::ReadOnly) {
+                    try { [System.IO.File]::SetAttributes($Item.FullName, [System.IO.FileAttributes]::Normal) } catch { }
+                }
                 try {
-                    Remove-Item $Item.FullName -Force -Recurse -ErrorAction Stop
+                    Remove-Item -LiteralPath $Item.FullName -Force -Recurse -ErrorAction Stop
                     $Count++
                 } catch {
                     # Files locked by running system processes are skipped gracefully
@@ -62,17 +75,58 @@ function Clean-Directory {
 }
 
 try {
-    Assert-IsAdmin
-    Clean-Directory "C:\Windows\Temp"
-    Clean-Directory "C:\Windows\SoftwareDistribution\Download"
-    Clean-Directory "C:\ProgramData\Microsoft\Windows\WER\ReportQueue"
+    $IsAdmin = Test-IsAdmin
+    if ($IsAdmin) {
+        Write-AuditEntry "DISCOVERY: Administrator/SYSTEM session - Purging system-wide and all profile temp caches."
+        
+        $sysRoot = if ($env:SystemRoot) { $env:SystemRoot } else { "C:\WINDOWS" }
+        $progData = if ($env:ProgramData) { $env:ProgramData } else { "C:\ProgramData" }
 
-    $Profiles = Get-ChildItem -Path "C:\Users" -Directory -Force -ErrorAction SilentlyContinue
-    foreach ($Profile in $Profiles) {
-        $UserName = $Profile.Name
-        if ($UserName -match "^(All Users|Default|Default User|LocalService|NetworkService|Public)$") { continue }
-        $UserTemp = Join-Path $Profile.FullName "AppData\Local\Temp"
-        Clean-Directory $UserTemp
+        Clean-Directory (Join-Path $sysRoot "Temp")
+        Clean-Directory (Join-Path $sysRoot "SoftwareDistribution\Download")
+        Clean-Directory (Join-Path $progData "Microsoft\Windows\WER\ReportQueue")
+        Clean-Directory (Join-Path $progData "Microsoft\Windows\WER\Temp")
+
+        # Discover profiles via Windows Registry ProfileList (handles custom/relocated user disks)
+        $ProfileList = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\*" -ErrorAction SilentlyContinue
+        $profilePaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        if ($ProfileList) {
+            foreach ($entry in $ProfileList) {
+                if ($entry.ProfileImagePath -and (Test-Path -LiteralPath $entry.ProfileImagePath)) {
+                    $uName = Split-Path $entry.ProfileImagePath -Leaf
+                    if ($uName -notmatch "^(All Users|Default|Default User|LocalService|NetworkService|Public|systemprofile)$") {
+                        [void]$profilePaths.Add($entry.ProfileImagePath)
+                    }
+                }
+            }
+        }
+
+        # Fallback to scanning C:\Users
+        $userRoots = @("C:\Users")
+        foreach ($ur in $userRoots) {
+            if (Test-Path -LiteralPath $ur) {
+                $dirs = Get-ChildItem -LiteralPath $ur -Directory -Force -ErrorAction SilentlyContinue
+                foreach ($d in $dirs) {
+                    if ($d.Name -notmatch "^(All Users|Default|Default User|LocalService|NetworkService|Public)$") {
+                        [void]$profilePaths.Add($d.FullName)
+                    }
+                }
+            }
+        }
+
+        foreach ($pPath in $profilePaths) {
+            Clean-Directory (Join-Path $pPath "AppData\Local\Temp")
+            Clean-Directory (Join-Path $pPath "AppData\Local\CrashDumps")
+        }
+    } else {
+        Write-AuditEntry "SCOPE: Standard user session - Sanitization scoped to current user temp and cache." -Metadata @{ User = $env:USERNAME }
+        $userTemp = [System.IO.Path]::GetTempPath()
+        Clean-Directory $userTemp
+        if ($env:LOCALAPPDATA) {
+            Clean-Directory (Join-Path $env:LOCALAPPDATA "Temp")
+            Clean-Directory (Join-Path $env:LOCALAPPDATA "CrashDumps")
+        }
     }
     
     $SummaryLevel = if ($AuditOnly -and $TotalIdentified -gt 0) { "WARN" } else { "SUCCESS" }

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Sentinel-IT Suite Institutional Icon | Based on FontAwesome Shield Geometry (CC BY 4.0) -->
+  <g fill="none">
+    <!-- Shield Outline: Sky 400 -->
+    <path d="M256 24 C261 24 266 25 270 27 L460 107 C480 116 494 136 494 160 C493 260 452 420 282 492 C265 500 247 500 230 492 C60 420 19 260 18 160 C18 136 32 116 52 107 L242 27 C246 25 251 24 256 24 Z" 
+          stroke="#38bdf8" stroke-width="36" stroke-linejoin="round"/>
+    <!-- Integrity Checkmark: Emerald 400 -->
+    <path d="M155 255 L225 328 L355 180" 
+          stroke="#34d399" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

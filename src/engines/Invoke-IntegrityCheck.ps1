@@ -26,9 +26,25 @@ if ($AutoRepair) {
 Write-AuditEntry "=========================================================="
 
 try {
-    Assert-IsAdmin
-    Write-AuditEntry "AUDIT: Dispatching DISM online scan health event..."
-    $dismResult = & dism.exe /Online /Cleanup-Image /ScanHealth 2>&1 | Out-String
+    $IsAdmin = Test-IsAdmin
+    if (-not $IsAdmin) {
+        Write-AuditEntry "AUDIT NOTICE: Component Store integrity scan via DISM requires Administrator or SYSTEM privileges. Execution skipped in standard user context." -Level "WARN" -Metadata @{ User = $env:USERNAME }
+        return
+    }
+
+    $sysRoot = if ($env:SystemRoot) { $env:SystemRoot } else { "C:\WINDOWS" }
+    $dismPath = Join-Path $sysRoot "System32\dism.exe"
+    if (-not (Test-Path -LiteralPath $dismPath)) {
+        $sysnativeDism = Join-Path $sysRoot "Sysnative\dism.exe"
+        if (Test-Path -LiteralPath $sysnativeDism) {
+            $dismPath = $sysnativeDism
+        } else {
+            $dismPath = "dism.exe"
+        }
+    }
+
+    Write-AuditEntry "AUDIT: Dispatching DISM online scan health event..." -Metadata @{ DismPath = $dismPath }
+    $dismResult = & $dismPath /Online /Cleanup-Image /ScanHealth 2>&1 | Out-String
     $dismCode = $LASTEXITCODE
 
     if ($dismResult) {
@@ -39,7 +55,7 @@ try {
     }
 
     # Evaluate DISM standard exit codes:
-    # 0 = No corruption, 20 = Corruption detected and repairable, 3010 = Reboot required
+    # 0 = No corruption, 20 = Corruption detected and repairable, 740 = Elevation required, 3010 = Reboot required
     switch ($dismCode) {
         0 {
             Write-AuditEntry "RESULT: Component Store is verified healthy. No corruption detected." -Level "SUCCESS" -Metadata @{ 
@@ -55,12 +71,18 @@ try {
 
             if ($AutoRepair) {
                 Write-AuditEntry "REMEDIATION: AutoRepair invoked. Dispatching DISM /RestoreHealth..." -Level "WARN"
-                $restoreResult = & dism.exe /Online /Cleanup-Image /RestoreHealth 2>&1 | Out-String
+                $restoreResult = & $dismPath /Online /Cleanup-Image /RestoreHealth 2>&1 | Out-String
                 $restoreCode = $LASTEXITCODE
                 $restoreLevel = if ($restoreCode -eq 0) { "SUCCESS" } else { "ERROR" }
                 Write-AuditEntry "REMEDIATION: RestoreHealth concluded." -Level $restoreLevel -Metadata @{ 
                     ExitCode = $restoreCode 
                 }
+            }
+        }
+        740 {
+            Write-AuditEntry "RESULT: DISM operation failed because administrative elevation is required (Exit code 740)." -Level "WARN" -Metadata @{ 
+                ExitCode = 740; 
+                HealthStatus = "ElevationRequired" 
             }
         }
         3010 {

@@ -12,7 +12,7 @@ param(
     [switch]$SkipSignatureUpdate
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
@@ -27,18 +27,26 @@ Write-AuditEntry "   CONFIGURATION: ScanType=$ScanType ($ScanTypeName)"
 Write-AuditEntry "=========================================================="
 
 try {
-    Assert-IsAdmin
+    $IsAdmin = Test-IsAdmin
+    if (-not $IsAdmin) {
+        Write-AuditEntry "NOTICE: Standard user session - Antimalware scan running under user context." -Level "INFO" -Metadata @{ User = $env:USERNAME }
+    }
+
     $DefenderPath = Get-DefenderPlatformPath
     Write-AuditEntry "ENGINE: Resolved Defender Platform Path." -Metadata @{ EnginePath = $DefenderPath }
 
-    # 1. Signature Definitions Refresh
+    # 1. Signature Definitions Refresh (with offline network tolerance)
     if (-not $SkipSignatureUpdate) {
         Write-AuditEntry "UPDATE: Checking and updating antimalware signature definitions..."
-        $updateOutput = & $DefenderPath -SignatureUpdate 2>&1 | Out-String
-        $updateExitCode = $LASTEXITCODE
-        $updateLevel = if ($updateExitCode -eq 0) { "SUCCESS" } else { "WARN" }
-        Write-AuditEntry "UPDATE: Signature definition update finished." -Level $updateLevel -Metadata @{ 
-            ExitCode = $updateExitCode 
+        try {
+            $updateOutput = & $DefenderPath -SignatureUpdate 2>&1 | Out-String
+            $updateExitCode = $LASTEXITCODE
+            $updateLevel = if ($updateExitCode -eq 0) { "SUCCESS" } else { "WARN" }
+            Write-AuditEntry "UPDATE: Signature definition update finished." -Level $updateLevel -Metadata @{ 
+                ExitCode = $updateExitCode 
+            }
+        } catch {
+            Write-AuditEntry "UPDATE: Online signature update unavailable ($($_.Exception.Message)). Proceeding with cached definitions." -Level "WARN"
         }
     }
 

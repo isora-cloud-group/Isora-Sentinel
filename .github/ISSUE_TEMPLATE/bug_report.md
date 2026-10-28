@@ -37,7 +37,7 @@ A clear and concise description of what you expected to happen.
 
 ## Actual Behavior / Error Logs
 ```text
-Paste log output or stack trace here from C:\Program Files\IT_Maintenance\logs\
+Paste log output or stack trace here from C:\Program Files\Sentinel-IT\logs\
 ```
 
 ## Additional Context

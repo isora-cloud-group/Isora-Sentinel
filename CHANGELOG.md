@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **New Engine — BitLocker Cryptographic Compliance (`Invoke-BitLockerAudit.ps1`):** Audits disk encryption status, protection state, and key protectors mapped to ISO/IEC 27001:2022 Control A.8.24.
 - **New Engine — Security Event & Anti-Forensics Audit (`Invoke-EventAudit.ps1`):** Audits Windows Security Event log for Event 1102 (audit log cleared), Event 4625 brute-force bursts, and account provisioning anomalies mapped to ISO/IEC 27001:2022 Control A.8.15.
-- **Enterprise Operator Manual (`docs/MANUAL_DE_USO.md`):** Comprehensive guide for deployment, interactive runs, GPO automation, parameters, and verification.
+- **Enterprise Operator Manual (`docs/OPERATOR_GUIDE.md`):** Comprehensive guide for deployment, interactive runs, GPO automation, parameters, and verification.
 - **SIEM Ingestion Guide (`docs/SIEM_INTEGRATION.md`):** Complete setup for Splunk Universal Forwarder, Elastic Filebeat, Datadog Agent, and Microsoft Sentinel (KQL/SPL alert queries).
 - **Troubleshooting & Diagnostic Matrix (`docs/TROUBLESHOOTING.md`):** Root-cause analysis and resolutions for exit codes, UAC elevation, Task Scheduler status, and OneDrive cloud-only files.
 - **GitHub Issue Templates:** Added `.github/ISSUE_TEMPLATE/bug_report.md` and `.github/ISSUE_TEMPLATE/feature_request.md`.

@@ -3,7 +3,8 @@
 ## Project Overview
 Sentinel-IT is a sovereign, zero-dependency PowerShell automation suite for Windows endpoints. It executes as `NT AUTHORITY\SYSTEM` to enforce endpoint hygiene and ISO compliance mapping (ISO/IEC 27001:2022 and ISO/IEC 20000-1:2018), producing structured forensic logs for SIEM platforms (Splunk, Elastic, Datadog, Microsoft Sentinel).
 
-**Author:** Sandra Gabriela Puerto Torres / Isora Cloud Group  
+**Author & Architecture:** Sandra Gabriela Puerto Torres  
+**Commercial Brand:** Isora Cloud Group  
 **Portals:** https://sandrapuerto.com | https://isora.com.co  
 **License:** MIT  
 
@@ -11,7 +12,7 @@ Sentinel-IT is a sovereign, zero-dependency PowerShell automation suite for Wind
 
 ## Directory Layout
 * `src/lib/`
-  * `Sentinel-Core.psm1`: `Assert-IsAdmin`, `Get-DefenderPlatformPath`
+  * `Sentinel-Core.psm1`: `Assert-IsAdmin`, `Assert-SentinelIntegrity`, `Get-DefenderPlatformPath`
   * `Sentinel-Logger.psm1`: `Initialize-SentinelLog`, `Write-AuditEntry` (Text & NDJSON)
 * `src/engines/`
   * `Invoke-CleanupScreenshots.ps1` (ISO 27001 Control A.8.1)
@@ -21,10 +22,14 @@ Sentinel-IT is a sovereign, zero-dependency PowerShell automation suite for Wind
   * `Invoke-BitLockerAudit.ps1` (ISO 27001 Control A.8.24)
   * `Invoke-EventAudit.ps1` (ISO 27001 Control A.8.15)
 * `installer/`
-  * `Install-Sentinel.ps1`: Deploys to `C:\Program Files\IT_Maintenance\Sentinel-IT\` and registers scheduled tasks.
-  * `Uninstall-Sentinel.ps1`: Deregisters scheduled tasks and removes program binaries.
+  * `Sentinel-IT-Setup.exe`: Standalone GUI WinForms Enterprise installer.
+  * `Build-InstallerExe.ps1`: Zero-privilege build script compiling installer via native .NET `csc.exe`.
+  * `Build-IntegrityManifest.ps1`: Generates SHA-256 hashes in `integrity.manifest.json`.
+  * `Install-Sentinel.ps1`: CLI deployment to `C:\Program Files\Sentinel-IT\` and registers scheduled tasks.
+  * `Uninstall-Sentinel.ps1`: Deregisters scheduled tasks and unregisters from Windows Programs & Features.
 * `docs/`
-  * `MANUAL_DE_USO.md`: Operator and administration manual.
+  * `OPERATOR_GUIDE.md`: Comprehensive enterprise operator and administration manual.
+  * `MANUAL_DE_USO.md`: Legacy operator guide redirect.
   * `SIEM_INTEGRATION.md`: Forwarder configs and SIEM query guides.
   * `TROUBLESHOOTING.md`: Common issue resolution and diagnostic matrix.
   * `ARCHITECTURE.md`: Technical specification and Mermaid diagrams.

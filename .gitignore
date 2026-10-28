@@ -18,9 +18,16 @@ TestResults/
 *.pem
 *.secret
 
-# PowerShell gallery / build artifacts
+# PowerShell gallery / build artifacts & compiled binaries
 *.nupkg
 packages/
+*.exe
+*.zip
+*.pdb
+installer/*.exe
+installer/*.zip
+installer/*.pdb
+installer/payload.zip
 
 # Editor and IDE
 .vscode/

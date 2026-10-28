@@ -1,6 +1,7 @@
 # Security Policy & Responsible Vulnerability Disclosure
 
-**Maintainer & Architecture:** Sandra Gabriela Puerto Torres / Isora Cloud Group  
+**Sole Copyright Holder & Architecture:** Sandra Gabriela Puerto Torres  
+**Commercial Brand & Distribution:** Isora Cloud Group  
 **Security Operations:** [security@isora.com.co](mailto:security@isora.com.co)  
 **General Inquiries:** [contact@isora.com.co](mailto:contact@isora.com.co) · [contacto@sandrapuerto.com](mailto:contacto@sandrapuerto.com)  
 
@@ -21,11 +22,11 @@
 Because Sentinel-IT runs under the highest operating system privileges (`NT AUTHORITY\SYSTEM` or elevated Local Administrator) to perform forensic cleanup and system maintenance, it is subject to strict local security assumptions:
 
 1. **Local Privilege Escalation (LPE) Defense:**
-   The installation directory (`C:\Program Files\IT_Maintenance\Sentinel-IT\`) must inherit strict Windows ACLs allowing write permissions only to `BUILTIN\Administrators` and `NT AUTHORITY\SYSTEM`. Standard unprivileged users must have read/execute-only rights.
-2. **Execution Integrity:**
-   Scheduled tasks invoke scripts via `-ExecutionPolicy Bypass` with fixed target paths. Script tampering by non-privileged accounts must be prevented by operating system ACL enforcement.
+   The installation directory (`C:\Program Files\Sentinel-IT\`) must inherit strict Windows ACLs allowing write permissions only to `BUILTIN\Administrators` and `NT AUTHORITY\SYSTEM`. Standard unprivileged users must have read/execute-only rights.
+2. **Cryptographic Anti-Tampering & Execution Integrity:**
+   Sentinel-IT enforces SHA-256 cryptographic manifest validation (`Assert-SentinelIntegrity`) against `integrity.manifest.json`. If any engine or library script is modified, execution terminates immediately with a security alert in the audit log before executing under `NT AUTHORITY\SYSTEM`.
 3. **Audit Trail Immutability:**
-   Forensic logs in `C:\Program Files\IT_Maintenance\logs\` record process execution, user identity, PID, and timestamp. Log directories should be forwarded to an external SIEM to prevent post-compromise tampering.
+   Forensic logs in `C:\Program Files\Sentinel-IT\logs\` record process execution, user identity, PID, and timestamp. Log directories should be forwarded to an external SIEM to prevent post-compromise tampering.
 
 ---
 

@@ -7,7 +7,7 @@
 #>
 
 $global:SentinelLogFormat = if ($env:SENTINEL_LOG_FORMAT) { $env:SENTINEL_LOG_FORMAT.ToUpper() } else { "TEXT" }
-$global:SentinelLogDir = if ($env:SENTINEL_LOG_DIR) { $env:SENTINEL_LOG_DIR } else { "C:\Program Files\IT_Maintenance\logs" }
+$global:SentinelLogDir = if ($env:SENTINEL_LOG_DIR) { $env:SENTINEL_LOG_DIR } else { "C:\Program Files\Sentinel-IT\logs" }
 
 function Initialize-SentinelLog {
     param(
@@ -16,10 +16,20 @@ function Initialize-SentinelLog {
     )
     $effectiveLogDir = if ($LogDir) { $LogDir } else { $global:SentinelLogDir }
     $LogPath = Join-Path $effectiveLogDir $EngineName
-    if (-not (Test-Path $LogPath)) { New-Item -ItemType Directory -Path $LogPath -Force | Out-Null }
-    
-    $PreciseTime = Get-Date -Format "yyyyMMdd_HHmmss_fffffff"
-    $global:CurrentLogFile = Join-Path $LogPath ("$($EngineName)_$($PreciseTime).log")
+    try {
+        if (-not (Test-Path $LogPath)) { New-Item -ItemType Directory -Path $LogPath -Force -ErrorAction Stop | Out-Null }
+        $PreciseTime = Get-Date -Format "yyyyMMdd_HHmmss_fffffff"
+        $probeFile = Join-Path $LogPath ("$($EngineName)_$($PreciseTime).log")
+        [System.IO.File]::AppendAllText($probeFile, "")
+        $global:CurrentLogFile = $probeFile
+    } catch {
+        # Fallback to user-writable AppData/Temp if protected path (e.g. Program Files) has restricted ACLs
+        $fallbackBase = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA "Sentinel-IT\logs" } else { Join-Path $env:TEMP "Sentinel-IT\logs" }
+        $LogPath = Join-Path $fallbackBase $EngineName
+        if (-not (Test-Path $LogPath)) { New-Item -ItemType Directory -Path $LogPath -Force -ErrorAction SilentlyContinue | Out-Null }
+        $PreciseTime = Get-Date -Format "yyyyMMdd_HHmmss_fffffff"
+        $global:CurrentLogFile = Join-Path $LogPath ("$($EngineName)_$($PreciseTime).log")
+    }
 }
 
 function Write-AuditEntry {
@@ -37,28 +47,30 @@ function Write-AuditEntry {
 
     $SafeMetadata = if ($null -ne $Metadata) { $Metadata } else { @{} }
 
-    if ($global:SentinelLogFormat -eq "JSON") {
-        $LogObj = [ordered]@{
-            Timestamp = $Timestamp
-            Level     = $Level
-            Host      = $HostName
-            Identity  = $Identity
-            PID       = $PID
-            Message   = $Message
-            Metadata  = $SafeMetadata
-        }
-        $LogObj | ConvertTo-Json -Compress | Add-Content -Path $global:CurrentLogFile -Encoding utf8
-    } else {
-        $MetaStr = ""
-        if ($SafeMetadata.Count -gt 0) {
-            $pairs = foreach ($entry in $SafeMetadata.GetEnumerator()) {
-                "$($entry.Key)=$($entry.Value)"
+    try {
+        if ($global:SentinelLogFormat -eq "JSON") {
+            $LogObj = [ordered]@{
+                Timestamp = $Timestamp
+                Level     = $Level
+                Host      = $HostName
+                Identity  = $Identity
+                PID       = $PID
+                Message   = $Message
+                Metadata  = $SafeMetadata
             }
-            $MetaStr = " | " + ($pairs -join ", ")
+            $LogObj | ConvertTo-Json -Compress | Add-Content -Path $global:CurrentLogFile -Encoding utf8 -ErrorAction SilentlyContinue
+        } else {
+            $MetaStr = ""
+            if ($SafeMetadata.Count -gt 0) {
+                $pairs = foreach ($entry in $SafeMetadata.GetEnumerator()) {
+                    "$($entry.Key)=$($entry.Value)"
+                }
+                $MetaStr = " | " + ($pairs -join ", ")
+            }
+            $Entry = "[{0}] [{1}] [PID:{2}] [{3}] {4}{5}" -f $Timestamp, $Level.PadRight(7), $PID, $Identity, $Message, $MetaStr
+            $Entry | Add-Content -Path $global:CurrentLogFile -Encoding utf8 -ErrorAction SilentlyContinue
         }
-        $Entry = "[{0}] [{1}] [PID:{2}] [{3}] {4}{5}" -f $Timestamp, $Level.PadRight(7), $PID, $Identity, $Message, $MetaStr
-        $Entry | Add-Content -Path $global:CurrentLogFile -Encoding utf8
-    }
+    } catch { }
 }
 
 Export-ModuleMember -Function Initialize-SentinelLog, Write-AuditEntry

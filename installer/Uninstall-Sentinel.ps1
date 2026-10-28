@@ -14,8 +14,11 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     Exit
 }
 
+Write-Host "[*] Deteniendo proceso del monitor de bandeja si está activo..."
+Stop-Process -Name "Sentinel-IT-Tray" -Force -ErrorAction SilentlyContinue
+
 Write-Host "[*] Removing Scheduled Tasks..."
-$Tasks = @("Cleanup_Screenshots", "Cleanup_Temp_Global", "Defender_Scan", "Integrity_Check", "BitLocker_Audit", "Event_Audit")
+$Tasks = @("Cleanup_Screenshots", "Cleanup_Temp_Global", "Defender_Scan", "Integrity_Check", "BitLocker_Audit", "Event_Audit", "SystemTray_Monitor")
 foreach ($Task in $Tasks) {
     if (Get-ScheduledTask -TaskName "Sentinel-IT\$Task" -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName "Sentinel-IT\$Task" -Confirm:$false
@@ -24,10 +27,29 @@ foreach ($Task in $Tasks) {
 }
 
 Write-Host "[*] Removing Files..."
-$InstallDir = "C:\Program Files\IT_Maintenance\Sentinel-IT"
+$InstallDir = if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "Sentinel-IT-Tray.exe"))) { $PSScriptRoot } else { "C:\Program Files\Sentinel-IT" }
 if (Test-Path $InstallDir) {
     Remove-Item -Path $InstallDir -Recurse -Force
     Write-Host "  -> Removed directory: $InstallDir" -ForegroundColor Green
+}
+
+# Clean up Windows Registry entries
+try {
+    $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel-IT"
+    if (Test-Path $regPath) {
+        Remove-Item -Path $regPath -Recurse -Force
+        Write-Host "  -> Removed Windows Uninstall registry entry." -ForegroundColor Green
+    }
+    $runHklm = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
+    if (Get-ItemProperty -Path $runHklm -Name "SentinelIT_Tray" -ErrorAction SilentlyContinue) {
+        Remove-ItemProperty -Path $runHklm -Name "SentinelIT_Tray" -Force -ErrorAction SilentlyContinue
+    }
+    $runHkcu = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+    if (Get-ItemProperty -Path $runHkcu -Name "SentinelIT_Tray" -ErrorAction SilentlyContinue) {
+        Remove-ItemProperty -Path $runHkcu -Name "SentinelIT_Tray" -Force -ErrorAction SilentlyContinue
+    }
+} catch {
+    # Non-fatal if key could not be opened
 }
 
 Write-Host "`n[SUCCESS] Sentinel-IT has been uninstalled." -ForegroundColor Cyan
