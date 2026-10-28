@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Enterprise Test Orchestrator for Sentinel-IT Suite.
+    Enterprise Test Orchestrator for Isora Sentinel Suite.
 .DESCRIPTION
     Executes all Pester unit, AST static integrity, and SIEM logging tests.
     Engineered for dual compatibility across Pester 5+, Pester 6+, and legacy environments,
@@ -19,7 +19,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
-Write-Host " ISORA CLOUD GROUP | Sentinel-IT Automated Test Suite" -ForegroundColor Cyan
+Write-Host " ISORA CLOUD GROUP | Isora Sentinel Automated Test Suite" -ForegroundColor Cyan
 Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor Gray
 Write-Host " Operaciones de Seguridad: security@isora.com.co" -ForegroundColor DarkGray
 Write-Host " GitHub: https://github.com/sandra-puerto | LinkedIn: https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray

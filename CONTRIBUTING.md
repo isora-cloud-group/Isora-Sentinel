@@ -1,12 +1,12 @@
-# Contributing to Sentinel-IT
+# Contributing to Isora Sentinel
 
-Thank you for your interest in contributing to **Sentinel-IT**! We welcome bug reports, feature requests, engine additions, and documentation improvements.
+Thank you for your interest in contributing to **Isora Sentinel**! We welcome bug reports, feature requests, engine additions, and documentation improvements.
 
 ---
 
 ## 1. Development Principles
 
-Sentinel-IT is built for mission-critical enterprise Windows endpoints operating under high privileges (`NT AUTHORITY\SYSTEM` or Local Administrator). Every contribution must strictly uphold these engineering principles:
+Isora Sentinel is built for mission-critical enterprise Windows endpoints operating under high privileges (`NT AUTHORITY\SYSTEM` or Local Administrator). Every contribution must strictly uphold these engineering principles:
 
 1. **Zero External Dependencies:**
    Engines must run on native Windows PowerShell 5.1+ and PowerShell 7+ using built-in system tools (e.g., `DISM`, `MpCmdRun.exe`, `Remove-Item`). No third-party modules or compiled binaries are allowed.
@@ -26,8 +26,8 @@ Sentinel-IT is built for mission-critical enterprise Windows endpoints operating
 
 1. Clone the repository:
    ```powershell
-   git clone git@github.com:sandra-puerto/Sentinel-IT.git
-   cd Sentinel-IT
+   git clone git@github.com:sandra-puerto/Isora Sentinel.git
+   cd Isora Sentinel
    ```
 
 2. Run the Pester test suite to ensure the baseline passes:

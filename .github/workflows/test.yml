@@ -1,4 +1,4 @@
-name: Sentinel-IT CI Validation
+name: Isora Sentinel CI Validation
 
 on:
   push:
@@ -48,4 +48,4 @@ jobs:
       - name: Verify Forensic Binary Integrity & Decompilation
         shell: powershell
         run: |
-          powershell -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.ps1 -InstallerPath installer\Sentinel-IT-Setup.exe
+          powershell -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.ps1 -InstallerPath installer\Isora-Sentinel-Setup.exe

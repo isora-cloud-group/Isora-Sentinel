@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Static AST Integrity and Syntax Validation for Sentinel-IT.
+    Static AST Integrity and Syntax Validation for Isora Sentinel.
 .DESCRIPTION
     Validates that all production PowerShell modules and engine scripts
     parse without syntax errors via the System.Management.Automation AST Parser.
@@ -19,7 +19,7 @@ BeforeDiscovery {
     })
 }
 
-Describe "Sentinel-IT Syntax and AST Integrity" {
+Describe "Isora Sentinel Syntax and AST Integrity" {
     It "File <Name> has valid PowerShell AST syntax" -ForEach $FilesToValidate {
         $tokens = $null
         $parseErrors = $null

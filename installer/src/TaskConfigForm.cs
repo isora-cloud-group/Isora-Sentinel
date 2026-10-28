@@ -1,5 +1,6 @@
+﻿using SentinelIT;
 // ============================================================================
-// Sentinel-IT Suite — Ventana de Tareas Programadas
+// Isora Sentinel Suite — Ventana de Tareas Programadas
 // Copyright (c) 2026 Sandra Gabriela Puerto Torres
 // Licencia: MIT (Open Source)
 // ============================================================================
@@ -59,6 +60,10 @@ namespace SentinelIT.Tray
         public string Time = null;    // HH:mm
         public int Day = -1;          // índice de día (semana: 0=Lunes; mes: 0=día 1)
         public int Month = -1;        // 0=Enero
+
+        public string CustomPath = null;
+
+        public int Mode = 0;
     }
 
     // =========================================================================
@@ -432,8 +437,19 @@ namespace SentinelIT.Tray
         private ComboBox cmbDay;
         private ComboBox cmbMonth;
         private DateTimePicker dtpTime;
+        private Panel pathPanel;
+        private TextBox txtCustomPath;
+        private Button btnBrowse;
+        private FlowLayoutPanel grpMode;
+        private ComboBox cmbMode;
+        private bool suppressModeWarning = false;
 
         private int Sz(int v) { return (int)Math.Round(v * dpi); }
+
+        public string GetCustomPath()
+        {
+            return (txtCustomPath != null) ? txtCustomPath.Text.Trim() : "";
+        }
 
         public bool Active
         {
@@ -537,6 +553,108 @@ namespace SentinelIT.Tray
             Controls.Add(desc);
             Controls.Add(schedule);
             Controls.Add(note);
+
+            if (TaskName == "Defender_Scan")
+            {
+                grpMode = NewGroup();
+                grpMode.Controls.Add(NewCaption("Intensidad"));
+                cmbMode = NewCombo(110);
+                cmbMode.Items.AddRange(new object[] { "Examen rápido", "Examen completo" });
+                cmbMode.SelectedIndex = 0;
+                cmbMode.SelectedIndexChanged += delegate
+                {
+                    if (!suppressModeWarning && cmbMode.SelectedIndex == 1)
+                    {
+                        DialogResult dr = MessageBox.Show(this,
+                            "El análisis completo consume una cantidad significativa de recursos de CPU y disco, lo que puede ralentizar el equipo.\n\nSe recomienda ejecutarlo fuera del horario laboral o no utilizar el equipo mientras se ejecuta.\n\n¿Desea confirmar el modo Completo?",
+                            "Confirmación de Carga de Trabajo",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Warning
+                        );
+                        if (dr != DialogResult.Yes)
+                        {
+                            suppressModeWarning = true;
+                            cmbMode.SelectedIndex = 0;
+                            suppressModeWarning = false;
+                        }
+                    }
+                    OnUserChange();
+                };
+                grpMode.Controls.Add(cmbMode);
+                schedule.Controls.Add(grpMode);
+            }
+            else if (TaskName == "Integrity_Check")
+            {
+                grpMode = NewGroup();
+                grpMode.Controls.Add(NewCaption("Intensidad"));
+                cmbMode = NewCombo(110);
+                cmbMode.Items.AddRange(new object[] { "Revisión rápida", "Reparación completa" });
+                cmbMode.SelectedIndex = 0;
+                cmbMode.SelectedIndexChanged += delegate
+                {
+                    if (!suppressModeWarning && cmbMode.SelectedIndex == 1)
+                    {
+                        DialogResult dr = MessageBox.Show(this,
+                            "La comprobación y reparación completa analiza todo el almacén de componentes de Windows en disco, lo que consume muchos recursos y puede tardar de 15 a 45 minutos ralentizando el equipo.\n\nSe recomienda no utilizar el equipo intensivamente mientras se ejecuta.\n\n¿Desea confirmar la Reparación completa?",
+                            "Confirmación de Carga de Trabajo",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Warning
+                        );
+                        if (dr != DialogResult.Yes)
+                        {
+                            suppressModeWarning = true;
+                            cmbMode.SelectedIndex = 0;
+                            suppressModeWarning = false;
+                        }
+                    }
+                    OnUserChange();
+                };
+                grpMode.Controls.Add(cmbMode);
+                schedule.Controls.Add(grpMode);
+            }
+
+            if (TaskName == "Archive_Downloads")
+            {
+                pathPanel = new Panel();
+                pathPanel.BackColor = Color.Transparent;
+                pathPanel.Height = Sz(56);
+
+                CfgLabel lblPath = new CfgLabel("Directorio de retencion de descargas:", 8.25F, FontStyle.Bold, ConfigTheme.Accent);
+                lblPath.SetBounds(0, 0, Sz(320), Sz(18));
+                pathPanel.Controls.Add(lblPath);
+
+                txtCustomPath = new TextBox();
+                txtCustomPath.Font = ConfigTheme.F(8.75F);
+                txtCustomPath.ForeColor = ConfigTheme.Text;
+                txtCustomPath.BackColor = Color.White;
+                txtCustomPath.BorderStyle = BorderStyle.FixedSingle;
+                txtCustomPath.Text = @"%USERPROFILE%\Documents\Isora_Sentinel_Archived\Downloads";
+                txtCustomPath.TextChanged += delegate { OnUserChange(); };
+                pathPanel.Controls.Add(txtCustomPath);
+
+                btnBrowse = new Button();
+                btnBrowse.Text = "Examinar...";
+                btnBrowse.Font = ConfigTheme.F(8F);
+                btnBrowse.FlatStyle = FlatStyle.Flat;
+                btnBrowse.FlatAppearance.BorderColor = ConfigTheme.BorderStrong;
+                btnBrowse.FlatAppearance.MouseOverBackColor = ConfigTheme.FieldBg;
+                btnBrowse.BackColor = Color.White;
+                btnBrowse.ForeColor = ConfigTheme.Text;
+                btnBrowse.Cursor = Cursors.Hand;
+                btnBrowse.Click += delegate
+                {
+                    using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+                    {
+                        fbd.Description = "Seleccione el directorio de destino para descargas archivadas:";
+                        if (fbd.ShowDialog() == DialogResult.OK)
+                        {
+                            txtCustomPath.Text = fbd.SelectedPath;
+                        }
+                    }
+                };
+                pathPanel.Controls.Add(btnBrowse);
+                Controls.Add(pathPanel);
+            }
             ResumeLayout(false);
 
             UpdateVisual();
@@ -615,11 +733,13 @@ namespace SentinelIT.Tray
         private string Snapshot()
         {
             if (!toggle.Checked) return "off";
+            string pathVal = (txtCustomPath != null) ? txtCustomPath.Text.Trim() : "";
+            string modeVal = (cmbMode != null) ? cmbMode.SelectedIndex.ToString() : "0";
             string freq = cmbFreq.SelectedItem != null ? cmbFreq.SelectedItem.ToString() : "Diario";
             string t = dtpTime.Value.ToString("HH:mm");
-            if (freq == "Diario") return "on|Diario|" + t;
-            if (freq == "Semanal" || freq == "Mensual") return "on|" + freq + "|" + cmbDay.SelectedIndex + "|" + t;
-            return "on|Anual|" + cmbMonth.SelectedIndex + "|" + cmbDay.SelectedIndex + "|" + t;
+            if (freq == "Diario") return "on|Diario|" + t + "|" + pathVal + "|" + modeVal;
+            if (freq == "Semanal" || freq == "Mensual") return "on|" + freq + "|" + cmbDay.SelectedIndex + "|" + t + "|" + pathVal + "|" + modeVal;
+            return "on|Anual|" + cmbMonth.SelectedIndex + "|" + cmbDay.SelectedIndex + "|" + t + "|" + pathVal + "|" + modeVal;
         }
 
         private void OnUserChange()
@@ -687,6 +807,26 @@ namespace SentinelIT.Tray
                 if (DateTime.TryParseExact(st.Time, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
                     dtpTime.Value = dt;
             }
+            if (txtCustomPath != null)
+            {
+                if (!string.IsNullOrEmpty(st.CustomPath))
+                {
+                    txtCustomPath.Text = st.CustomPath;
+                }
+                else
+                {
+                    string regPath = TaskConfigForm.GetRegistryArchiveDir();
+                    txtCustomPath.Text = !string.IsNullOrEmpty(regPath) ? regPath : @"%USERPROFILE%\Documents\Isora_Sentinel_Archived\Downloads";
+                }
+            }
+
+            if (cmbMode != null)
+            {
+                suppressModeWarning = true;
+                cmbMode.SelectedIndex = (st.Mode == 1) ? 1 : 0;
+                suppressModeWarning = false;
+            }
+
             toggle.Checked = st.Enabled;
             suppress = false;
 
@@ -747,14 +887,31 @@ namespace SentinelIT.Tray
             string args;
             if (toggle.Checked)
             {
+                string extraParam = "";
+                if (TaskName == "Archive_Downloads" && txtCustomPath != null)
+                {
+                    string p = txtCustomPath.Text.Trim();
+                    if (!string.IsNullOrEmpty(p))
+                    {
+                        extraParam = " -CustomArchiveDir \\\"" + p.Replace("\"", "") + "\\\"";
+                    }
+                }
+                else if (TaskName == "Defender_Scan" && cmbMode != null)
+                {
+                    extraParam = (cmbMode.SelectedIndex == 1) ? " -ScanType 2" : " -ScanType 1";
+                }
+                else if (TaskName == "Integrity_Check" && cmbMode != null)
+                {
+                    extraParam = (cmbMode.SelectedIndex == 1) ? " -AutoRepair" : " -QuickCheck";
+                }
                 args = string.Format(
-                    "/Create /TN \"Sentinel-IT\\{0}\" /TR \"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\\"{1}\\\"\" {2} /RU \"NT AUTHORITY\\SYSTEM\" /RL HIGHEST /F",
-                    TaskName, scriptPath, GetTriggerArgs());
+                    "/Create /TN \"Isora Sentinel\\{0}\" /TR \"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\\"{1}\\\"{2}\" {3} /RU \"NT AUTHORITY\\SYSTEM\" /RL HIGHEST /F",
+                    TaskName, scriptPath, extraParam, GetTriggerArgs());
             }
             else if (InitialExists)
             {
                 // Se deshabilita, no se elimina: así se conserva su programación.
-                args = string.Format("/Change /TN \"Sentinel-IT\\{0}\" /DISABLE", TaskName);
+                args = string.Format("/Change /TN \"Isora Sentinel\\{0}\" /DISABLE", TaskName);
             }
             else
             {
@@ -786,7 +943,8 @@ namespace SentinelIT.Tray
             int bh = schedule.Visible
                 ? schedule.GetPreferredSize(new Size(fullW, 0)).Height
                 : note.GetHeight(fullW);
-            int total = yBottom + bh + p;
+            int pathH = (pathPanel != null && schedule.Visible) ? pathPanel.Height + Sz(8) : 0;
+            int total = yBottom + bh + pathH + p;
 
             if (apply)
             {
@@ -797,6 +955,19 @@ namespace SentinelIT.Tray
                 desc.SetBounds(textX, yDesc, fullW, dh);
                 if (schedule.Visible) schedule.SetBounds(textX, yBottom, fullW, bh);
                 else note.SetBounds(textX, yBottom, fullW, bh);
+
+                if (pathPanel != null)
+                {
+                    pathPanel.Visible = schedule.Visible;
+                    if (schedule.Visible)
+                    {
+                        pathPanel.SetBounds(textX, yBottom + bh + Sz(6), fullW, pathPanel.Height);
+                        int btnW = Sz(90);
+                        int txtW = Math.Max(Sz(100), fullW - btnW - Sz(8));
+                        txtCustomPath.SetBounds(0, Sz(20), txtW, Sz(24));
+                        btnBrowse.SetBounds(txtW + Sz(8), Sz(20), btnW, Sz(24));
+                    }
+                }
             }
             return total;
         }
@@ -860,7 +1031,7 @@ namespace SentinelIT.Tray
             runPsAction = psRunner;
             openSetupAction = setupRunner;
 
-            Text = "Sentinel-IT · Tareas programadas";
+            Text = "Isora Sentinel · Tareas programadas";
             if (appIcon != null) Icon = appIcon;
             BackColor = ConfigTheme.PageBg;
             ForeColor = ConfigTheme.Text;
@@ -937,7 +1108,7 @@ namespace SentinelIT.Tray
             footer.Controls.Add(buttons);
 
             btnClose = new Button();
-            btnClose.Text = "Cerrar";
+            btnClose.Text = Loc.T("Cerrar", "Close");
             btnClose.Size = new Size(Sz(96), Sz(40));
             btnClose.Margin = new Padding(Sz(10), 0, 0, 0);
             btnClose.Font = ConfigTheme.F(9.5F);
@@ -953,7 +1124,7 @@ namespace SentinelIT.Tray
             CancelButton = btnClose;
 
             btnApply = new Button();
-            btnApply.Text = "Guardar cambios";
+            btnApply.Text = Loc.T("Guardar cambios", "Save changes");
             btnApply.Size = new Size(Sz(150), Sz(40));
             btnApply.Margin = new Padding(0);
             btnApply.Font = ConfigTheme.F(9.5F, FontStyle.Bold);
@@ -989,7 +1160,7 @@ namespace SentinelIT.Tray
             header.BackColor = TrayTheme.BgDark;
             header.Spacing = Sz(4);
             header.Padding = new Padding(Sz(28), Sz(18), Sz(28), Sz(18));
-            header.Controls.Add(new CfgLabel("SENTINEL-IT · CONFIGURACIÓN", 8F, FontStyle.Bold, TrayTheme.AccentSky));
+            header.Controls.Add(new CfgLabel("ISORA SENTINEL · CONFIGURACIÓN", 8F, FontStyle.Bold, TrayTheme.AccentSky));
             header.Controls.Add(new CfgLabel("Tareas programadas", 15F, FontStyle.Bold, Color.White));
             header.Controls.Add(new CfgLabel(
                 "Active, desactive o cambie el horario de cada rutina. Los cambios se guardan en el Programador de tareas de Windows y se ejecutan con la cuenta SYSTEM.",
@@ -1057,7 +1228,7 @@ namespace SentinelIT.Tray
                 "Diario", 0, 0, "03:00");
             AddCard(stack, "Archive_Downloads", "Invoke-ArchiveDownloads.ps1",
                 "Archivado seguro de descargas", "A.8.10 · Ciclo de vida",
-                @"Relocaliza descargas de más de 30 días hacia Documentos\Sentinel_Archived\Downloads protegiéndolas con respaldo corporativo.",
+                @"Relocaliza descargas de más de 30 días hacia Documentos\Isora_Sentinel_Archived\Downloads protegiéndolas con respaldo corporativo.",
                 "Mensual", 0, 0, "03:00");
 
             // Opciones generales
@@ -1073,7 +1244,7 @@ namespace SentinelIT.Tray
             toggleAutoStart.CheckedChanged += delegate { UpdatePending(); };
             ToggleRow rowAuto = new ToggleRow(
                 "Iniciar el monitor al iniciar sesión",
-                "Muestra el icono de Sentinel-IT en el área de notificaciones al entrar a Windows.",
+                "Muestra el icono de Isora Sentinel en el área de notificaciones al entrar a Windows.",
                 toggleAutoStart, null, dpi);
             rowAuto.Tag = Sz(6);
             general.Controls.Add(rowAuto);
@@ -1151,7 +1322,7 @@ namespace SentinelIT.Tray
             {
                 DialogResult r = MessageBox.Show(this,
                     "Hay cambios sin guardar. Si recarga el estado se descartarán.\n\n¿Desea continuar?",
-                    "Sentinel-IT · Tareas programadas", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    "Isora Sentinel · Tareas programadas", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (r != DialogResult.Yes) return;
             }
             LoadCurrentStatesAsync();
@@ -1192,7 +1363,7 @@ namespace SentinelIT.Tray
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo("schtasks.exe",
-                    "/Query /TN \"Sentinel-IT\\" + taskName + "\" /XML");
+                    "/Query /TN \"Isora Sentinel\\" + taskName + "\" /XML");
                 psi.CreateNoWindow = true;
                 psi.UseShellExecute = false;
                 psi.RedirectStandardOutput = true;
@@ -1223,6 +1394,32 @@ namespace SentinelIT.Tray
             XmlDocument doc = new XmlDocument();
             doc.XmlResolver = null;
             doc.LoadXml(xml);
+
+            XmlNode argsNode = doc.SelectSingleNode("//*[local-name()='Arguments']");
+            if (argsNode != null)
+            {
+                string argText = argsNode.InnerText ?? "";
+                if (argText.IndexOf("-ScanType 2", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    argText.IndexOf("-AutoRepair", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    info.Mode = 1;
+                }
+                int idx = argText.IndexOf("-CustomArchiveDir", StringComparison.OrdinalIgnoreCase);
+                if (idx >= 0)
+                {
+                    string rest = argText.Substring(idx + "-CustomArchiveDir".Length).Trim();
+                    if (rest.StartsWith("\""))
+                    {
+                        int endQuote = rest.IndexOf('\"', 1);
+                        if (endQuote > 1) info.CustomPath = rest.Substring(1, endQuote - 1);
+                    }
+                    else
+                    {
+                        string[] tokens = rest.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (tokens.Length > 0) info.CustomPath = tokens[0];
+                    }
+                }
+            }
 
             XmlNode en = doc.SelectSingleNode("//*[local-name()='Settings']/*[local-name()='Enabled']");
             if (en != null && en.InnerText.Trim().Equals("false", StringComparison.OrdinalIgnoreCase))
@@ -1302,7 +1499,7 @@ namespace SentinelIT.Tray
                 MessageBox.Show(this,
                     "No se encontraron estos archivos en la carpeta de instalación:\n\n  •  " + string.Join("\n  •  ", missing.ToArray()) +
                     "\n\nRepare la instalación con el asistente y vuelva a intentarlo.",
-                    "Sentinel-IT · Archivos faltantes", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Isora Sentinel · Archivos faltantes", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 UpdatePending();
                 return;
             }
@@ -1321,25 +1518,25 @@ namespace SentinelIT.Tray
             {
                 if (IsDisposed) return;
                 applying = false;
-                btnApply.Text = "Guardar cambios";
+                btnApply.Text = Loc.T("Guardar cambios", "Save changes");
 
                 if (code == 0)
                 {
                     LoadCurrentStatesAsync();
                     MessageBox.Show(this, "Los cambios se aplicaron correctamente.",
-                        "Sentinel-IT · Tareas programadas", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        "Isora Sentinel · Tareas programadas", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else if (code < 0)
                 {
                     UpdatePending();
                     MessageBox.Show(this, "No se aplicaron cambios: la solicitud de permisos de administrador se canceló o no pudo iniciarse.",
-                        "Sentinel-IT · Tareas programadas", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        "Isora Sentinel · Tareas programadas", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 else
                 {
                     LoadCurrentStatesAsync();
                     MessageBox.Show(this, "No se pudieron aplicar " + code + " cambio(s). Revise el estado de cada rutina e inténtelo de nuevo.",
-                        "Sentinel-IT · Tareas programadas", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        "Isora Sentinel · Tareas programadas", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             });
         }
@@ -1370,7 +1567,7 @@ namespace SentinelIT.Tray
             catch (Exception ex)
             {
                 MessageBox.Show(this, "No se pudo cambiar el inicio automático:\n" + ex.Message,
-                    "Sentinel-IT · Tareas programadas", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Isora Sentinel · Tareas programadas", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
         }
@@ -1381,10 +1578,27 @@ namespace SentinelIT.Tray
             {
                 DialogResult r = MessageBox.Show(this,
                     "Hay cambios sin guardar.\n\n¿Desea cerrar la ventana y descartarlos?",
-                    "Sentinel-IT · Tareas programadas", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    "Isora Sentinel · Tareas programadas", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (r != DialogResult.Yes) e.Cancel = true;
             }
             base.OnFormClosing(e);
+        }
+
+                internal static string GetRegistryArchiveDir()
+        {
+            try
+            {
+                using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel", false))
+                {
+                    if (rk != null)
+                    {
+                        object val = rk.GetValue("DownloadsArchiveDir");
+                        if (val != null) return val.ToString();
+                    }
+                }
+            }
+            catch { }
+            return null;
         }
 
         private static bool IsAdministrator()

@@ -4,7 +4,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$InstallerPath = "$PSScriptRoot\Sentinel-IT-Setup.exe",
+    [string]$InstallerPath = "$PSScriptRoot\Isora-Sentinel-Setup.exe",
     [string]$ExtractSandboxDir = ""
 )
 

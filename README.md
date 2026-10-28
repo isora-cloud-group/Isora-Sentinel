@@ -1,8 +1,8 @@
-<p align="center">
-  <img src="installer/src/app.svg" width="80" height="80" alt="Sentinel-IT Institutional Logo" />
+﻿<p align="center">
+  <img src="installer/src/app.svg" width="80" height="80" alt="Isora Sentinel Institutional Logo" />
 </p>
 
-<h1 align="center">Sentinel-IT Suite</h1>
+<h1 align="center">Isora Sentinel Suite</h1>
 
 <p align="center">
   <strong>Endpoint Hardening, Cryptographic Audit, and Compliance Telemetry for Microsoft Windows</strong><br>
@@ -10,10 +10,11 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-2.2.0-0284c7.svg?style=flat-square" alt="Version 2.2.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-2.3.1-0284c7.svg?style=flat-square" alt="Version 2.3.1" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-059669.svg?style=flat-square" alt="License MIT" /></a>
+  <a href="https://www.virustotal.com/gui/file/d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90?nocache=1"><img src="https://img.shields.io/badge/VirusTotal-0%2F71%20Clean-success.svg?style=flat-square&logo=virustotal" alt="VirusTotal 0/71 Clean Report" /></a>
   <a href="docs/ISO_MAPPING.md"><img src="https://img.shields.io/badge/Compliance-ISO%2027001%20%7C%20ISO%2020000--1-0f766e.svg?style=flat-square" alt="Compliance Controls" /></a>
-  <a href="tests/"><img src="https://img.shields.io/badge/Tests-31%20Passed%20%7C%20Pester-4338ca.svg?style=flat-square" alt="Pester Tests" /></a>
+  <a href="tests/"><img src="https://img.shields.io/badge/Tests-36%20Passed%20%7C%20Pester-4338ca.svg?style=flat-square" alt="Pester Tests" /></a>
   <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011%20%7C%20Server-334155.svg?style=flat-square" alt="Supported OS" />
   <img src="https://img.shields.io/badge/Runtime-PowerShell%205.1%20%7C%207%2B-1e293b.svg?style=flat-square" alt="PowerShell Runtime" />
 </p>
@@ -22,9 +23,9 @@
 
 ## 1. Executive Summary & Operational Scope
 
-Sentinel-IT is a host-based automation framework engineered for corporate and public-sector Microsoft Windows environments. It provides continuous compliance verification, disk capacity reclamation, sensitive visual data sanitization, and forensic security logging without relying on heavy background services or unverified third-party runtime dependencies.
+Isora Sentinel is a host-based automation framework engineered for corporate and public-sector Microsoft Windows environments. It provides continuous compliance verification, disk capacity reclamation, sensitive visual data sanitization, and forensic security logging without relying on heavy background services or unverified third-party runtime dependencies.
 
-Designed specifically for organizations subject to regulatory frameworks such as **ISO/IEC 27001**, **ISO/IEC 20000-1**, **SOC 2 Type II**, and **CIS Microsoft Windows Benchmarks**, Sentinel-IT executes maintenance and audit routines using native Windows APIs, PowerShell, and .NET Framework. All telemetry is emitted as standardized, structured logs (RFC 8259 NDJSON or plain text) compatible with central Security Information and Event Management (SIEM) collectors.
+Designed specifically for organizations subject to regulatory frameworks such as **ISO/IEC 27001**, **ISO/IEC 20000-1**, **SOC 2 Type II**, and **CIS Microsoft Windows Benchmarks**, Isora Sentinel executes maintenance and audit routines using native Windows APIs, PowerShell, and .NET Framework. All telemetry is emitted as standardized, structured logs (RFC 8259 NDJSON or plain text) compatible with central Security Information and Event Management (SIEM) collectors.
 
 ### Core Engineering Requirements
 * **Zero External Dependencies:** Built solely on native Windows components (`powershell.exe`, `schtasks.exe`, `dism.exe`, `manage-bde.exe`, `MpCmdRun.exe`). Requires no package managers (NuGet, Chocolatey) or third-party interpreters (Python, Node.js).
@@ -36,9 +37,9 @@ Designed specifically for organizations subject to regulatory frameworks such as
 
 ## 2. Regulatory Compliance & Control Mapping
 
-Sentinel-IT operationalizes technical controls defined in international standards:
+Isora Sentinel operationalizes technical controls defined in international standards:
 
-| Control Standard | Clause / ID | Domain | Technical Implementation in Sentinel-IT |
+| Control Standard | Clause / ID | Domain | Technical Implementation in Isora Sentinel |
 | :--- | :--- | :--- | :--- |
 | **ISO/IEC 27001:2022** | **A.8.1** | User Endpoint Devices | Discovers standard, redirected, and cloud-synced screenshot folders across all user profiles; purges local visual artifacts to prevent Data Loss (DLP). |
 | **ISO/IEC 27001:2022** | **A.8.7** | Protection Against Malware | Resolves active Microsoft Defender platform binaries dynamically, updates signatures, and dispatches scans with exit code capture. |
@@ -60,7 +61,7 @@ Detailed audit evidence commands and control rationales are provided in **[docs/
 +-----------------------------------------------------------------------------------+
 |                        Execution & Orchestration Layer                            |
 |  - Windows Task Scheduler (NT AUTHORITY\SYSTEM, RunLevel: Highest)                |
-|  - System Tray Observability Utility (Sentinel-IT-Tray.exe, asInvoker)            |
+|  - System Tray Observability Utility (Isora-Sentinel-Tray.exe, asInvoker)            |
 |  - Unattended CLI Deployment (Install-Sentinel.ps1, Intune/GPO)                   |
 +-----------------------------------------------------------------------------------+
                                           |
@@ -94,14 +95,14 @@ Detailed audit evidence commands and control rationales are provided in **[docs/
                                           v
 +-----------------------------------------------------------------------------------+
 |                         Forensic Telemetry Output                                 |
-|  - Local Store : C:\Program Files\Sentinel-IT\logs\<EngineName>\*.log          |
+|  - Local Store : C:\Program Files\Isora-Sentinel\logs\<EngineName>\*.log          |
 |  - Ingestion   : Splunk UF, Elastic Filebeat, Datadog Agent, Azure Monitor Agent  |
 +-----------------------------------------------------------------------------------+
 ```
 
 ### Security Controls & Privilege Enforcement
 1. **Local Privilege Escalation (LPE) Defense:**  
-   The installation directory (`C:\Program Files\Sentinel-IT\`) is secured with explicit Windows Access Control Lists (ACLs). Inherited user write permissions are stripped; `BUILTIN\Users` retains read and execute permissions (`RX`) only.
+   The installation directory (`C:\Program Files\Isora-Sentinel\`) is secured with explicit Windows Access Control Lists (ACLs). Inherited user write permissions are stripped; `BUILTIN\Users` retains read and execute permissions (`RX`) only.
 2. **Cryptographic Anti-Tampering Gate:**  
    The function `Assert-SentinelIntegrity` checks all operational scripts against `integrity.manifest.json`. Under `NT AUTHORITY\SYSTEM` or production paths, missing or mismatched manifests result in immediate execution termination (Fail-Closed).
 3. **Automated Log Retention:**  
@@ -121,15 +122,15 @@ All engines reside in `src/engines/` and accept structured command-line paramete
 | `Invoke-IntegrityCheck.ps1` | `-AutoRepair`<br>`-QuickCheck` | Audits the Windows Component Store via `dism.exe /ScanHealth` (or `/CheckHealth` with `-QuickCheck`). Dispatches `/RestoreHealth` when repairable corruption is found and `-AutoRepair` is passed. | `DismPath`, `DismCode`, `HealthStatus`, `AutoRepair` |
 | `Invoke-BitLockerAudit.ps1` | `-TargetMountPoint`<br>`-IncludeRemovable` | Evaluates BitLocker encryption percentage, protection state, and protector types across OS and fixed volumes. Removable media is excluded by default. | `MountPoint`, `VolumeType`, `ProtectionStatus`, `VolumeStatus`, `KeyProtectors` |
 | `Invoke-EventAudit.ps1` | `-Hours [int]`<br>`-FailedLogonThreshold [int]` | Audits `Security.evtx` for Event 1102 (Log cleared) and Event 4625 (Failed logon bursts), and `System.evtx` for Event 104 (Log cleared). Resolves SIDs to account names. | `WindowHours`, `AnomaliesDetected`, `EventID`, `User`, `Timestamp` |
-| `Invoke-ArchiveDownloads.ps1` | `-DaysOld [int]`<br>`-CustomArchiveDir [string]`<br>`-AuditOnly [switch]` | Identifies unmanaged downloads older than threshold (default 30 days) and relocates them to a protected archive (`Documents\Sentinel_Archived\Downloads`) with a user policy notice file. | `User`, `MovedCount`, `ReclaimedBytes`, `ArchiveDir` |
+| `Invoke-ArchiveDownloads.ps1` | `-DaysOld [int]`<br>`-CustomArchiveDir [string]`<br>`-AuditOnly [switch]` | Identifies unmanaged downloads older than threshold (default 30 days) and relocates them to a protected archive (`Documents\Isora_Sentinel_Archived\Downloads`) with a user policy notice file. | `User`, `MovedCount`, `ReclaimedBytes`, `ArchiveDir` |
 
 ---
 
 ## 5. Deployment & Configuration
 
-### Option A: Standalone GUI Installer (`Sentinel-IT-Setup.exe`)
+### Option A: Standalone GUI Installer (`Isora-Sentinel-Setup.exe`)
 For manual deployments, staging evaluation, or workstation rollouts:
-1. Run `installer/Sentinel-IT-Setup.exe` with Administrator privileges.
+1. Run `installer/Isora-Sentinel-Setup.exe` with Administrator privileges.
 2. The four-step wizard guides configuration of target paths, scheduled task frequencies, cryptographic manifest verification, and optional desktop tray monitor installation.
 3. Modules are unpacked from an internal package resource and verified against SHA-256 signatures prior to task scheduling.
 
@@ -139,7 +140,7 @@ For mass rollouts via Microsoft Intune, Microsoft Endpoint Configuration Manager
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Install-Sentinel.ps1 `
     -Silent `
-    -InstallDir "C:\Program Files\Sentinel-IT" `
+    -InstallDir "C:\Program Files\Isora-Sentinel" `
     -ScheduleScreenshots "Daily" `
     -ScheduleTemp "Daily" `
     -ScheduleDefender "Weekly" `
@@ -150,13 +151,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Install-Sent
 ```
 
 #### Supported Deployment Parameters:
-* `-InstallDir` `[string]`: Target installation folder (default: `C:\Program Files\Sentinel-IT`).
-* `-LogsDir` `[string]`: Custom log storage path (default: `C:\Program Files\Sentinel-IT\logs`).
+* `-InstallDir` `[string]`: Target installation folder (default: `C:\Program Files\Isora-Sentinel`).
+* `-LogsDir` `[string]`: Custom log storage path (default: `C:\Program Files\Isora-Sentinel\logs`).
 * `-Silent` `[switch]`: Suppresses all user prompts for non-interactive execution.
 * `-SkipIntegrityCheck` `[switch]`: Bypasses pre-installation manifest check (recovery only).
 * `-Schedule*` `[string]`: Sets trigger frequency (`Daily`, `Weekly`, `Monthly`) per engine.
 
-### Option C: System Tray Monitor (`Sentinel-IT-Tray.exe`)
+### Option C: System Tray Monitor (`Isora-Sentinel-Tray.exe`)
 The system tray monitor runs within user desktop sessions:
 * Real-time SHA-256 integrity badge (Green = Verified; Amber = Discrepancy detected).
 * On-demand manual execution with standard Windows UAC elevation.
@@ -209,22 +210,38 @@ powershell.exe -ExecutionPolicy Bypass -File .\tests\Invoke-Tests.ps1
 ```
 
 ```
-Test Summary: Passed=31, Failed=0, Total=31
+Test Summary: Passed=36, Failed=0, Total=36
 - Sentinel-Core.Tests.ps1    : Privilege assertion, Defender discovery, integrity gate
 - Sentinel-Engines.Tests.ps1 : Parameter binding, switch verification
 - Sentinel-Logger.Tests.ps1  : Text/NDJSON serialization, BOM-free UTF8, log retention
 - Sentinel-Syntax.Tests.ps1  : PowerShell Abstract Syntax Tree (AST) validation
 ```
 
+### Multi-Vendor Antivirus & EDR Audit (VirusTotal 0/71 Clean)
+
+As forensic proof of zero malicious heuristics, zero supply-chain poisoning, and full transparency, the compiled standalone installer (`Isora-Sentinel-Setup.exe`) has been analyzed by **71 security vendors and EDR engines** on VirusTotal:
+
+* **Official VirusTotal Audit Report:** [https://www.virustotal.com/gui/file/d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90?nocache=1](https://www.virustotal.com/gui/file/d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90?nocache=1)
+* **Analyzed Binary:** `Isora-Sentinel-Setup.exe` (v2.3.1)
+* **SHA-256 Digest:** `d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90`
+* **Detection Score:** **`0 / 71`** (0% False Positives, 100% Undetected across Microsoft Defender, CrowdStrike Falcon, Kaspersky, BitDefender, ESET, Sophos, Acronis, Avast, Symantec, etc.)
+* **Code Signing Verification:** Authenticode SHA-256 Signature verified by DigiCert Timestamp.
+
+<p align="center">
+  <a href="https://www.virustotal.com/gui/file/d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90?nocache=1">
+    <img src="docs/img/virustotal-audit.png" alt="VirusTotal 0/71 Clean Scan Certificate" width="900" />
+  </a>
+</p>
+
 ### Forensic Package Inspection & Transparent Auditing
 Enterprise security teams, blue teams, and independent auditors (such as Kaspersky, Mandiant, or internal SOC teams) can verify the integrity of the compiled distribution without executing the installer wizard:
 
 ```powershell
 # 1. Non-interactive in-memory SHA-256 integrity check against manifest (exits 0 if valid):
-.\installer\Sentinel-IT-Setup.exe --audit
+.\installer\Isora-Sentinel-Setup.exe --audit
 
 # 2. Extract embedded package files to a sandbox directory for static code review:
-.\installer\Sentinel-IT-Setup.exe --extract C:\Sandbox\SentinelAudit
+.\installer\Isora-Sentinel-Setup.exe --extract C:\Sandbox\SentinelAudit
 
 # 3. Automated offline inspector harness:
 powershell.exe -ExecutionPolicy Bypass -File .\installer\Verify-PackageIntegrity.ps1
@@ -237,7 +254,7 @@ This utility extracts PE metadata, unpacks embedded resources in memory, and re-
 ## 8. Repository Structure
 
 ```
-Sentinel-IT/
+Isora Sentinel/
 ├── .github/
 │   └── workflows/
 │       └── test.yml                  # GitHub Actions CI validation workflow
@@ -251,11 +268,12 @@ Sentinel-IT/
 │   ├── src/
 │   │   ├── AssemblyInfo.cs           # Assembly metadata and versioning
 │   │   ├── app.ico                   # Application icon asset
-│   │   ├── app.manifest              # Windows UAC application manifest (asInvoker)
+│   │   ├── app.manifest              # Windows UAC application manifest (requireAdministrator)
 │   │   ├── app.svg                   # Vector icon asset
 │   │   ├── SentinelSetup.cs          # Standalone WinForms installer wizard
 │   │   ├── SentinelTray.cs           # System tray observability process
-│   │   └── TaskConfigForm.cs         # Task Scheduler GUI configurator
+│   │   ├── TaskConfigForm.cs         # Task Scheduler GUI configurator
+│   │   └── UninstallForm.cs          # Interactive WinForms uninstallation wizard
 │   ├── Build-InstallerExe.ps1        # MSIL csc.exe native builder
 │   ├── Build-IntegrityManifest.ps1   # SHA-256 integrity manifest generator
 │   ├── Install-Sentinel.ps1          # Unattended CLI installation script

@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Institutional Security Auditor and Forensic Decompilation Inspector for Sentinel-IT-Setup.exe.
+    Institutional Security Auditor and Forensic Decompilation Inspector for Isora-Sentinel-Setup.exe.
 .DESCRIPTION
     Designed for cybersecurity teams and technical auditors (e.g., Banco de la Republica,
     banks, government agencies, and SOC 2 / ISO 27001 lead auditors).
     
-    Inspects Sentinel-IT-Setup.exe WITHOUT executing it:
+    Inspects Isora-Sentinel-Setup.exe WITHOUT executing it:
     1. Reads PE Assembly attributes (Author, Brand, Copyright, Version).
     2. Decompresses the embedded PackageArchive ZIP stream in-memory.
     3. Verifies 100% of embedded PowerShell modules and manifests against SHA-256 digests.
@@ -13,14 +13,14 @@
     5. Optionally extracts all source scripts into a designated sandbox directory for manual code review.
 #>
 param(
-    [string]$InstallerPath = "$PSScriptRoot\Sentinel-IT-Setup.exe",
+    [string]$InstallerPath = "$PSScriptRoot\Isora-Sentinel-Setup.exe",
     [string]$ExtractSandboxDir = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 if (-not (Test-Path $InstallerPath)) {
-    $alt = Join-Path (Split-Path $InstallerPath) "Sentinel-IT-Setup.new.exe"
+    $alt = Join-Path (Split-Path $InstallerPath) "Isora-Sentinel-Setup.new.exe"
     if (Test-Path $alt) {
         $InstallerPath = $alt
     } else {
@@ -31,7 +31,7 @@ if (-not (Test-Path $InstallerPath)) {
 $fullExePath = (Resolve-Path $InstallerPath).Path
 
 Write-Host "============================================================" -ForegroundColor DarkCyan
-Write-Host " SENTINEL-IT SUITE - AUDITORIA DE SEGURIDAD Y DECOMPILACION" -ForegroundColor Cyan
+Write-Host " ISORA SENTINEL SUITE - AUDITORIA DE SEGURIDAD Y DECOMPILACION" -ForegroundColor Cyan
 Write-Host " Entorno de Inspeccion Forense para Equipos de Ciberseguridad" -ForegroundColor Gray
 Write-Host "============================================================" -ForegroundColor DarkCyan
 

@@ -1,10 +1,10 @@
-# Diagnostic & Troubleshooting Guide — Sentinel-IT Suite
+# Diagnostic & Troubleshooting Guide — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Software Version:** 2.2.0  
+**Software Version:** 2.3.0  
 
-This guide provides technical root-cause analysis and operational remediation steps for common error scenarios, return codes, and system integration points across **Sentinel-IT**.
+This guide provides technical root-cause analysis and operational remediation steps for common error scenarios, return codes, and system integration points across **Isora Sentinel**.
 
 ---
 
@@ -45,10 +45,10 @@ When inspecting task history via `Get-ScheduledTaskInfo`:
 | Return Code | Hex Representation | Meaning & Status | Resolution |
 | :--- | :--- | :--- | :--- |
 | `0` | `0x0` | **Success (Operation completed cleanly)** | No action required. |
-| `1` | `0x1` | **PowerShell Script Encountered Errors** | Inspect the corresponding log file in `C:\Program Files\Sentinel-IT\logs\<Engine>\`. |
+| `1` | `0x1` | **PowerShell Script Encountered Errors** | Inspect the corresponding log file in `C:\Program Files\Isora-Sentinel\logs\<Engine>\`. |
 | `267009` | `0x41301` | **Task is Currently Running** | Wait for completion; for long scans (DISM/Defender), this is expected. |
 | `267011` | `0x41303` | **Task Did Not Run at Scheduled Time** | Check if machine was asleep, powered down, or if the user missed the maintenance window. |
-| `2147942402` | `0x80070002` | **File Not Found** | Verify that `powershell.exe` or the engine `.ps1` path exists in `C:\Program Files\Sentinel-IT\engines\`. |
+| `2147942402` | `0x80070002` | **File Not Found** | Verify that `powershell.exe` or the engine `.ps1` path exists in `C:\Program Files\Isora-Sentinel\engines\`. |
 | `2147942405` | `0x80070005` | **Access Denied** | Task lacks permission to execute as configured user; re-register using `NT AUTHORITY\SYSTEM`. |
 
 ---
@@ -56,7 +56,7 @@ When inspecting task history via `Get-ScheduledTaskInfo`:
 ## 3. Windows UAC Elevation Nuances (Windows 10/11)
 
 ### Symptom
-When triggering an administrative module from `Sentinel-IT-Tray.exe`, the UAC elevation prompt does not display, or the task fails silently.
+When triggering an administrative module from `Isora-Sentinel-Tray.exe`, the UAC elevation prompt does not display, or the task fails silently.
 
 ### Technical Root Cause
 1. **The `SW_HIDE` with `runas` Issue:** In Windows 10 (22H2) and Windows 11 (23H2/24H2), passing `ProcessWindowStyle.Hidden` (`SW_HIDE`) to `ShellExecuteEx` alongside `Verb = "runas"` suppresses the secure desktop credential prompt (`consent.exe`), causing Windows to block execution.
@@ -118,13 +118,13 @@ if ($isReparse -or $isOffline) {
 
 ### Symptom
 ```text
-File C:\Program Files\Sentinel-IT\engines\Invoke-DefenderScan.ps1 cannot be loaded because running scripts is disabled on this system.
+File C:\Program Files\Isora-Sentinel\engines\Invoke-DefenderScan.ps1 cannot be loaded because running scripts is disabled on this system.
 ```
 
 ### Remediation
-Always invoke Sentinel-IT routines using the `-ExecutionPolicy Bypass` switch:
+Always invoke Isora Sentinel routines using the `-ExecutionPolicy Bypass` switch:
 ```cmd
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\Sentinel-IT\engines\Invoke-DefenderScan.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\Isora-Sentinel\engines\Invoke-DefenderScan.ps1"
 ```
 This bypasses per-user execution policy restrictions without permanently altering system-wide Group Policy.
 

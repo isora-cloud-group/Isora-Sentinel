@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Generates cryptographic SHA-256 integrity manifest for Sentinel-IT.
+    Generates cryptographic SHA-256 integrity manifest for Isora Sentinel.
 .DESCRIPTION
     Scans all library modules, execution engines, and the license file,
     computing deterministic SHA-256 digests into integrity.manifest.json.
@@ -36,7 +36,7 @@ foreach ($relPath in $TargetFiles) {
 }
 
 $ManifestObj = [ordered]@{
-    version      = "2.2.0"
+    version      = "2.3.0"
     algorithm    = "SHA256"
     author       = "Sandra Gabriela Puerto Torres"
     brand        = "Isora Cloud Group"

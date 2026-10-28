@@ -1,4 +1,4 @@
-# Enterprise SIEM Ingestion & Security Operations Guide — Sentinel-IT Suite
+# Enterprise SIEM Ingestion & Security Operations Guide — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
@@ -10,14 +10,14 @@
 
 ## 1. Zero-Dependency Ingestion Architecture
 
-Sentinel-IT avoids the pitfalls of running background daemon sockets or pushing TLS traffic directly inside PowerShell scripts. Instead, it emits structured, atomic forensic logs directly to the local filesystem at `C:\Program Files\Sentinel-IT\logs\<EngineName>\*.log`.
+Isora Sentinel avoids the pitfalls of running background daemon sockets or pushing TLS traffic directly inside PowerShell scripts. Instead, it emits structured, atomic forensic logs directly to the local filesystem at `C:\Program Files\Isora-Sentinel\logs\<EngineName>\*.log`.
 
 Industry-standard enterprise log forwarders (Splunk Universal Forwarder, Elastic Filebeat, Datadog Agent, Azure Monitor Agent) harvest these files in real time, handling local disk buffers, bandwidth throttling, compression, and TLS transmission to the central SIEM repository:
 
 ```mermaid
 flowchart TD
-    subgraph SentinelIT["Sentinel-IT Execution Layer"]
-        Engines["Sentinel-IT Engines\n(NT AUTHORITY\\SYSTEM)"]
+    subgraph SentinelIT["Isora Sentinel Execution Layer"]
+        Engines["Isora Sentinel Engines\n(NT AUTHORITY\\SYSTEM)"]
     end
 
     subgraph LocalForensicStore["Local Telemetry Store (NTFS ACL Hardened)"]
@@ -58,14 +58,14 @@ flowchart TD
 
 ## 2. Enabling Machine-Wide NDJSON Telemetry
 
-To configure Sentinel-IT to output standardized NDJSON logs across all scheduled tasks and manual runs:
+To configure Isora Sentinel to output standardized NDJSON logs across all scheduled tasks and manual runs:
 
 ```powershell
 # Set machine-wide environment variable (persistent across reboots):
 [System.Environment]::SetEnvironmentVariable("SENTINEL_LOG_FORMAT", "JSON", "Machine")
 
 # Optional: Override forensic log root directory:
-# [System.Environment]::SetEnvironmentVariable("SENTINEL_LOG_DIR", "D:\EnterpriseLogs\Sentinel-IT", "Machine")
+# [System.Environment]::SetEnvironmentVariable("SENTINEL_LOG_DIR", "D:\EnterpriseLogs\Isora Sentinel", "Machine")
 ```
 
 ---
@@ -112,7 +112,7 @@ Each log record is emitted as a single-line JSON document:
 Add to `%SPLUNK_HOME%\etc\system\local\inputs.conf`:
 
 ```ini
-[monitor://C:\Program Files\Sentinel-IT\logs\...\*.log]
+[monitor://C:\Program Files\Isora-Sentinel\logs\...\*.log]
 disabled = false
 index = endpoint_compliance
 sourcetype = sentinel:it:json
@@ -152,12 +152,12 @@ filebeat.inputs:
 - type: log
   enabled: true
   paths:
-    - 'C:\Program Files\Sentinel-IT\logs\*\*.log'
+    - 'C:\Program Files\Isora-Sentinel\logs\*\*.log'
   json.keys_under_root: true
   json.overwrite_keys: true
   json.add_error_key: true
   fields:
-    application: sentinel-it
+    application: isora-sentinel
     compliance: iso27001
   fields_under_root: true
 
@@ -170,7 +170,7 @@ processors:
 
 #### Elastic Kibana Query (KQL):
 ```kql
-application: "sentinel-it" and Level: ("WARN" or "ERROR")
+application: "isora-sentinel" and Level: ("WARN" or "ERROR")
 ```
 
 ---
@@ -181,8 +181,8 @@ Add to `C:\ProgramData\Datadog\conf.d\sentinel_it.d\conf.yaml`:
 ```yaml
 logs:
   - type: file
-    path: "C:\\Program Files\\Sentinel-IT\\logs\\*\\*.log"
-    service: "sentinel-it"
+    path: "C:\\Program Files\\Isora Sentinel\\logs\\*\\*.log"
+    service: "isora-sentinel"
     source: "powershell"
     sourcecategory: "endpoint_compliance"
     tags:
@@ -194,7 +194,7 @@ logs:
 
 ### 4.4. Microsoft Sentinel (Azure Monitor Agent)
 Create a Data Collection Rule (DCR) targeting custom text logs:
-* **File Pattern:** `C:\Program Files\Sentinel-IT\logs\*\*.log`
+* **File Pattern:** `C:\Program Files\Isora-Sentinel\logs\*\*.log`
 * **Custom Table:** `SentinelIT_CL`
 
 #### Microsoft Sentinel Detection Rule (KQL):

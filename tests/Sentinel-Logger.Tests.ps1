@@ -3,7 +3,8 @@
     Enterprise unit tests for Sentinel-Logger module.
 .DESCRIPTION
     Validates audit trail integrity, dual-format forensic logging (Text & JSON),
-    and SIEM event serialization aligned with ISO/IEC 27001:2022 Control A.8.15.
+    anti-log-injection sanitization, disk quota enforcement, and SIEM event serialization
+    aligned with ISO/IEC 27001:2022 Control A.8.15.
 #>
 
 $script:ModulePath = Join-Path $PSScriptRoot "..\src\lib\Sentinel-Logger.psm1"
@@ -46,6 +47,16 @@ Describe "Sentinel-Logger Module Tests" {
             $content | Should -Match "Unit test message"
             $content | Should -Match "INFO"
             $content | Should -Match "Key1=Val1"
+        }
+
+        It "Sanitizes newline injections in message and metadata to preserve single-line records" {
+            Initialize-SentinelLog -EngineName "SanitizeTestEngine"
+            Write-AuditEntry -Message "Injected`r`nLine2" -Level "WARN" -Metadata @{ Attack = "Value`r`nForgedLine" }
+            $content = Get-Content -Path $global:CurrentLogFile
+            $lines = @($content | Where-Object { $_ -match "Injected" })
+            $lines.Count | Should -Be 1
+            $lines[0] | Should -Match "Injected Line2"
+            $lines[0] | Should -Match "Attack=Value ForgedLine"
         }
 
         It "Regression: Handles multiple metadata keys without RemainingScripts binding error" {
@@ -106,7 +117,7 @@ Describe "Sentinel-Logger Module Tests" {
         }
     }
 
-    Context "Log Retention and Pruning" {
+    Context "Log Retention and Quota Pruning" {
         It "Clear-OldSentinelLogs is exported and removes expired logs" {
             $cmd = Get-Command -Module Sentinel-Logger -Name Clear-OldSentinelLogs -ErrorAction SilentlyContinue
             $cmd | Should -Not -BeNullOrEmpty
@@ -120,6 +131,26 @@ Describe "Sentinel-Logger Module Tests" {
             Clear-OldSentinelLogs -LogDir $testSubdir -RetentionDays 90
             (Test-Path $oldLog) | Should -Be $false
         }
+
+        It "Clear-OldSentinelLogs enforces total size quota by pruning oldest files" {
+            $quotaDir = Join-Path $TestDir "QuotaTest"
+            New-Item -ItemType Directory -Path $quotaDir -Force | Out-Null
+
+            # Create dummy logs: older 2MB file and newer 1MB file
+            $oldFile = Join-Path $quotaDir "Old_2MB.log"
+            $newFile = Join-Path $quotaDir "New_1MB.log"
+            
+            $bytes2MB = New-Object byte[] (2 * 1024 * 1024)
+            $bytes1MB = New-Object byte[] (1 * 1024 * 1024)
+            [System.IO.File]::WriteAllBytes($oldFile, $bytes2MB)
+            [System.IO.File]::WriteAllBytes($newFile, $bytes1MB)
+            (Get-Item $oldFile).LastWriteTime = (Get-Date).AddDays(-2)
+            (Get-Item $newFile).LastWriteTime = (Get-Date).AddDays(-1)
+
+            # Cap quota to 2 MB (total is 3 MB, so Old_2MB should be purged)
+            Clear-OldSentinelLogs -LogDir $quotaDir -RetentionDays 90 -MaxTotalSizeMB 2
+            (Test-Path $oldFile) | Should -Be $false
+            (Test-Path $newFile) | Should -Be $true
+        }
     }
 }
-

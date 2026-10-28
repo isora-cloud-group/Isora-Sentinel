@@ -3,7 +3,8 @@
     Endpoint Security Engine - ISO/IEC 27001:2022 Control A.8.7
 .DESCRIPTION
     Triggers signature updates and automated antimalware scans via Microsoft Defender MpCmdRun.exe.
-    Supports -ScanType 1 (Quick Scan) and 2 (Full Scan), and captures process exit codes for SIEM alerts.
+    Supports -ScanType 1 (Quick Scan) and 2 (Full Scan), captures process exit codes for SIEM alerts,
+    and gracefully handles third-party EDR environments.
 #>
 [CmdletBinding()]
 param(
@@ -18,7 +19,12 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Defender_Scan"
-try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
+try { 
+    Assert-SentinelIntegrity 
+} catch { 
+    Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
+    throw 
+}
 
 $ScanTypeName = if ($ScanType -eq "1") { "Quick Scan" } else { "Full Scan" }
 
@@ -35,6 +41,11 @@ try {
 
     $DefenderPath = Get-DefenderPlatformPath
     Write-AuditEntry "ENGINE: Resolved Defender Platform Path." -Metadata @{ EnginePath = $DefenderPath }
+
+    if (-not (Test-Path -LiteralPath $DefenderPath)) {
+        Write-AuditEntry "ENGINE NOTICE: Microsoft Defender platform executable (MpCmdRun.exe) was not found. Endpoint may be protected by third-party EDR/AV solution." -Level "WARN" -Metadata @{ ResolvedPath = $DefenderPath }
+        return
+    }
 
     # 1. Signature Definitions Refresh (with offline network tolerance)
     if (-not $SkipSignatureUpdate) {

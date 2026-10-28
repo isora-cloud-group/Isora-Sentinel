@@ -1,11 +1,12 @@
-<#
+﻿<#
 .SYNOPSIS
     Downloads Lifecycle & Storage Tiering Engine - ISO/IEC 27001:2022 Control A.8.10 / A.8.1
 .DESCRIPTION
     Systematically identifies unmanaged downloads older than a specified aging threshold
     and safely relocates them into a secure user-accessible archive directory
-    (defaults to %USERPROFILE%\Documents\Sentinel_Archived\Downloads).
+    (defaults to %USERPROFILE%\Documents\Isora_Sentinel_Archived\Downloads).
     Generates an informative policy notice for the end-user, prevents data loss,
+    enforces strict TOCTOU junction protections against arbitrary file moves,
     and records immutable RFC 8259 NDJSON audit logs for SIEM and ISO compliance.
     Supports -AuditOnly switch for non-destructive dry-run simulations.
 #>
@@ -29,7 +30,8 @@ if (-not $SkipIntegrityCheck) {
     try { 
         Assert-SentinelIntegrity 
     } catch { 
-        Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" 
+        Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
+        throw 
     }
 }
 
@@ -48,9 +50,16 @@ $TotalIdentified = 0
 function New-PolicyNoticeFile {
     param([string]$ArchiveDir)
     try {
-        $noticePath = Join-Path $ArchiveDir "LEAME_POLITICA_TI.txt"
-        if (-not (Test-Path -LiteralPath $noticePath)) {
-            $noticeContent = @"
+        if (-not (Test-Path -LiteralPath $ArchiveDir)) { return }
+        $dirItem = Get-Item -LiteralPath $ArchiveDir -Force -ErrorAction SilentlyContinue
+        if ($dirItem -and ($dirItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+            Write-AuditEntry "SECURITY: Notice parent directory is a reparse point. Skipping notice creation." -Level "WARN" -Metadata @{ Path = $ArchiveDir }
+            return
+        }
+
+        $noticePathEs = Join-Path $ArchiveDir "LEAME_POLITICA_TI.txt"
+        if (-not (Test-Path -LiteralPath $noticePathEs)) {
+            $noticeContentEs = @"
 ================================================================================
 POLITICA DE RETENCION DE ARCHIVOS - TI & CUMPLIMIENTO ISO/IEC 27001
 ================================================================================
@@ -72,12 +81,48 @@ INFORMACION IMPORTANTE:
 Si requiere soporte o excepciones de retencion, contacte al area de TI / Ciberseguridad.
 ================================================================================
 "@
-            [System.IO.File]::WriteAllText($noticePath, $noticeContent, [System.Text.UTF8Encoding]::new($false))
+            try {
+                $bytesEs = [System.Text.UTF8Encoding]::new($false).GetBytes($noticeContentEs)
+                $fsEs = [System.IO.FileStream]::new($noticePathEs, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
+                try { $fsEs.Write($bytesEs, 0, $bytesEs.Length) } finally { $fsEs.Dispose() }
+            } catch [System.IO.IOException] { }
+        }
+
+        $noticePathEn = Join-Path $ArchiveDir "README_IT_POLICY.txt"
+        if (-not (Test-Path -LiteralPath $noticePathEn)) {
+            $noticeContentEn = @"
+================================================================================
+FILE RETENTION POLICY - IT GOVERNANCE & ISO/IEC 27001 COMPLIANCE
+================================================================================
+This endpoint is governed by corporate preventive maintenance and data lifecycle
+policies.
+
+Files older than $DaysOld days in the 'Downloads' folder were automatically relocated
+to this directory in order to:
+  1. Protect your files by safeguarding them under Documents
+     (a folder backed up and synchronized according to corporate standards).
+  2. Comply with regulatory information lifecycle governance (ISO/IEC 27001 A.8.10).
+  3. Prevent system volume saturation and disk degradation (ISO/IEC 20000-1 Section 8.2).
+
+IMPORTANT INFORMATION:
+- Your files have NOT been deleted.
+- You can access, browse, or move them normally whenever needed.
+- Preventive archival relocation executed on: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+
+If you require IT support or retention exceptions, please contact IT / Cybersecurity.
+================================================================================
+"@
+            try {
+                $bytesEn = [System.Text.UTF8Encoding]::new($false).GetBytes($noticeContentEn)
+                $fsEn = [System.IO.FileStream]::new($noticePathEn, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
+                try { $fsEn.Write($bytesEn, 0, $bytesEn.Length) } finally { $fsEn.Dispose() }
+            } catch [System.IO.IOException] { }
         }
     } catch {
-        Write-AuditEntry "NOTICE WARNING: Could not generate user policy notice file." -Level "WARN" -Metadata @{ Error = $_.Exception.Message }
+        Write-AuditEntry "NOTICE WARNING: Could not generate user policy notice files." -Level "WARN" -Metadata @{ Error = $_.Exception.Message }
     }
 }
+
 function Process-UserDownloads {
     param(
         [string]$ProfilePath,
@@ -96,10 +141,44 @@ function Process-UserDownloads {
     }
 
     # Determine Destination Archive Directory
-    $archiveDir = if ($CustomArchiveDir) {
-        $CustomArchiveDir
+    $archiveDir = if ($CustomArchiveDir -and $CustomArchiveDir.Trim() -ne "") {
+        if ($CustomArchiveDir -match '%USERPROFILE%') {
+            $CustomArchiveDir.Replace('%USERPROFILE%', $ProfilePath)
+        } else {
+            $CustomArchiveDir
+        }
     } else {
-        Join-Path $ProfilePath "Documents\Sentinel_Archived\Downloads"
+        $regArchive = $null
+        try {
+            $regKey = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel" -Name "DownloadsArchiveDir" -ErrorAction SilentlyContinue
+            if ($regKey -and $regKey.DownloadsArchiveDir) {
+                $regArchive = $regKey.DownloadsArchiveDir
+            }
+        } catch { }
+
+        if ($regArchive -and $regArchive.Trim() -ne "") {
+            if ($regArchive -match '%USERPROFILE%') {
+                $regArchive.Replace('%USERPROFILE%', $ProfilePath)
+            } else {
+                $regArchive
+            }
+        } else {
+            Join-Path $ProfilePath "Documents\Isora_Sentinel_Archived\Downloads"
+        }
+    }
+
+    # Defensive check: ensure neither target archive directory nor any parent is a junction/reparse point
+    $currCheck = $archiveDir
+    $profileNorm = [System.IO.Path]::GetFullPath($ProfilePath).TrimEnd('\', '/')
+    while ($currCheck -and $currCheck.Length -ge $profileNorm.Length) {
+        if (Test-Path -LiteralPath $currCheck) {
+            $item = Get-Item -LiteralPath $currCheck -Force -ErrorAction SilentlyContinue
+            if ($item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+                Write-AuditEntry "SECURITY: Target archive path traverses a reparse point (junction). Aborting relocation for user." -Level "ERROR" -Metadata @{ User = $UserName; Path = $currCheck }
+                return
+            }
+        }
+        $currCheck = Split-Path $currCheck -Parent
     }
 
     $cutoffDate = (Get-Date).AddDays(-$DaysOld)
@@ -172,6 +251,12 @@ function Process-UserDownloads {
     $userMoved = 0
     foreach ($file in $eligibleFiles) {
         try {
+            # Real-time fresh attribute check right before moving
+            $freshAttr = [System.IO.File]::GetAttributes($file.FullName)
+            if (($freshAttr -band [System.IO.FileAttributes]::ReparsePoint) -or ($freshAttr -band [System.IO.FileAttributes]::Offline)) {
+                continue
+            }
+
             $destFile = Join-Path $archiveDir $file.Name
             
             # Defensive collision handling: If file exists, append unique timestamp suffix
@@ -252,4 +337,3 @@ if ($AuditOnly) {
     Write-AuditEntry "   Total Storage Reclaimed   : $([math]::Round($TotalBytes / 1MB, 2)) MB ($TotalBytes bytes)"
 }
 Write-AuditEntry "=========================================================="
-

@@ -1,10 +1,10 @@
 # Security Policy
 
-**Repository:** `Sentinel-IT`  
+**Repository:** `Isora Sentinel`  
 **Security Operations:** [security@isora.com.co](mailto:security@isora.com.co)  
 **General Contact:** [contact@isora.com.co](mailto:contact@isora.com.co)  
-**Revision:** 2.0.0  
-**Status:** Production  
+**Revision:** 2.3.1  
+**Status:** Production / Audited Enterprise Grade A  
 **Sole Copyright Holder & Architecture:** Sandra Gabriela Puerto Torres  
 **Commercial Brand & Distribution:** Isora Cloud Group (ICG)  
 
@@ -16,8 +16,8 @@ Security maintenance and updates are provided for the following revisions:
 
 | Component / Version | Supported Revision | Status |
 |---|---|---|
-| Sentinel-IT Suite (Current) | `2.x` | :white_check_mark: Active / Full Maintenance |
-| Sentinel-IT Engines & Runtime | `1.x` | :white_check_mark: Critical Security Patches Only |
+| Isora Sentinel Suite (Current) | `2.x` | :white_check_mark: Active / Full Maintenance |
+| Isora Sentinel Engines & Runtime | `1.x` | :white_check_mark: Critical Security Patches Only |
 | Legacy Builds | `< 1.0` | :x: Unsupported / End of Life |
 
 ---
@@ -26,7 +26,7 @@ Security maintenance and updates are provided for the following revisions:
 
 **Do not report security vulnerabilities through public GitHub issues, pull requests, or public forums.**
 
-If you discover a security flaw, privilege escalation vector, or boundary weakness within Sentinel-IT, send an email to:
+If you discover a security flaw, privilege escalation vector, or boundary weakness within Isora Sentinel, send an email to:
 
 > **security@isora.com.co**  
 > *(CC: contact@isora.com.co)*
@@ -74,8 +74,8 @@ Security disclosures are handled under the following service level objectives:
 
 ### 5.1 In Scope
 
-- Local Privilege Escalation (LPE) vulnerabilities in installer scripts (`Install-Sentinel.ps1`), compiled wrappers (`Sentinel-IT-Setup.exe`), or Scheduled Task configurations (`schtasks.exe`).
-- Symbolic link, hard link, or NTFS junction race conditions (TOCTOU) during temp file or screenshot purging that could allow arbitrary file deletion.
+- Local Privilege Escalation (LPE) vulnerabilities in installer scripts (`Install-Sentinel.ps1`), compiled wrappers (`Isora-Sentinel-Setup.exe`), or Scheduled Task configurations (`schtasks.exe`).
+- Symbolic link, hard link, or NTFS junction race conditions (TOCTOU) during temp file, screenshot purging, or download archiving that could allow arbitrary file deletion or arbitrary file moves.
 - Flaws or bypasses in cryptographic manifest validation (`Assert-SentinelIntegrity` / `integrity.manifest.json`).
 - Argument injection, unquoted path execution, or binary planting in Windows Task Scheduler triggers or registry auto-starts.
 - Sensitive credential leakage or improper serialization in structured logging (`Sentinel-Logger.psm1`).
@@ -93,7 +93,7 @@ Security disclosures are handled under the following service level objectives:
 
 ## 6. Safe Harbor
 
-Security research conducted in good faith against Sentinel-IT and its distributions is considered authorized. The maintainers will not pursue legal action against researchers who:
+Security research conducted in good faith against Isora Sentinel and its distributions is considered authorized. The maintainers will not pursue legal action against researchers who:
 
 - Make a good-faith effort to avoid privacy violations, data destruction, and service interruption.
 - Test only against non-production environments or systems they own or have explicit permission to test.
@@ -103,42 +103,61 @@ Security research conducted in good faith against Sentinel-IT and its distributi
 
 ---
 
-## 7. Threat Model & Security Best Practices for Operators
+## 7. Threat Model & Institutional Hardening Architecture
 
-Because Sentinel-IT executes maintenance routines under high operating system privileges (`NT AUTHORITY\SYSTEM` and elevated Administrator), operators must adhere to these defensive practices:
+Because Isora Sentinel executes maintenance routines under high operating system privileges (`NT AUTHORITY\SYSTEM` and elevated Administrator), the suite enforces rigorous defensive mechanisms aligned with Tier-1 banking and critical infrastructure requirements:
 
-1. **NTFS ACL Hardening:**
-   The installation directory (`C:\Program Files\Sentinel-IT\`) must restrict write and modify privileges exclusively to `BUILTIN\Administrators` and `NT AUTHORITY\SYSTEM`. Standard unprivileged users must have read and execute (`RX`) permissions only. `Install-Sentinel.ps1` enforces this by default.
-2. **Fail-Closed Integrity Enforcement:**
-   All scheduled routines call `Assert-SentinelIntegrity`. When running under `SYSTEM`, integrity verification operates in fail-closed mode: any modified or missing script causes an immediate abort and writes a tamper alert to the structured audit log.
-3. **Structured SIEM Forwarding:**
-   Sentinel-IT logs events in UTF-8 without BOM NDJSON format (`C:\Program Files\Sentinel-IT\logs\`). Production deployments should forward these logs in real-time to a SIEM (e.g., Wazuh, Splunk, Microsoft Sentinel) to ensure audit trail immutability.
-4. **Automated Log Pruning:**
-   Logs older than 90 days are pruned automatically via `Clear-OldSentinelLogs` during maintenance routines to prevent disk exhaustion denial-of-service.
+1. **NTFS ACL Hardening (LPE & Tampering Prevention):**
+   The installation directory (`C:\Program Files\Isora-Sentinel\`) and log directory (`C:\Program Files\Isora-Sentinel\logs\`) enforce strict NTFS Access Control Lists:
+   * `BUILTIN\Administrators`: Full Control (`F`)
+   * `NT AUTHORITY\SYSTEM`: Full Control (`F`)
+   * `BUILTIN\Users`: Read and Execute (`RX`) only.
+   Standard unprivileged users have zero write or modify permissions over central audit logs, preventing log tampering, deletion, or junction planting attacks. Standard user interactive audits fall back to `%LOCALAPPDATA%\Isora-Sentinel\logs`.
+
+2. **Real-Time TOCTOU & Junction Elimination:**
+   During cache sanitization and screenshot purging, file paths are normalized and verified strictly within parent boundaries. Real-time Win32 attributes (`[System.IO.File]::GetAttributes()`) are re-queried immediately prior to any file deletion or move. Any reparse point (NTFS junction or symbolic link) introduced between enumeration and action is rejected. Individual file deletions strictly disable recursion (`-Recurse:$false`) to eliminate cascading deletions through user junctions.
+
+3. **Strict Fail-Closed Integrity Enforcement:**
+   Every engine verifies `Assert-SentinelIntegrity`. When running under `NT AUTHORITY\SYSTEM` or elevated administrator contexts, any modified, corrupted, or missing file causes an immediate fail-closed termination (`throw`) and logs a high-priority forensic alert.
+
+4. **Zero-Maintenance Disk Quota Protection (6-Month Unattended Stability):**
+   To ensure 100% endpoint stability when running unattended over multi-month intervals without engineer intervention:
+   * **Automated Log Pruning:** Logs older than 90 days are pruned automatically.
+   * **Log Directory Quota Cap:** `Clear-OldSentinelLogs` enforces a maximum total size quota (default 250 MB). If disk consumption exceeds this threshold, the oldest logs are automatically pruned until total size is within the limit, preventing disk exhaustion denial-of-service.
+   * **SIEM Log Injection Defense:** All audit entries and metadata fields are sanitized to remove carriage returns and line feeds, ensuring single-line RFC 8259 NDJSON and text log integrity.
+
+5. **Task Scheduler Execution Limits & Laptop Resilience:**
+   Scheduled tasks registered under `NT AUTHORITY\SYSTEM` are configured with:
+   * `ExecutionTimeLimit = 2 Hours`: Automatically terminates any hung or deadlocked processes.
+   * `StartWhenAvailable = True`: Guarantees missed tasks execute immediately when endpoints power on or resume from sleep.
+   * `MultipleInstancesPolicy = IgnoreNew`: Prevents process stacking or race conditions.
+
+6. **Bilingual Forensic Parsing (Latin American Enterprise Compatibility):**
+   Engines parsing native Windows utilities (such as `manage-bde.exe` for BitLocker disk encryption) incorporate bilingual regex evaluators (English and Spanish) to ensure accurate compliance reporting without false-negative evasion on systems deployed in regions such as Colombia (`es-CO`).
 
 ---
 
 ## 8. Transparent Auditing & Verification for Security Teams
 
-To assist enterprise SOC teams, red/blue teams, and auditing firms (e.g., Kaspersky, Mandiant, internal compliance auditors), the distribution executable `Sentinel-IT-Setup.exe` provides non-intrusive inspection switches:
+To assist enterprise SOC teams, red/blue teams, and institutional auditing firms (e.g., Kaspersky, central banks, lead ISO 27001 auditors), the distribution executable `Isora-Sentinel-Setup.exe` provides non-intrusive inspection switches:
 
 ### 8.1 In-Memory SHA-256 Digest Audit
 Inspect and verify all embedded scripts against `integrity.manifest.json` without launching the GUI or modifying the system:
 ```powershell
-.\Sentinel-IT-Setup.exe --audit
+.\Isora-Sentinel-Setup.exe --audit
 ```
 *Expected exit code:* `0` (Success: all digests matched).
 
 ### 8.2 Sandbox Extraction for Source Code Review
 Extract the complete embedded package files into an isolated directory for static analysis:
 ```powershell
-.\Sentinel-IT-Setup.exe --extract C:\Sandbox\SentinelAudit
+.\Isora-Sentinel-Setup.exe --extract C:\Sandbox\SentinelAudit
 ```
 
 ### 8.3 Offline Inspector Script
 Auditors can also inspect the binary using the provided PowerShell verification harness:
 ```powershell
-powershell -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.ps1 -InstallerPath installer\Sentinel-IT-Setup.exe
+powershell -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.ps1 -InstallerPath installer\Isora-Sentinel-Setup.exe
 ```
 
 ---
@@ -147,9 +166,9 @@ powershell -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.ps1 -
 
 | Field | Value |
 |---|---|
-| Repository | `Sentinel-IT` |
+| Repository | `Isora Sentinel` |
 | Security Contact | security@isora.com.co |
 | General Contact | contact@isora.com.co |
-| Revision | 2.0.0 |
-| Status | Production |
+| Revision | 2.3.1 |
+| Status | Production / Audited Enterprise Grade A |
 | Classification | Public Security Policy |

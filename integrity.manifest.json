@@ -1,19 +1,19 @@
 ﻿{
-    "version":  "2.2.0",
+    "version":  "2.3.0",
     "algorithm":  "SHA256",
     "author":  "Sandra Gabriela Puerto Torres",
     "brand":  "Isora Cloud Group",
-    "generated_at":  "2026-10-28T09:20:14Z",
+    "generated_at":  "2026-10-28T12:59:27Z",
     "files":  {
-                  "lib\\Sentinel-Core.psm1":  "708434c75a8a3505501ac724ec583c89107c560708b53f1b1a64324dd9809191",
-                  "lib\\Sentinel-Logger.psm1":  "28d5b9b0c727819224bbecc5ebc19179dd518ab86aa6f6725d81f98567a95344",
-                  "engines\\Invoke-ArchiveDownloads.ps1":  "f706f7fbeea13fa9dfb048e098463dc04bbf86221bb4678f603694af89649aa2",
-                  "engines\\Invoke-BitLockerAudit.ps1":  "34d07645143d48e42af3bb977ab112f8e9d2e741d6015b2687c46f2f7255e2a7",
-                  "engines\\Invoke-CleanupScreenshots.ps1":  "c17e85e76f23ef5600fc185f903eee8fc69a777c33fd85fec2f78a7331cb6a59",
-                  "engines\\Invoke-CleanupTempGlobal.ps1":  "94fc49dbe90283e83c33d12a2d51d03493f238e613ead8a4c1f8c97956e1e06e",
-                  "engines\\Invoke-DefenderScan.ps1":  "f8cfdb29d7f5b6506d1d8b52715cff5988bc87438a19f7cde670b2566fa55434",
-                  "engines\\Invoke-EventAudit.ps1":  "4f2697b7a7716f0ec086fd3962113c26690c10bb83ab873d1bb932bda2fb1331",
-                  "engines\\Invoke-IntegrityCheck.ps1":  "eb3955eb306d8b4127cea7ad91bbb9fbff8ce3797ba9a7158d2cf69624abf38b",
+                  "lib\\Sentinel-Core.psm1":  "1ea8779bbf1f40f4ec451c8b50e7889a89b746187fef38aff89b766b95b780f1",
+                  "lib\\Sentinel-Logger.psm1":  "5cb308cf48af2fa5f6fe0b18a7d92b6fc4659c068ac1d0723ca54ffbd64a0242",
+                  "engines\\Invoke-ArchiveDownloads.ps1":  "c1c4f8e43132ff1dcd8724faebef9d60ddbbb769e1440ac24c415aac2fec9cbc",
+                  "engines\\Invoke-BitLockerAudit.ps1":  "29c6fae29a7817ef9792718c4ba099b443b35b26c348c62e7fe1bce992bafd02",
+                  "engines\\Invoke-CleanupScreenshots.ps1":  "790c4d8b40e9293376d381485feb9ebe6b70792d2ba06811b74bc03a98cb6e2e",
+                  "engines\\Invoke-CleanupTempGlobal.ps1":  "3def4a0e9fc307998ab806b49ef89891fb63f95cb1d4916037c88f42b96640a5",
+                  "engines\\Invoke-DefenderScan.ps1":  "bdf3fcbaf840ede854efebae387fdc54f641bcb8bd6a6a088ccf68447dc68140",
+                  "engines\\Invoke-EventAudit.ps1":  "a28e3f0cc14dd12dec6fa7c35b529f91da3ec708b0717f587da1c422e4e6c1d7",
+                  "engines\\Invoke-IntegrityCheck.ps1":  "a85e33b646cb44ecde72a9973c0b615fe5dbb8133d77f8ae6da3e133dfee2095",
                   "LICENSE":  "2e71759df791091a620a5b6a13c0c6a479bb776b47fd2dddf2af390ffb8bb91d"
               }
 }

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Sentinel-IT Core Utilities Module
+    Isora Sentinel Core Utilities Module
 .DESCRIPTION
     Provides helper functions for the engines (Privilege checks, Defender path resolution).
 #>
@@ -73,13 +73,13 @@ function Assert-SentinelIntegrity {
         # Check registry for custom InstallLocation before defaulting
         $installLoc = $null
         try {
-            $uninst = Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel-IT" -ErrorAction SilentlyContinue
+            $uninst = Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel" -ErrorAction SilentlyContinue
             if ($uninst -and $uninst.InstallLocation) {
                 $installLoc = $uninst.InstallLocation
             }
         } catch { }
 
-        $regManifest = if ($installLoc) { Join-Path $installLoc "integrity.manifest.json" } else { "C:\Program Files\Sentinel-IT\integrity.manifest.json" }
+        $regManifest = if ($installLoc) { Join-Path $installLoc "integrity.manifest.json" } else { "C:\Program Files\Isora-Sentinel\integrity.manifest.json" }
         if (Test-Path -LiteralPath $regManifest) {
             $regManifest
         } else {
@@ -93,7 +93,7 @@ function Assert-SentinelIntegrity {
         }
         # In SYSTEM or production environments, missing manifest is a fail-closed integrity violation
         $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-        if ($identity.User.Value -eq "S-1-5-18" -or (Test-Path "C:\Program Files\Sentinel-IT\integrity.manifest.json")) {
+        if ($identity.User.Value -eq "S-1-5-18" -or (Test-Path "C:\Program Files\Isora-Sentinel\integrity.manifest.json")) {
             throw "Security Violation: Integrity manifest missing or inaccessible. Execution blocked under SYSTEM."
         }
         return $true
@@ -121,13 +121,13 @@ function Assert-SentinelIntegrity {
                 if (Test-Path -LiteralPath $devPath) {
                     $targetPath = $devPath
                 } else {
-                    throw "Integrity Violation: File missing from Sentinel-IT installation: $relPath"
+                    throw "Integrity Violation: File missing from Isora Sentinel installation: $relPath"
                 }
             }
 
             $currentHash = (Get-FileHash -LiteralPath $targetPath -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($currentHash -ne $expectedHash.ToLowerInvariant()) {
-                throw "Security Violation: Tampering detected in Sentinel-IT module ($relPath). Execution blocked under SYSTEM."
+                throw "Security Violation: Tampering detected in Isora Sentinel module ($relPath). Execution blocked under SYSTEM."
             }
         }
         return $true

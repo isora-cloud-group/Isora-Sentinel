@@ -1,15 +1,15 @@
-# System Architecture Specification — Sentinel-IT Suite
+# System Architecture Specification — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Document Version:** 2.2.0  
+**Document Version:** 2.3.0  
 **Architectural Taxonomy:** Modular Hub-and-Spoke, Zero External Dependencies, Sovereign Local Execution  
 
 ---
 
 ## 1. Architectural Vision & Core Tenets
 
-**Sentinel-IT** was engineered from inception to solve a major challenge in corporate Windows infrastructure management: the reliance on bloated, proprietary third-party endpoint agents that introduce unmonitored attack surfaces, consume significant CPU/RAM memory, and operate with opaque, vendor-locked telemetry.
+**Isora Sentinel** was engineered from inception to solve a major challenge in corporate Windows infrastructure management: the reliance on bloated, proprietary third-party endpoint agents that introduce unmonitored attack surfaces, consume significant CPU/RAM memory, and operate with opaque, vendor-locked telemetry.
 
 The platform is designed upon four uncompromising architectural tenets:
 
@@ -27,7 +27,7 @@ flowchart TD
     subgraph Schedulers["Execution & Orchestration Layer"]
         direction TB
         TaskSched["Windows Task Scheduler (Kernel Engine)\n- RunLevel: Highest (NT AUTHORITY\\SYSTEM)\n- Triggers: Daily 03:00 / Weekly Sun 02:00"]
-        Tray["System Tray Monitor (Sentinel-IT-Tray.exe)\n- Single-Instance Process (Local\\SentinelIT.TrayMonitor)\n- Real-Time Integrity Status (SHA-256)\n- On-Demand UAC Elevation Dispatcher"]
+        Tray["System Tray Monitor (Isora-Sentinel-Tray.exe)\n- Single-Instance Process (Local\\IsoraSentinel.TrayMonitor)\n- Real-Time Integrity Status (Official Build)\n- On-Demand UAC Elevation Dispatcher"]
         ConfigForm["TaskConfigForm (Task Configurator GUI)\n- Direct Task Scheduler XML Query / Update\n- Interactive ToggleSwitches & Schedule Controls"]
     end
 
@@ -57,7 +57,7 @@ flowchart TD
 
     subgraph LocalStorage["Forensic Telemetry Store"]
         direction TB
-        LogsDir["C:\\Program Files\\Sentinel-IT\\logs\n- Restricted ACLs (Administrators / SYSTEM)\n- Engine-Dedicated Subdirectories"]
+        LogsDir["C:\\Program Files\\Isora Sentinel\\logs\n- Restricted ACLs (Administrators / SYSTEM)\n- Engine-Dedicated Subdirectories"]
         NDJSONStream["NDJSON Real-Time Telemetry Stream\n(RFC 8259 Standardized Fields)"]
     end
 
@@ -88,11 +88,11 @@ System-wide maintenance and hardening operations (purging multi-user temporary f
 3. **Cryptographic Manifest Verification:** Prior to performing actions, `Assert-SentinelIntegrity` recalculates the SHA-256 hash of all libraries and engines and compares them against `integrity.manifest.json`.
 
 ### 3.2. Local Privilege Escalation (LPE) Defense
-Because scripts run with `SYSTEM` privileges, the installation directory (`C:\Program Files\Sentinel-IT\`) is strictly protected against binary hijacking and script poisoning:
+Because scripts run with `SYSTEM` privileges, the installation directory (`C:\Program Files\Isora-Sentinel\`) is strictly protected against binary hijacking and script poisoning:
 
 ```mermaid
 flowchart LR
-    A["C:\\Program Files\\Sentinel-IT"] --> B["BUILTIN\\Administrators\n(Full Control: Read, Write, Execute, Delete)"]
+    A["C:\\Program Files\\Isora Sentinel"] --> B["BUILTIN\\Administrators\n(Full Control: Read, Write, Execute, Delete)"]
     A --> C["NT AUTHORITY\\SYSTEM\n(Full Control: Read, Write, Execute, Delete)"]
     A --> D["BUILTIN\\Users\n(Read and Execute Only - Write Denied)"]
 ```
@@ -103,13 +103,13 @@ Standard users cannot alter script content, overwrite manifest files, or plant r
 
 ## 4. System Tray Observability & Elevation Architecture
 
-Sentinel-IT includes a lightweight, unmanaged C# Windows Forms utility (`Sentinel-IT-Tray.exe`) that executes in the user's interactive desktop session:
+Isora Sentinel includes a lightweight, unmanaged C# Windows Forms utility (`Isora-Sentinel-Tray.exe`) that executes in the user's interactive desktop session:
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as Operator / Administrator
-    participant Tray as Sentinel-IT-Tray.exe (asInvoker)
+    participant Tray as Isora-Sentinel-Tray.exe (asInvoker)
     participant Config as TaskConfigForm
     participant UAC as Windows UAC (consent.exe)
     participant Sched as Task Scheduler (SYSTEM)
@@ -128,12 +128,12 @@ sequenceDiagram
     Tray->>UAC: ProcessStartInfo (Verb: runas, WindowStyle: Normal)
     UAC-->>User: Display Secure Desktop Credential Prompt
     User->>UAC: Consent / Provide Credentials
-    UAC->>Sched: Dispatch schtasks.exe /Run /TN Sentinel-IT/Integrity_Check
+    UAC->>Sched: Dispatch schtasks.exe /Run /TN Isora Sentinel/Integrity_Check
     Sched-->>Tray: Return Process Exit Code
     Tray-->>User: Display Notification Balloon (Task completed successfully)
 ```
 
-### Technical Highlights of `Sentinel-IT-Tray.exe`:
+### Technical Highlights of `Isora-Sentinel-Tray.exe`:
 * **High-DPI Awareness:** Uses `SetProcessDPIAware()` and dynamic layout scaling based on screen PPI (96 to 288 DPI), rendering crisp vector glyphs and typography on 4K displays.
 * **Non-Blocking Elevation:** Starts elevated tasks using `ProcessStartInfo` with `Verb = "runas"`, avoiding the Windows 10/11 UAC suppression bug caused by `SW_HIDE` on elevated parent processes. Background non-elevated executions use `CreateNoWindow = true` cleanly without shell window flicker.
 * **Asynchronous Thread Pool Waiting:** Eliminates cross-integrity `EnableRaisingEvents` handle duplication crashes (`Win32Exception: 0x32`) by awaiting process completion via `ThreadPool.QueueUserWorkItem(delegate { p.WaitForExit(); })`.
@@ -203,4 +203,4 @@ Toggled transparently across all fleet endpoints via the machine-level environme
 | **`Invoke-IntegrityCheck`** | Component Store corruption detected (DISM exit code 20) | Emits `WARN` alert to SIEM; if `-AutoRepair` is enabled, triggers `/RestoreHealth` automatically. |
 | **`Invoke-BitLockerAudit`** | Unencrypted volume or protection suspended | Flags volume with `WARN` severity; records unencrypted volume status for immediate SOC alerting. |
 | **`Invoke-EventAudit`** | Security Event Log cleared (Event 1102) | Emits immediate `ERROR` alert with actor identity and timestamp indicating potential anti-forensics evasion. |
-| **`Sentinel-IT-Tray`** | Scheduled task not yet registered in Task Scheduler | Detects missing task and falls back automatically to direct elevated PowerShell script execution. |
+| **`Isora Sentinel-Tray`** | Scheduled task not yet registered in Task Scheduler | Detects missing task and falls back automatically to direct elevated PowerShell script execution. |

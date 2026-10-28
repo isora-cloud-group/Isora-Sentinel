@@ -1,5 +1,6 @@
+﻿using SentinelIT;
 // ============================================================================
-// Sentinel-IT Suite - Monitor de Bandeja del Sistema (System Tray)
+// Isora Sentinel Suite - Monitor de Bandeja del Sistema (System Tray)
 // Copyright (c) 2026 Sandra Gabriela Puerto Torres
 // Licencia: MIT (Open Source)
 // ============================================================================
@@ -23,32 +24,50 @@ using Microsoft.Win32;
 
 namespace SentinelIT.Tray
 {
-internal static class TrayTheme
+    // =========================================================================
+    //  IDENTIDAD DEL PRODUCTO (un solo lugar; debe coincidir con el instalador
+    //  y con TaskConfigForm: usar Branding.TaskFolder en ambos).
+    // =========================================================================
+    internal static class Branding
     {
-        // Compatibilidad con cabecera de TaskConfigForm
-        public static readonly Color BgDark          = Color.FromArgb(15, 23, 42);    // Slate 900
-        public static readonly Color AccentSky        = Color.FromArgb(3, 105, 161);   // Sky 700
+        public const string ProductName   = "Isora Sentinel";
+        public const string Version       = "2.3.0";
+        public const string TaskFolder    = "Isora Sentinel";          // Carpeta en el Programador de tareas
+        public const string UninstallKey  = "Isora-Sentinel";          // HKLM\...\Uninstall\<clave>
+        public const string AutoStartName = "SentinelIT_Tray";         // Valor en ...\Run (igual que el instalador)
+        public const string SetupExe      = "Isora-Sentinel-Setup.exe";
+        public const string MutexName     = @"Local\IsoraSentinel.TrayMonitor";
+    }
 
-        // Superficie blanca Enterprise para el menu del Tray
-        public static readonly Color BgSurface        = Color.White;                    // Fondo blanco
-        public static readonly Color BgHover          = Color.FromArgb(241, 245, 249); // Slate 100
-        public static readonly Color Border           = Color.FromArgb(203, 213, 225); // Slate 300
-        public static readonly Color BorderSubtle     = Color.FromArgb(226, 232, 240); // Slate 200
-        public static readonly Color TextPrimary      = Color.FromArgb(15, 23, 42);    // Slate 900
-        public static readonly Color TextSecondary    = Color.FromArgb(71, 85, 105);   // Slate 600
-        public static readonly Color TextMuted        = Color.FromArgb(148, 163, 184); // Slate 400
-        public static readonly Color AccentBlue       = Color.FromArgb(3, 105, 161);   // Sky 700
-        public static readonly Color Emerald          = Color.FromArgb(5, 150, 105);   // Emerald 600
-        public static readonly Color Amber            = Color.FromArgb(217, 119, 6);   // Amber 600
-        public static readonly Color Danger           = Color.FromArgb(220, 38, 38);   // Red 600
+    // =========================================================================
+    //  TOKENS DE DISEÑO (superficie blanca; contraste de texto >= 4.5:1)
+    // =========================================================================
+    internal static class TrayTheme
+    {
+        // Cabecera oscura de TaskConfigForm
+        public static readonly Color BgDark          = Color.FromArgb(15, 23, 42);    // Slate 900
+        public static readonly Color AccentSky       = Color.FromArgb(3, 105, 161);   // Sky 700 (compatibilidad)
+        public static readonly Color AccentOnDark    = Color.FromArgb(56, 189, 248);  // Sky 400: usar sobre BgDark (Sky 700 da solo 3:1)
+
+        // Menú
+        public static readonly Color BgSurface       = Color.White;
+        public static readonly Color BgHover         = Color.FromArgb(241, 245, 249); // Slate 100
+        public static readonly Color Border          = Color.FromArgb(203, 213, 225); // Slate 300
+        public static readonly Color BorderSubtle    = Color.FromArgb(226, 232, 240); // Slate 200
+        public static readonly Color TextPrimary     = Color.FromArgb(15, 23, 42);    // Slate 900 (17:1)
+        public static readonly Color TextSecondary   = Color.FromArgb(71, 85, 105);   // Slate 600 (7.5:1)
+        public static readonly Color TextMuted       = Color.FromArgb(100, 116, 139); // Slate 500 (4.8:1; antes Slate 400 = 2.6:1)
+        public static readonly Color AccentBlue      = Color.FromArgb(3, 105, 161);   // Sky 700
+        public static readonly Color Emerald         = Color.FromArgb(5, 150, 105);   // Emerald 600
+        public static readonly Color Amber           = Color.FromArgb(217, 119, 6);   // Amber 600
+        public static readonly Color Danger          = Color.FromArgb(220, 38, 38);   // Red 600
 
         public static Font Font(float size)              { return new Font("Segoe UI", size, FontStyle.Regular); }
         public static Font Font(float size, FontStyle s) { return new Font("Segoe UI", size, s); }
     }
 
     // =========================================================================
-    //  RENDERER ENTERPRISE: Fondo blanco, hover Slate 100 con acento Sky 700,
-    //  chevrons y checks vectoriales limpios, sin degradados ni halos de neon.
+    //  RENDERER: fondo blanco, hover con barra de acento, chevrons y checks vectoriales
     // =========================================================================
     internal class EnterpriseMenuRenderer : ToolStripProfessionalRenderer
     {
@@ -72,7 +91,7 @@ internal static class TrayTheme
 
         protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
         {
-            // Superficie continua sin franja lateral desalineada
+            // Superficie continua, sin franja lateral
         }
 
         protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
@@ -101,7 +120,7 @@ internal static class TrayTheme
             }
             else if (mi != null && !string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) && e.Text == mi.ShortcutKeyDisplayString)
             {
-                e.TextColor = TrayTheme.TextSecondary;
+                e.TextColor = TrayTheme.TextSecondary;   // texto auxiliar a la derecha
             }
             else if (!e.Item.Enabled)
             {
@@ -181,7 +200,7 @@ internal static class TrayTheme
     }
 
     // =========================================================================
-    //  VERIFICACIÓN DE INTEGRIDAD (se ejecuta fuera del hilo de UI)
+    //  VERIFICACIÓN DE INTEGRIDAD (fuera del hilo de UI)
     // =========================================================================
     internal enum IntegrityState { Checking, Authorized, Tampered, NoManifest }
 
@@ -251,8 +270,20 @@ internal static class TrayTheme
     // =========================================================================
     public class SentinelTrayContext : ApplicationContext
     {
-        private const string Version = "2.2.0";
+        // Códigos de resultado internos (los scripts devuelven 0 = correcto, >0 = incidencias)
+        private const int ExitCanceled  = -1;    // El usuario canceló UAC o no se pudo iniciar
+        private const int ExitUnknown   = -2;    // El proceso terminó pero no se pudo leer su resultado
+        private const int ExitTriggered = 200;   // La tarea programada se inició en segundo plano
 
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        private const uint WM_NULL = 0x0000;
+
+        private Form dummyForm;
         private NotifyIcon trayIcon;
         private ContextMenuStrip menu;
         private ToolStripMenuItem itemIntegrity;
@@ -263,7 +294,20 @@ internal static class TrayTheme
         private string logsDir;
         private string iconFont;                 // Segoe Fluent Icons / Segoe MDL2 Assets
         private float dpi = 1f;
-        private IntegrityReport lastReport = new IntegrityReport { State = IntegrityState.Checking };
+        private TaskConfigForm configForm = null;
+        private readonly HashSet<string> running = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Mapeo script -> tarea programada
+        private static readonly Dictionary<string, string> TaskByScript = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Invoke-CleanupScreenshots.ps1", "Cleanup_Screenshots" },
+            { "Invoke-CleanupTempGlobal.ps1",  "Cleanup_Temp_Global" },
+            { "Invoke-ArchiveDownloads.ps1",   "Archive_Downloads" },
+            { "Invoke-DefenderScan.ps1",       "Defender_Scan" },
+            { "Invoke-IntegrityCheck.ps1",     "Integrity_Check" },
+            { "Invoke-BitLockerAudit.ps1",     "BitLocker_Audit" },
+            { "Invoke-EventAudit.ps1",         "Event_Audit" }
+        };
 
         // Glifos (Segoe MDL2 Assets / Segoe Fluent Icons)
         private const string G_Shield   = "\uEA18";
@@ -282,8 +326,13 @@ internal static class TrayTheme
         public SentinelTrayContext()
         {
             using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) { dpi = g.DpiX / 96f; }
-            invoker = new Control();
-            IntPtr force = invoker.Handle;       // crea el handle en el hilo de UI
+            dummyForm = new Form();
+            dummyForm.ShowInTaskbar = false;
+            dummyForm.WindowState = FormWindowState.Minimized;
+            dummyForm.FormBorderStyle = FormBorderStyle.None;
+            dummyForm.Size = new Size(0, 0);
+            IntPtr force = dummyForm.Handle;
+            invoker = dummyForm;
 
             iconFont = PickIconFont();
             LocateDirectories();
@@ -297,7 +346,7 @@ internal static class TrayTheme
         }
 
         // ---------------------------------------------------------------------
-        //  Utilidades de entorno
+        //  Entorno
         // ---------------------------------------------------------------------
         private int Sz(int v) { return (int)Math.Round(v * dpi); }
 
@@ -313,26 +362,29 @@ internal static class TrayTheme
             return null;   // sin fuente de iconos: el menú queda solo con texto
         }
 
-        private void LocateDirectories()
+        private static string InstallLocationFromRegistry()
         {
-            // 1. Authoritative: Check Uninstall registry key for custom InstallLocation
-            string regLoc = null;
+            string key = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + Branding.UninstallKey;
             try
             {
-                using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel-IT"))
+                using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(key))
                 {
-                    if (rk != null) regLoc = rk.GetValue("InstallLocation") as string;
+                    string v = (rk != null) ? rk.GetValue("InstallLocation") as string : null;
+                    if (!string.IsNullOrEmpty(v)) return v;
                 }
-                if (string.IsNullOrEmpty(regLoc))
+                using (RegistryKey rk = Registry.CurrentUser.OpenSubKey(key))
                 {
-                    using (RegistryKey rk = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel-IT"))
-                    {
-                        if (rk != null) regLoc = rk.GetValue("InstallLocation") as string;
-                    }
+                    string v = (rk != null) ? rk.GetValue("InstallLocation") as string : null;
+                    if (!string.IsNullOrEmpty(v)) return v;
                 }
             }
             catch { }
+            return null;
+        }
 
+        private void LocateDirectories()
+        {
+            string regLoc = InstallLocationFromRegistry();
             if (!string.IsNullOrEmpty(regLoc) && Directory.Exists(regLoc))
             {
                 installDir = regLoc;
@@ -342,7 +394,7 @@ internal static class TrayTheme
 
             string pf = Environment.GetEnvironmentVariable("ProgramW6432");
             if (string.IsNullOrEmpty(pf)) pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string defaultProg = Path.Combine(pf, "Sentinel-IT");
+            string defaultProg = Path.Combine(pf, "Isora Sentinel");
 
             if (Directory.Exists(defaultProg))
             {
@@ -351,7 +403,7 @@ internal static class TrayTheme
             }
             else
             {
-                installDir = AppDomain.CurrentDomain.BaseDirectory;
+                installDir = AppDomain.CurrentDomain.BaseDirectory;   // entorno de desarrollo
                 logsDir = Path.Combine(installDir, "logs");
             }
         }
@@ -372,7 +424,51 @@ internal static class TrayTheme
         }
 
         // ---------------------------------------------------------------------
-        //  Iconografía vectorial (glifos renderizados a bitmap)
+        //  Cuadros de diálogo (siempre al frente, centrados)
+        // ---------------------------------------------------------------------
+        private DialogResult Msg(string text, string title, MessageBoxButtons buttons, MessageBoxIcon icon)
+        {
+            // Una aplicación de bandeja no tiene ventana en primer plano: sin propietario,
+            // el cuadro puede quedar oculto detrás de otras ventanas.
+            using (Form owner = new Form())
+            {
+                owner.FormBorderStyle = FormBorderStyle.None;
+                owner.ShowInTaskbar = false;
+                owner.StartPosition = FormStartPosition.CenterScreen;
+                owner.Size = new Size(1, 1);
+                owner.Opacity = 0;
+                owner.TopMost = true;
+                owner.Show();
+                owner.Activate();
+                return MessageBox.Show(owner, text, title, buttons, icon);
+            }
+        }
+
+        /// <summary>Pregunta de confirmación con texto claro; añade el aviso de administrador si hace falta.</summary>
+        private bool Confirm(string title, string body, bool needAdmin, bool warn)
+        {
+            if (string.IsNullOrEmpty(body) && !needAdmin) return true;
+
+            StringBuilder sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(body)) { sb.Append(body); sb.Append("\n\n"); }
+            if (needAdmin)
+            {
+                sb.Append("Esta acción necesita permisos de administrador: Windows le pedirá confirmación (UAC). ");
+                sb.Append("Si no dispone de ellos, solicite apoyo al área de TI.\n\n");
+            }
+            sb.Append("¿Desea continuar?");
+
+            return Msg(sb.ToString(), Branding.ProductName + " · " + title,
+                MessageBoxButtons.YesNo, warn ? MessageBoxIcon.Warning : MessageBoxIcon.Question) == DialogResult.Yes;
+        }
+
+        private void Notify(string title, string msg, ToolTipIcon icon)
+        {
+            trayIcon.ShowBalloonTip(3500, title, msg, icon);
+        }
+
+        // ---------------------------------------------------------------------
+        //  Iconografía vectorial
         // ---------------------------------------------------------------------
         private Image Glyph(string glyph, Color color)
         {
@@ -412,7 +508,7 @@ internal static class TrayTheme
         // ---------------------------------------------------------------------
         //  Construcción del menú
         // ---------------------------------------------------------------------
-        private void StyleDropDown(ToolStripDropDown dd)
+        private void StyleDropDown(ToolStripDropDown dd, int minWidth)
         {
             dd.Renderer = new EnterpriseMenuRenderer();
             dd.BackColor = TrayTheme.BgSurface;
@@ -424,7 +520,7 @@ internal static class TrayTheme
                 ddm.ShowImageMargin = true;
                 ddm.ShowCheckMargin = false;
                 ddm.DropShadowEnabled = true;
-                ddm.MinimumSize = new Size(Sz(300), 0);
+                ddm.MinimumSize = new Size(Sz(minWidth), 0);
             }
         }
 
@@ -443,29 +539,34 @@ internal static class TrayTheme
             ToolStripMenuItem it = new ToolStripMenuItem(text);
             it.Enabled = false;
             it.Tag = TrayTheme.TextSecondary;
-            it.Font = TrayTheme.Font(7.5F, FontStyle.Bold);
+            it.Font = TrayTheme.Font(8F, FontStyle.Bold);
             it.Padding = new Padding(0, Sz(7), 0, Sz(2));
             return it;
         }
 
-        private void AddModule(ToolStripMenuItem parent, string title, string controlId, string glyph, string script, bool requiresAdmin)
+        /// <summary>Elemento que ejecuta un módulo; la etiqueta "Administrador" avisa de que Windows pedirá confirmación.</summary>
+        private ToolStripMenuItem NewModuleItem(string text, string glyph, string tooltip, bool needsAdmin,
+            string title, string script, string args, string confirmBody, bool warn)
         {
-            ToolStripMenuItem it = NewItem(title, glyph, delegate { RunIndividualEngine(script, title, requiresAdmin); });
-            it.ShortcutKeyDisplayString = controlId;
-            it.ToolTipText = requiresAdmin
-                ? "Requiere privilegios de administrador (se solicitará elevación UAC)."
-                : "Se ejecuta bajo el contexto del usuario actual.";
-            parent.DropDownItems.Add(it);
+            ToolStripMenuItem it = NewItem(text, glyph, delegate { RunModule(title, script, needsAdmin, args, confirmBody, warn); });
+            it.ToolTipText = tooltip;
+            if (needsAdmin) it.ShortcutKeyDisplayString = "Administrador";
+            return it;
         }
 
         private void InitializeTray()
         {
             menu = new ContextMenuStrip();
-            StyleDropDown(menu);
+            menu.AutoClose = true;
+            menu.Closed += delegate
+            {
+                if (dummyForm != null && !dummyForm.IsDisposed)
+                    PostMessage(dummyForm.Handle, WM_NULL, IntPtr.Zero, IntPtr.Zero);
+            };
+            StyleDropDown(menu, 300);
 
-            // ---- Cabecera corporativa ----
-                        // ---- Cabecera corporativa unificada con Setup/Config ----
-            ToolStripMenuItem itemTitle = NewItem("Sentinel-IT Suite", G_Shield, null);
+            // ---- Cabecera ----
+            ToolStripMenuItem itemTitle = NewItem("Isora Sentinel Suite", G_Shield, null);
             itemTitle.Enabled = false;
             itemTitle.Image = Glyph(G_Shield, TrayTheme.AccentBlue);
             itemTitle.Font = TrayTheme.Font(10.5F, FontStyle.Bold);
@@ -473,7 +574,7 @@ internal static class TrayTheme
             itemTitle.Padding = new Padding(0, Sz(8), 0, Sz(0));
             menu.Items.Add(itemTitle);
 
-            ToolStripMenuItem itemSub = NewItem("Autonomous Endpoint Compliance  ·  v" + Version, null, null);
+            ToolStripMenuItem itemSub = NewItem("Mantenimiento y seguridad del equipo  ·  v" + Branding.Version, null, null);
             itemSub.Enabled = false;
             itemSub.Font = TrayTheme.Font(8.5F);
             itemSub.Tag = TrayTheme.TextSecondary;
@@ -482,89 +583,147 @@ internal static class TrayTheme
 
             menu.Items.Add(new ToolStripSeparator());
 
-            // ---- Estado de integridad ----
-            itemIntegrity = NewItem("Integridad SHA-256  ·  Verificando…", null, delegate { RefreshIntegrityAsync(true); });
+            // ---- Estado de la instalación (se actualiza tras comprobar) ----
+            itemIntegrity = NewItem("Comprobando instalación…", null, delegate { RefreshIntegrityAsync(true); });
             itemIntegrity.Font = TrayTheme.Font(9.5F, FontStyle.Bold);
             itemIntegrity.Image = StatusDot(TrayTheme.TextMuted);
-            itemIntegrity.ToolTipText = "Haga clic para verificar ahora y ver el informe detallado.";
+            itemIntegrity.ToolTipText = "Comprobando que los archivos de la instalación no hayan sido modificados.";
             menu.Items.Add(itemIntegrity);
 
             menu.Items.Add(new ToolStripSeparator());
 
-            // ---- Controles técnicos ----
-            menu.Items.Add(NewSectionLabel("CONTROLES TÉCNICOS"));
+            // ---- Mantenimiento ----
+            menu.Items.Add(NewSectionLabel(Loc.T("MANTENIMIENTO", "MAINTENANCE")));
 
-            ToolStripMenuItem menuModules = NewItem("Módulos de auditoría", G_Document, null);
-            StyleDropDown(menuModules.DropDown);
-            AddModule(menuModules, "Purga de capturas de pantalla",      "A.8.1",   G_Camera, "Invoke-CleanupScreenshots.ps1", false);
-            AddModule(menuModules, "Recuperación de temporales y caché", "§8.2",    G_Delete, "Invoke-CleanupTempGlobal.ps1",  false);
-            AddModule(menuModules, "Archivado seguro de descargas",      "A.8.10",  G_Folder, "Invoke-ArchiveDownloads.ps1",   false);
-            AddModule(menuModules, "Escaneo antimalware Defender",       "A.8.7",   G_Shield, "Invoke-DefenderScan.ps1",       true);
-            AddModule(menuModules, "Auditoría Component Store (DISM)",   "A.8.20",  G_Sync,   "Invoke-IntegrityCheck.ps1",     true);
-            AddModule(menuModules, "Auditoría criptográfica BitLocker",  "A.8.24",  G_Lock,   "Invoke-BitLockerAudit.ps1",     true);
-            AddModule(menuModules, "Eventos y anti-forensia",            "A.8.15",  G_Document, "Invoke-EventAudit.ps1",       true);
-            menu.Items.Add(menuModules);
+            // Ejecutar ahora
+            ToolStripMenuItem menuRun = NewItem(Loc.T("Ejecutar mantenimiento ahora", "Run maintenance now"), G_Play, null);
+            StyleDropDown(menuRun.DropDown, 340);
 
-            ToolStripMenuItem menuRun = NewItem("Ejecutar ahora", G_Play, null);
-            StyleDropDown(menuRun.DropDown);
-
-            ToolStripMenuItem runUser = NewItem("Sesión actual (DLP y temporales)", G_Person, delegate { RunEnginesForCurrentUser(); });
-            runUser.ToolTipText = "Purga de capturas y limpieza temporal bajo el contexto del usuario actual.";
+            ToolStripMenuItem runUser = NewItem("Limpieza rápida de mi cuenta", G_Person, delegate { RunUserCleanup(); });
+            runUser.ToolTipText = "Elimina archivos temporales y capturas de pantalla de su usuario. No necesita permisos de administrador.";
             menuRun.DropDownItems.Add(runUser);
 
-            ToolStripMenuItem runSystem = NewItem("Todas las tareas (SYSTEM)", G_Shield, delegate { RunEnginesForSystem(); });
-            runSystem.ShortcutKeyDisplayString = "UAC";
-            runSystem.ToolTipText = "Dispara las tareas programadas bajo NT AUTHORITY\\SYSTEM.";
-            menuRun.DropDownItems.Add(runSystem);
+            menuRun.DropDownItems.Add(new ToolStripSeparator());
+
+            ToolStripMenuItem runStd = NewItem("Mantenimiento estándar del equipo", G_Sync, delegate { RunSystemMaintenance(false); });
+            runStd.ShortcutKeyDisplayString = "Administrador";
+            runStd.ToolTipText = "Inicia en segundo plano todas las tareas de mantenimiento con su configuración habitual. Puede seguir trabajando.";
+            menuRun.DropDownItems.Add(runStd);
+
+            ToolStripMenuItem runFull = NewItem(Loc.T("Mantenimiento completo del equipo", "Complete system maintenance"), G_Refresh, delegate { RunSystemMaintenance(true); });
+            runFull.ShortcutKeyDisplayString = "Administrador";
+            runFull.ToolTipText = "Como el estándar, pero con análisis antimalware completo y reparación de archivos de Windows. Puede tardar y ralentizar el equipo.";
+            menuRun.DropDownItems.Add(runFull);
+
             menu.Items.Add(menuRun);
+
+            // Tareas individuales
+            ToolStripMenuItem menuTasks = NewItem(Loc.T("Tareas individuales", "Individual tasks"), G_Document, null);
+            StyleDropDown(menuTasks.DropDown, 340);
+
+            menuTasks.DropDownItems.Add(NewSectionLabel(Loc.T("LIMPIEZA Y ORDEN", "CLEANUP & ORDER")));
+            menuTasks.DropDownItems.Add(NewModuleItem("Eliminar capturas de pantalla", G_Camera,
+                "Elimina las capturas de pantalla guardadas en su cuenta, incluidas las carpetas sincronizadas con la nube.",
+                false, "Eliminar capturas de pantalla", "Invoke-CleanupScreenshots.ps1", "",
+                "Se eliminarán de forma permanente las capturas de pantalla guardadas en su cuenta, incluidas las de carpetas sincronizadas con la nube (OneDrive, Google Drive, Dropbox).\n\nEsta acción no se puede deshacer.",
+                true));
+            menuTasks.DropDownItems.Add(NewModuleItem("Liberar espacio (archivos temporales)", G_Delete,
+                "Borra archivos temporales, informes de errores y cachés para liberar espacio en disco.",
+                false, "Liberar espacio", "Invoke-CleanupTempGlobal.ps1", "", null, false));
+            menuTasks.DropDownItems.Add(NewModuleItem("Organizar y archivar descargas", G_Folder,
+                "Organiza y archiva los archivos de su carpeta Descargas.",
+                false, "Organizar descargas", "Invoke-ArchiveDownloads.ps1", "",
+                "Se organizarán y archivarán los archivos de su carpeta Descargas.", false));
+
+            menuTasks.DropDownItems.Add(NewSectionLabel(Loc.T("SEGURIDAD", "SECURITY")));
+            ToolStripMenuItem mDefender = NewItem("Análisis antimalware (Defender)", G_Shield, null);
+            StyleDropDown(mDefender.DropDown, 320);
+            mDefender.DropDownItems.Add(NewModuleItem("Análisis rápido (recomendado)", G_Play,
+                "Revisa las zonas donde es más habitual encontrar amenazas. Tarda unos minutos y puede seguir trabajando.",
+                true, "Análisis rápido de Defender", "Invoke-DefenderScan.ps1", "-ScanType 1", null, false));
+            mDefender.DropDownItems.Add(NewModuleItem("Análisis completo", G_Play,
+                "Revisa todos los archivos del equipo. Puede tardar horas y ralentizar el equipo.",
+                true, "Análisis completo de Defender", "Invoke-DefenderScan.ps1", "-ScanType 2",
+                "El análisis completo revisa todos los archivos del equipo.\n\n•  Puede tardar entre una y varias horas.\n•  El equipo puede funcionar más lento mientras se ejecuta.\n\nSe recomienda hacerlo fuera del horario de trabajo.",
+                true));
+            menuTasks.DropDownItems.Add(mDefender);
+
+            menuTasks.DropDownItems.Add(NewSectionLabel("DIAGNÓSTICO AVANZADO (TI)"));
+            ToolStripMenuItem mIntegrity = NewItem("Reparar archivos de Windows", G_Sync, null);
+            StyleDropDown(mIntegrity.DropDown, 320);
+            mIntegrity.DropDownItems.Add(NewModuleItem("Comprobación rápida", G_Play,
+                "Comprueba si Windows tiene archivos dañados (DISM /CheckHealth). Tarda unos segundos.",
+                true, "Comprobación rápida de Windows", "Invoke-IntegrityCheck.ps1", "-QuickCheck", null, false));
+            mIntegrity.DropDownItems.Add(NewModuleItem("Reparación completa", G_Play,
+                "Busca y repara archivos dañados de Windows (DISM /RestoreHealth). Puede tardar de 15 a 45 minutos.",
+                true, "Reparación completa de Windows", "Invoke-IntegrityCheck.ps1", "-AutoRepair",
+                "La reparación completa analiza y repara los archivos de Windows.\n\n•  Puede tardar entre 15 y 45 minutos.\n•  El equipo puede funcionar más lento mientras se ejecuta.\n•  Puede necesitar conexión a Internet.",
+                true));
+            menuTasks.DropDownItems.Add(mIntegrity);
+
+            menuTasks.DropDownItems.Add(NewModuleItem("Comprobar cifrado de disco (BitLocker)", G_Lock,
+                "Verifica que las unidades del equipo estén cifradas y protegidas.",
+                true, "Comprobación de BitLocker", "Invoke-BitLockerAudit.ps1", "", null, false));
+            menuTasks.DropDownItems.Add(NewModuleItem("Revisar eventos de seguridad", G_Document,
+                "Busca señales de alerta en el registro de Windows: borrado de registros, intentos fallidos de inicio de sesión y cuentas nuevas.",
+                true, "Revisión de eventos de seguridad", "Invoke-EventAudit.ps1", "", null, false));
+            menu.Items.Add(menuTasks);
 
             menu.Items.Add(new ToolStripSeparator());
 
-            // ---- Utilidades ----
-            menu.Items.Add(NewSectionLabel("HERRAMIENTAS"));
+            // ---- Herramientas ----
+            menu.Items.Add(NewSectionLabel(Loc.T("HERRAMIENTAS", "TOOLS")));
 
-            menu.Items.Add(NewItem("Abrir repositorio de logs forenses", G_Folder, delegate { OpenLogs(); }));
-            ToolStripMenuItem itemCfg = NewItem("Configuración de servicios instalados", G_Settings, delegate { OpenConfig(); });
-            itemCfg.ToolTipText = "Modifique la programación, añada o quite rutinas del programador de Windows.";
+            ToolStripMenuItem itemLogs = NewItem(Loc.T("Ver registros de actividad", "View activity logs"), G_Folder, delegate { OpenLogs(); });
+            itemLogs.ToolTipText = "Abre la carpeta donde se guarda el resultado de cada tarea ejecutada.";
+            menu.Items.Add(itemLogs);
+
+            ToolStripMenuItem itemCfg = NewItem("Programar tareas…", G_Settings, delegate { OpenConfig(); });
+            itemCfg.ToolTipText = "Elija qué tareas se ejecutan automáticamente, cuándo y con qué frecuencia.";
             menu.Items.Add(itemCfg);
 
             itemAutoStart = NewItem("Iniciar con Windows", null, delegate { OnAutoStartClicked(); });
-            itemAutoStart.CheckOnClick = true;
-            itemAutoStart.Checked = IsAutoStartEnabled();
+            itemAutoStart.ToolTipText = "Abre este icono automáticamente cuando inicie sesión.";
+            bool byUser = IsAutoStartForUser();
+            bool byMachine = IsAutoStartForMachine();
+            if (byMachine && !byUser)
+            {
+                // Lo configuró la instalación para todos los usuarios: no se puede cambiar desde aquí.
+                itemAutoStart.Text = "Iniciar con Windows (lo gestiona TI)";
+                itemAutoStart.Checked = true;
+                itemAutoStart.Enabled = false;
+            }
+            else
+            {
+                itemAutoStart.CheckOnClick = true;
+                itemAutoStart.Checked = byUser;
+            }
             menu.Items.Add(itemAutoStart);
 
             menu.Items.Add(new ToolStripSeparator());
 
-            ToolStripMenuItem itemExit = NewItem("Salir del monitor", G_Power, delegate { ExitMonitor(); });
-            menu.Items.Add(itemExit);
+            // ---- Pie ----
+            menu.Items.Add(NewItem("Acerca de Isora Sentinel…", null, delegate { ShowAbout(); }));
 
-            ToolStripMenuItem itemCopy = NewItem("© 2026 Sandra Gabriela Puerto Torres  ·  MIT", null, null);
-            itemCopy.Enabled = false;
-            itemCopy.Font = TrayTheme.Font(7.75F);
-            itemCopy.Tag = TrayTheme.TextMuted;
-            itemCopy.Padding = new Padding(0, Sz(2), 0, Sz(6));
-            menu.Items.Add(itemCopy);
+            ToolStripMenuItem itemExit = NewItem(Loc.T("Salir del monitor", "Exit monitor"), G_Power, delegate { ExitMonitor(); });
+            itemExit.ToolTipText = "Cierra este icono. Las tareas programadas siguen ejecutándose.";
+            itemExit.Padding = new Padding(0, Sz(5), 0, Sz(8));
+            menu.Items.Add(itemExit);
 
             // ---- NotifyIcon ----
             trayIcon = new NotifyIcon();
-            trayIcon.Text = "Sentinel-IT · Verificando integridad";
-            trayIcon.ContextMenuStrip = menu;
+            trayIcon.Text = "Isora Sentinel · Comprobando instalación";
             trayIcon.Icon = LoadTrayIcon();
             trayIcon.Visible = true;
             trayIcon.MouseUp += delegate(object s, MouseEventArgs e)
             {
-                if (e.Button == MouseButtons.Left) ShowMenuOnLeftClick();
+                if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)
+                {
+                    if (dummyForm != null && !dummyForm.IsDisposed)
+                        SetForegroundWindow(dummyForm.Handle);
+                    menu.Show(Cursor.Position);
+                }
             };
-        }
-
-        private void ShowMenuOnLeftClick()
-        {
-            try
-            {
-                MethodInfo mi = typeof(NotifyIcon).GetMethod("ShowContextMenu", BindingFlags.Instance | BindingFlags.NonPublic);
-                if (mi != null) mi.Invoke(trayIcon, null);
-            }
-            catch { }
         }
 
         private Icon LoadTrayIcon()
@@ -588,7 +747,7 @@ internal static class TrayTheme
         }
 
         // ---------------------------------------------------------------------
-        //  Integridad
+        //  Estado de la instalación (comprobación de integridad)
         // ---------------------------------------------------------------------
         private void RefreshIntegrityAsync(bool showReport)
         {
@@ -607,24 +766,41 @@ internal static class TrayTheme
 
         private void ApplyIntegrity(IntegrityReport r, bool showReport)
         {
-            lastReport = r;
             Color dot;
-            string text, tip;
+            string text, tip, hint;
+            string time = r.Timestamp.ToString("HH:mm");
 
             switch (r.State)
             {
                 case IntegrityState.Authorized:
-                    dot = TrayTheme.Emerald; text = "Integridad SHA-256  ·  Verificada"; tip = "Sentinel-IT · Integridad verificada"; break;
+                    dot = TrayTheme.Emerald;
+                    text = "Instalación verificada";
+                    tip = "Isora Sentinel · Instalación verificada";
+                    hint = "Los archivos coinciden con el registro de la instalación (comprobado a las " + time + "). Haga clic para ver el detalle.";
+                    break;
                 case IntegrityState.Tampered:
-                    dot = TrayTheme.Amber;   text = "Integridad SHA-256  ·  Alteración detectada"; tip = "Sentinel-IT · ALTERACIÓN DETECTADA"; break;
+                    dot = TrayTheme.Danger;
+                    text = Loc.T("Archivos modificados", "Tampered/modified files");
+                    tip = "Isora Sentinel · Archivos modificados";
+                    hint = "Algunos archivos no coinciden con el original. Haga clic para ver cuáles.";
+                    break;
                 case IntegrityState.NoManifest:
-                    dot = TrayTheme.Amber;   text = "Integridad SHA-256  ·  Manifiesto no disponible"; tip = "Sentinel-IT · Manifiesto no disponible"; break;
+                    dot = TrayTheme.Amber;
+                    text = Loc.T("No se pudo verificar", "Could not verify");
+                    tip = "Isora Sentinel · No se pudo verificar";
+                    hint = "No se encontró el archivo de comprobación de la instalación. Haga clic para más información.";
+                    break;
                 default:
-                    dot = TrayTheme.TextMuted; text = "Integridad SHA-256  ·  Verificando…"; tip = "Sentinel-IT · Verificando integridad"; break;
+                    dot = TrayTheme.TextMuted;
+                    text = "Comprobando instalación…";
+                    tip = "Isora Sentinel · Comprobando instalación";
+                    hint = "Comprobando que los archivos de la instalación no hayan sido modificados.";
+                    break;
             }
 
             itemIntegrity.Text = text;
-            itemIntegrity.ShortcutKeyDisplayString = (r.State == IntegrityState.Checking) ? null : r.Timestamp.ToString("HH:mm");
+            itemIntegrity.ToolTipText = hint;
+            itemIntegrity.ShortcutKeyDisplayString = (r.State == IntegrityState.Checking) ? null : time;
             Image old = itemIntegrity.Image;
             itemIntegrity.Image = StatusDot(dot);
             if (old != null) old.Dispose();
@@ -637,62 +813,94 @@ internal static class TrayTheme
         {
             StringBuilder sb = new StringBuilder();
             MessageBoxIcon icon = MessageBoxIcon.Information;
+            string title = Branding.ProductName + " · Estado de la instalación";
 
             if (r.State == IntegrityState.Authorized)
             {
-                sb.AppendLine("Estado: AUTORIZADO");
+                sb.AppendLine("La instalación está en buen estado.");
                 sb.AppendLine();
-                sb.AppendLine("Archivos verificados: " + r.FilesChecked);
-                sb.AppendLine("Todos los módulos coinciden con la huella SHA-256 registrada en integrity.manifest.json.");
+                sb.AppendLine("Se comprobaron " + r.FilesChecked + " archivos y todos coinciden con el registro original de la instalación.");
+                sb.AppendLine();
+                sb.AppendLine("Detalle técnico: huellas SHA-256 comparadas con integrity.manifest.json.");
             }
             else if (r.State == IntegrityState.Tampered)
             {
                 icon = MessageBoxIcon.Warning;
-                sb.AppendLine("Estado: ALTERACIÓN DETECTADA");
-                sb.AppendLine();
-                sb.AppendLine("Archivos verificados: " + r.FilesChecked + "   |   Con discrepancias: " + r.Altered.Count);
+                title = Branding.ProductName + " · Archivos modificados";
+                sb.AppendLine("Se encontraron archivos que no coinciden con el original (" + r.Altered.Count + " de " + r.FilesChecked + "):");
                 sb.AppendLine();
                 int n = 0;
                 foreach (string f in r.Altered)
                 {
-                    if (n++ >= 8) { sb.AppendLine("  … y " + (r.Altered.Count - 8) + " más"); break; }
-                    sb.AppendLine("  •  " + f);
+                    if (n++ >= 6) { sb.AppendLine("  ·  y " + (r.Altered.Count - 6) + " más"); break; }
+                    sb.AppendLine("  ·  " + f);
                 }
+                sb.AppendLine();
+                sb.AppendLine("Qué hacer:");
+                sb.AppendLine("  ·  Si usted no los modificó, informe al área de TI.");
+                sb.AppendLine("  ·  Para restaurarlos, vuelva a instalar Isora Sentinel con el asistente de instalación.");
             }
             else
             {
                 icon = MessageBoxIcon.Warning;
-                sb.AppendLine("Estado: NO VERIFICABLE");
+                title = Branding.ProductName + " · No se pudo verificar";
+                sb.AppendLine("No fue posible comprobar la instalación.");
                 sb.AppendLine();
-                sb.AppendLine("No se encontró un manifiesto integrity.manifest.json válido en:");
+                sb.AppendLine("No se encontró el archivo de comprobación (integrity.manifest.json) en:");
                 sb.AppendLine(installDir);
+                sb.AppendLine();
+                sb.AppendLine("Si es una copia de pruebas, puede ignorar este aviso. En un equipo de trabajo, consulte al área de TI.");
             }
             sb.AppendLine();
-            sb.AppendLine("Última verificación: " + r.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"));
+            sb.AppendLine("Última comprobación: " + r.Timestamp.ToString("dd/MM/yyyy HH:mm:ss"));
 
-            MessageBox.Show(sb.ToString(), "Sentinel-IT · Firma e integridad criptográfica", MessageBoxButtons.OK, icon);
+            Msg(sb.ToString(), title, MessageBoxButtons.OK, icon);
         }
 
-        // ---------------------------------------------------------------------
-        //  Ejecución de motores (con resultado real, no optimista)
-        // ---------------------------------------------------------------------
-        private static string Q(string path) { return "'" + path.Replace("'", "''") + "'"; }
-
-        private void Notify(string title, string msg, ToolTipIcon icon)
+        private void ShowAbout()
         {
-            trayIcon.ShowBalloonTip(3500, title, msg, icon);
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("Isora Sentinel Suite  ·  versión " + Branding.Version);
+            sb.AppendLine();
+            sb.AppendLine("Mantenimiento y seguridad para equipos Windows: limpieza, análisis antimalware, comprobaciones de integridad y auditorías, con un registro de cada ejecución.");
+            sb.AppendLine();
+            sb.AppendLine("Autora: Sandra Gabriela Puerto Torres");
+            sb.AppendLine("Licencia: MIT (código abierto)");
+            sb.AppendLine("Instalada en: " + installDir);
+            sb.AppendLine();
+            sb.AppendLine("Nuestra filosofía: Ubuntu");
+            sb.AppendLine("«Umuntu ngumuntu ngabantu» (zulú y xhosa): una persona es persona a través de las demás; «soy porque somos». Creemos que la seguridad y la tecnología cobran sentido cuando sirven para cuidar y respetar a las personas.");
+            Msg(sb.ToString(), "Acerca de " + Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
+        // ---------------------------------------------------------------------
+        //  Ejecución de procesos (resultado real, sin ventanas de consola)
+        // ---------------------------------------------------------------------
+        private static string Q(string s) { return "'" + s.Replace("'", "''") + "'"; }
+
+        private void PostResult(Action<int> onDone, int code)
+        {
+            try
+            {
+                invoker.BeginInvoke(new Action(delegate { if (onDone != null) onDone(code); }));
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Ejecuta un script de PowerShell. Se envía codificado (-EncodedCommand) para que
+        /// las comillas y los espacios de las rutas no puedan romper el comando.
+        /// </summary>
         private void RunPowerShell(string command, bool elevate, Action<int> onDone)
         {
+            string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
             ProcessStartInfo psi = new ProcessStartInfo("powershell.exe");
-            string escaped = command.Replace("\"", "\\\"");
-            psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"" + escaped + "\"";
+            psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand " + encoded;
             if (elevate)
             {
                 psi.UseShellExecute = true;
                 psi.Verb = "runas";
-                psi.WindowStyle = ProcessWindowStyle.Normal;
+                psi.WindowStyle = ProcessWindowStyle.Hidden;
             }
             else
             {
@@ -705,32 +913,36 @@ internal static class TrayTheme
 
             try
             {
-                p.Start();
+                if (!p.Start())
+                {
+                    p.Dispose();
+                    PostResult(onDone, ExitUnknown);
+                    return;
+                }
             }
             catch (Win32Exception ex)
             {
                 p.Dispose();
                 if (ex.NativeErrorCode == 1223)
-                    Notify("Sentinel-IT", "Elevación UAC cancelada por el usuario. No se ejecutó ninguna acción.", ToolTipIcon.Warning);
+                    Notify(Branding.ProductName, "No se realizó ninguna acción: se canceló la solicitud de permisos de administrador.", ToolTipIcon.Warning);
                 else
-                    MessageBox.Show("No se pudo iniciar PowerShell:\n" + ex.Message, "Sentinel-IT", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                try { invoker.BeginInvoke(new Action(delegate { if (onDone != null) onDone(-1); })); } catch { }
+                    Msg("No se pudo iniciar la tarea.\n\nDetalle técnico: " + ex.Message, Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                PostResult(onDone, ExitCanceled);
                 return;
             }
             catch (Exception ex)
             {
                 p.Dispose();
-                MessageBox.Show("No se pudo iniciar PowerShell:\n" + ex.Message, "Sentinel-IT", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                try { invoker.BeginInvoke(new Action(delegate { if (onDone != null) onDone(-1); })); } catch { }
+                Msg("No se pudo iniciar la tarea.\n\nDetalle técnico: " + ex.Message, Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                PostResult(onDone, ExitCanceled);
                 return;
             }
 
-            // Monitorear finalización en un hilo secundario sin EnableRaisingEvents,
-            // ya que EnableRaisingEvents sobre procesos 'runas' entre niveles de integridad
-            // produce Win32Exception (0x32) por restricciones de acceso sobre el handle.
+            // Se espera en un hilo aparte sin EnableRaisingEvents: sobre procesos 'runas'
+            // entre niveles de integridad produce Win32Exception por restricciones de acceso.
             ThreadPool.QueueUserWorkItem(delegate
             {
-                int exitCode = 0;
+                int exitCode;
                 try
                 {
                     p.WaitForExit();
@@ -738,272 +950,304 @@ internal static class TrayTheme
                 }
                 catch
                 {
-                    exitCode = 0;
+                    exitCode = ExitUnknown;   // terminó, pero no se puede leer el resultado: no se da por correcto
                 }
                 finally
                 {
                     try { p.Dispose(); } catch { }
                 }
-
-                try
-                {
-                    invoker.BeginInvoke(new Action(delegate
-                    {
-                        if (onDone != null) onDone(exitCode);
-                    }));
-                }
-                catch { }
+                PostResult(onDone, exitCode);
             });
         }
 
-        private void RunEnginesForCurrentUser()
+        private static string DirectRun(string scriptPath, string args)
         {
-            string a = ResolveEngine("Invoke-CleanupScreenshots.ps1");
-            string b = ResolveEngine("Invoke-CleanupTempGlobal.ps1");
-            if (!File.Exists(a) || !File.Exists(b))
-            {
-                MessageBox.Show("No se encontraron los motores de saneamiento en:\n" + installDir, "Sentinel-IT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            string cmd = "$f=0; foreach($s in " + Q(a) + "," + Q(b) + "){ try { & $s } catch { $f++ } }; exit $f";
-            Notify("Sentinel-IT", "Saneamiento de la sesión actual iniciado.", ToolTipIcon.Info);
-            RunPowerShell(cmd, false, delegate(int code)
-            {
-                if (code == 0) Notify("Sentinel-IT", "Saneamiento de la sesión actual finalizado correctamente.", ToolTipIcon.Info);
-                else Notify("Sentinel-IT", "Saneamiento finalizado con " + code + " error(es). Revise los logs forenses.", ToolTipIcon.Warning);
-            });
+            return "$global:LASTEXITCODE = 0; try { & " + Q(scriptPath) +
+                   (string.IsNullOrEmpty(args) ? "" : " " + args) +
+                   "; exit [int]$LASTEXITCODE } catch { exit 1 }";
         }
 
-        private void RunEnginesForSystem()
+        // ---------------------------------------------------------------------
+        //  Acciones de mantenimiento
+        // ---------------------------------------------------------------------
+        private bool MissingComponent(string scriptPath)
         {
-            bool admin = IsAdministrator();
-            if (!admin)
-            {
-                DialogResult dr = MessageBox.Show(
-                    "Ejecutar las tareas bajo NT AUTHORITY\\SYSTEM requiere privilegios de administrador.\n\n¿Desea continuar y conceder la elevación UAC?",
-                    "Sentinel-IT · Privilegios requeridos",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (dr != DialogResult.Yes) return;
-            }
-
-            string cmd = "& { " +
-                "$dir = " + Q(installDir) + "; " +
-                "$tasks = @( " +
-                    "@{ T = 'Cleanup_Screenshots'; S = 'Invoke-CleanupScreenshots.ps1' }, " +
-                    "@{ T = 'Cleanup_Temp_Global'; S = 'Invoke-CleanupTempGlobal.ps1' }, " +
-                    "@{ T = 'Defender_Scan';       S = 'Invoke-DefenderScan.ps1' }, " +
-                    "@{ T = 'Integrity_Check';     S = 'Invoke-IntegrityCheck.ps1' }, " +
-                    "@{ T = 'BitLocker_Audit';     S = 'Invoke-BitLockerAudit.ps1' }, " +
-                    "@{ T = 'Event_Audit';         S = 'Invoke-EventAudit.ps1' }, " +
-                    "@{ T = 'Archive_Downloads';   S = 'Invoke-ArchiveDownloads.ps1' } " +
-                "); " +
-                "$f = 0; " +
-                "foreach ($item in $tasks) { " +
-                    "$ok = $false; " +
-                    "schtasks.exe /Run /TN ('Sentinel-IT\\' + $item.T) 2>$null | Out-Null; " +
-                    "if ($LASTEXITCODE -eq 0) { " +
-                        "$ok = $true; " +
-                    "} else { " +
-                        "$s = Join-Path $dir ('engines\\' + $item.S); " +
-                        "if (-not (Test-Path $s)) { $s = Join-Path $dir ('src\\engines\\' + $item.S); }; " +
-                        "if (Test-Path $s) { try { & $s; $ok = $true } catch { } } " +
-                    "} " +
-                    "if (-not $ok) { $f++ } " +
-                "}; " +
-                "exit $f " +
-            "}";
-
-            int total = 7;
-            RunPowerShell(cmd, !admin, delegate(int failures)
-            {
-                int ok = total - failures;
-                if (failures == 0) Notify("Sentinel-IT", "Se completaron las " + total + " tareas bajo privilegios elevados.", ToolTipIcon.Info);
-                else Notify("Sentinel-IT", "Se iniciaron " + ok + " de " + total + " tareas. Revise los registros forenses.", ToolTipIcon.Warning);
-            });
+            if (File.Exists(scriptPath)) return false;
+            Msg("No se encontró un componente necesario de Isora Sentinel:\n\n" + Path.GetFileName(scriptPath) +
+                "\n\nRepare la instalación con el asistente de instalación o consulte al área de TI.",
+                Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return true;
         }
 
-        private void RunIndividualEngine(string scriptName, string title, bool requiresAdmin)
+        private bool AlreadyRunning(string title)
         {
-            string path = ResolveEngine(scriptName);
-            if (!File.Exists(path))
-            {
-                MessageBox.Show("Motor no encontrado:\n" + path, "Sentinel-IT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            if (!running.Contains(title)) return false;
+            Notify(Branding.ProductName, "Ya hay una ejecución en curso: " + title + ".", ToolTipIcon.Info);
+            return true;
+        }
 
-            bool admin = IsAdministrator();
-            bool needElevation = requiresAdmin && !admin;
+        private void ReportResult(string title, int code)
+        {
+            if (code == ExitCanceled) return;   // ya se informó la cancelación
+            if (code == ExitTriggered)
+                Notify(Branding.ProductName, title + ": se ejecuta en segundo plano. El resultado quedará en los registros de actividad.", ToolTipIcon.Info);
+            else if (code == 0)
+                Notify(Branding.ProductName, title + ": finalizado correctamente.", ToolTipIcon.Info);
+            else if (code == ExitUnknown)
+                Notify(Branding.ProductName, title + ": finalizó. Revise los registros de actividad para confirmar el resultado.", ToolTipIcon.Info);
+            else
+                Notify(Branding.ProductName, title + ": finalizó con incidencias. Abra «Ver registros de actividad» para más detalle.", ToolTipIcon.Warning);
+        }
 
-            if (needElevation)
-            {
-                DialogResult dr = MessageBox.Show(
-                    "El módulo '" + title + "' requiere privilegios administrativos para auditar o configurar componentes del sistema.\n\n¿Desea solicitar la elevación UAC y continuar?",
-                    "Sentinel-IT · Elevación requerida",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
-                if (dr != DialogResult.Yes) return;
-            }
+        /// <summary>Ejecuta un módulo individual. Los de seguridad usan la tarea programada (cuenta SYSTEM) cuando no hay parámetros.</summary>
+        private void RunModule(string title, string script, bool needsAdmin, string args, string confirmBody, bool warn)
+        {
+            string path = ResolveEngine(script);
+            if (MissingComponent(path)) return;
+            if (AlreadyRunning(title)) return;
 
-            // Mapeo del script a su tarea programada correspondiente (bajo SYSTEM)
-            string taskName = null;
-            if (scriptName.Equals("Invoke-DefenderScan.ps1", StringComparison.OrdinalIgnoreCase)) taskName = "Defender_Scan";
-            else if (scriptName.Equals("Invoke-IntegrityCheck.ps1", StringComparison.OrdinalIgnoreCase)) taskName = "Integrity_Check";
-            else if (scriptName.Equals("Invoke-BitLockerAudit.ps1", StringComparison.OrdinalIgnoreCase)) taskName = "BitLocker_Audit";
-            else if (scriptName.Equals("Invoke-EventAudit.ps1", StringComparison.OrdinalIgnoreCase)) taskName = "Event_Audit";
-            else if (scriptName.Equals("Invoke-CleanupScreenshots.ps1", StringComparison.OrdinalIgnoreCase)) taskName = "Cleanup_Screenshots";
-            else if (scriptName.Equals("Invoke-CleanupTempGlobal.ps1", StringComparison.OrdinalIgnoreCase)) taskName = "Cleanup_Temp_Global";
+            bool elevate = needsAdmin && !IsAdministrator();
+            if (!Confirm(title, confirmBody, elevate, warn)) return;
 
-            // Si es un módulo de sistema y contamos con elevación (o la obtendremos vía UAC),
-            // se intenta ejecutar mediante schtasks para operar bajo NT AUTHORITY\SYSTEM.
-            // Si la tarea no estuviera registrada, ejecuta el script directamente con privilegios elevados.
+            string taskName;
             string cmd;
-            if (requiresAdmin && !string.IsNullOrEmpty(taskName))
+            if (needsAdmin && string.IsNullOrEmpty(args) && TaskByScript.TryGetValue(script, out taskName))
             {
-                cmd = "& { " +
-                    "$tn = " + Q(taskName) + "; " +
-                    "$p = " + Q(path) + "; " +
-                    "$ran = $false; " +
-                    "schtasks.exe /Run /TN ('Sentinel-IT\\' + $tn) 2>$null | Out-Null; " +
-                    "if ($LASTEXITCODE -eq 0) { $ran = $true; } " +
-                    "if (-not $ran) { " +
-                        "try { & $p; exit 0 } catch { exit 1 } " +
-                    "} else { " +
-                        "exit 0 " +
-                    "} " +
-                "}";
+                cmd = "schtasks.exe /Run /TN " + Q(Branding.TaskFolder + "\\" + taskName) + " 2>$null | Out-Null; " +
+                      "if ($LASTEXITCODE -eq 0) { exit " + ExitTriggered + " }; " + DirectRun(path, args);
             }
             else
             {
-                cmd = "& { try { & " + Q(path) + "; exit 0 } catch { exit 1 } }";
+                cmd = DirectRun(path, args);
             }
 
-            Notify("Sentinel-IT", "Iniciado: " + title, ToolTipIcon.Info);
-            RunPowerShell(cmd, needElevation, delegate(int code)
+            running.Add(title);
+            Notify(Branding.ProductName, "Iniciado: " + title + ".", ToolTipIcon.Info);
+            RunPowerShell(cmd, elevate, delegate(int code)
             {
-                if (code == 0) Notify("Sentinel-IT", title + ": finalizado correctamente.", ToolTipIcon.Info);
-                else if (code > 0) Notify("Sentinel-IT", title + ": finalizó con incidencias. Revise los logs forenses.", ToolTipIcon.Warning);
-                // Si code == -1 fue cancelación de UAC ya notificada
+                running.Remove(title);
+                ReportResult(title, code);
+            });
+        }
+
+        /// <summary>Limpieza de la cuenta actual: no necesita administrador.</summary>
+        private void RunUserCleanup()
+        {
+            const string title = "Limpieza rápida de mi cuenta";
+            string a = ResolveEngine("Invoke-CleanupScreenshots.ps1");
+            string b = ResolveEngine("Invoke-CleanupTempGlobal.ps1");
+            if (MissingComponent(a) || MissingComponent(b)) return;
+            if (AlreadyRunning(title)) return;
+
+            if (!Confirm(title,
+                "Se eliminarán archivos temporales y capturas de pantalla de su cuenta.\n\nLas capturas eliminadas no se pueden recuperar.",
+                false, true)) return;
+
+            string cmd = "$f = 0; foreach ($s in " + Q(a) + "," + Q(b) + ") { " +
+                         "$global:LASTEXITCODE = 0; try { & $s } catch { $f++; continue }; " +
+                         "if ($LASTEXITCODE -ne 0) { $f++ } }; exit $f";
+
+            running.Add(title);
+            Notify(Branding.ProductName, "Iniciada la limpieza de su cuenta.", ToolTipIcon.Info);
+            RunPowerShell(cmd, false, delegate(int code)
+            {
+                running.Remove(title);
+                ReportResult(title, code);
+            });
+        }
+
+        /// <summary>
+        /// Estándar: inicia las tareas programadas en segundo plano (cuenta SYSTEM).
+        /// Completo: igual, pero Defender y la reparación de Windows se ejecutan en modo exhaustivo
+        /// y el proceso termina cuando acaban (puede tardar).
+        /// </summary>
+        private void RunSystemMaintenance(bool full)
+        {
+            string title = full ? Loc.T("Mantenimiento completo del equipo", "Complete system maintenance") : "Mantenimiento estándar del equipo";
+            if (AlreadyRunning(title)) return;
+            if (AlreadyRunning(full ? "Mantenimiento estándar del equipo" : Loc.T("Mantenimiento completo del equipo", "Complete system maintenance"))) return;
+
+            string[,] jobs = new string[,]
+            {
+                { "Cleanup_Screenshots", "Invoke-CleanupScreenshots.ps1", "" },
+                { "Cleanup_Temp_Global", "Invoke-CleanupTempGlobal.ps1",  "" },
+                { "Archive_Downloads",   "Invoke-ArchiveDownloads.ps1",   "" },
+                { "BitLocker_Audit",     "Invoke-BitLockerAudit.ps1",     "" },
+                { "Event_Audit",         "Invoke-EventAudit.ps1",         "" },
+                { "Defender_Scan",       "Invoke-DefenderScan.ps1",       "-ScanType 2" },
+                { "Integrity_Check",     "Invoke-IntegrityCheck.ps1",     "-AutoRepair" }
+            };
+            int total = jobs.GetLength(0);
+
+            string body = full
+                ? "El mantenimiento completo ejecuta todas las tareas, con análisis antimalware completo y reparación de archivos de Windows.\n\n•  Puede tardar entre una y varias horas.\n•  El equipo puede funcionar más lento mientras se ejecuta.\n•  Incluye la eliminación de archivos temporales y capturas de pantalla.\n\nSe recomienda hacerlo fuera del horario de trabajo."
+                : "Se iniciarán en segundo plano todas las tareas de mantenimiento con su configuración habitual: limpieza, análisis antimalware, comprobación de Windows y auditorías.\n\nIncluye la eliminación de archivos temporales y capturas de pantalla. Puede seguir trabajando mientras se ejecutan.";
+
+            bool elevate = !IsAdministrator();
+            if (!Confirm(title, body, elevate, full)) return;
+
+            StringBuilder sb = new StringBuilder("$f = 0; ");
+            for (int i = 0; i < total; i++)
+            {
+                string task = jobs[i, 0];
+                string script = ResolveEngine(jobs[i, 1]);
+                string heavyArgs = jobs[i, 2];
+                bool heavy = full && heavyArgs.Length > 0;
+
+                if (heavy)
+                {
+                    // Parámetros exhaustivos: no se pueden pasar por la tarea programada, se ejecuta el script directamente.
+                    sb.Append("$global:LASTEXITCODE = 0; try { & " + Q(script) + " " + heavyArgs +
+                              "; if ($LASTEXITCODE -ne 0) { $f++ } } catch { $f++ }; ");
+                }
+                else
+                {
+                    sb.Append("schtasks.exe /Run /TN " + Q(Branding.TaskFolder + "\\" + task) + " 2>$null | Out-Null; ");
+                    sb.Append("if ($LASTEXITCODE -ne 0) { $global:LASTEXITCODE = 0; try { & " + Q(script) +
+                              "; if ($LASTEXITCODE -ne 0) { $f++ } } catch { $f++ } }; ");
+                }
+            }
+            sb.Append("exit $f");
+
+            running.Add(title);
+            Notify(Branding.ProductName,
+                full ? "Mantenimiento completo en curso. Puede tardar; puede seguir trabajando."
+                     : "Mantenimiento estándar iniciado. Puede seguir trabajando.",
+                ToolTipIcon.Info);
+
+            RunPowerShell(sb.ToString(), elevate, delegate(int failures)
+            {
+                running.Remove(title);
+                if (failures == ExitCanceled) return;
+                if (failures == ExitUnknown) { ReportResult(title, failures); return; }
+
+                if (failures == 0)
+                    Notify(Branding.ProductName,
+                        full ? "Mantenimiento completo finalizado. Revise los registros de actividad para ver los resultados."
+                             : "Se iniciaron las " + total + " tareas en segundo plano. Los resultados se guardan en los registros de actividad.",
+                        ToolTipIcon.Info);
+                else
+                    Notify(Branding.ProductName,
+                        "No se pudieron iniciar " + failures + " de " + total + " tareas. Abra «Ver registros de actividad» para más detalle.",
+                        ToolTipIcon.Warning);
             });
         }
 
         // ---------------------------------------------------------------------
         //  Herramientas
         // ---------------------------------------------------------------------
+        private static bool HasEntries(string dir)
+        {
+            try { return Directory.Exists(dir) && Directory.GetFileSystemEntries(dir).Length > 0; }
+            catch { return false; }
+        }
+
         private void OpenLogs()
         {
-            string userLogs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Sentinel-IT\logs");
+            string userLogs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Isora-Sentinel\logs");
 
-            bool mainHasLogs = Directory.Exists(logsDir) && (Directory.GetFileSystemEntries(logsDir).Length > 0);
-            bool userHasLogs = Directory.Exists(userLogs) && (Directory.GetFileSystemEntries(userLogs).Length > 0);
+            string target = null;
+            if (HasEntries(logsDir)) target = logsDir;
+            else if (HasEntries(userLogs)) target = userLogs;
+            else if (Directory.Exists(logsDir)) target = logsDir;
+            else if (Directory.Exists(userLogs)) target = userLogs;
 
-            if (mainHasLogs)
+            if (target == null)
             {
-                Process.Start("explorer.exe", "\"" + logsDir + "\"");
+                Msg("Todavía no hay registros de actividad.\n\nSe crean la primera vez que se ejecuta una tarea.",
+                    Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-            else if (userHasLogs)
+
+            try { Process.Start("explorer.exe", "\"" + target + "\""); }
+            catch (Exception ex)
             {
-                Process.Start("explorer.exe", "\"" + userLogs + "\"");
-            }
-            else if (Directory.Exists(logsDir))
-            {
-                Process.Start("explorer.exe", "\"" + logsDir + "\"");
-            }
-            else if (Directory.Exists(userLogs))
-            {
-                Process.Start("explorer.exe", "\"" + userLogs + "\"");
-            }
-            else
-            {
-                MessageBox.Show("Directorio de logs no encontrado en:\n" + logsDir, "Sentinel-IT", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Msg("No se pudo abrir la carpeta de registros:\n" + target + "\n\nDetalle técnico: " + ex.Message,
+                    Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
         private void OpenSetup()
         {
-            string setupExe = Path.Combine(installDir, "Sentinel-IT-Setup.exe");
-            if (!File.Exists(setupExe)) setupExe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Sentinel-IT-Setup.exe");
-            if (!File.Exists(setupExe))
+            List<string> candidates = new List<string>();
+            candidates.Add(Path.Combine(installDir, Branding.SetupExe));
+            candidates.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Branding.SetupExe));
+            string reg = InstallLocationFromRegistry();
+            if (!string.IsNullOrEmpty(reg)) candidates.Add(Path.Combine(reg, Branding.SetupExe));
+            candidates.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\installer\" + Branding.SetupExe));   // árbol de desarrollo
+
+            string setupExe = null;
+            foreach (string c in candidates)
+                if (File.Exists(c)) { setupExe = c; break; }
+
+            if (setupExe == null)
             {
-                try
-                {
-                    using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel-IT"))
-                    {
-                        if (rk != null)
-                        {
-                            string loc = rk.GetValue("InstallLocation") as string;
-                            if (!string.IsNullOrEmpty(loc) && File.Exists(Path.Combine(loc, "Sentinel-IT-Setup.exe")))
-                                setupExe = Path.Combine(loc, "Sentinel-IT-Setup.exe");
-                        }
-                    }
-                }
-                catch { }
-            }
-            if (!File.Exists(setupExe))
-            {
-                string devPath = @"C:\Users\sandra.puerto\develop\SGPT\Sentinel-IT\installer\Sentinel-IT-Setup.exe";
-                if (File.Exists(devPath)) setupExe = devPath;
-            }
-            if (!File.Exists(setupExe))
-            {
-                string relPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\installer\Sentinel-IT-Setup.exe");
-                if (File.Exists(relPath)) setupExe = relPath;
+                Msg("No se encontró el asistente de instalación en este equipo.\n\nVuelva a ejecutar el instalador original (" +
+                    Branding.SetupExe + ") o solicite apoyo al área de TI.",
+                    Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
 
-            if (File.Exists(setupExe))
+            try
             {
-                try
-                {
-                    ProcessStartInfo psi = new ProcessStartInfo(setupExe) { UseShellExecute = true };
-                    Process.Start(psi);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("No se pudo iniciar el asistente de configuración:\n" + ex.Message, "Sentinel-IT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                ProcessStartInfo psi = new ProcessStartInfo(setupExe);
+                psi.UseShellExecute = true;
+                Process.Start(psi);
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show("Asistente de configuración no encontrado en:\n" + setupExe, "Sentinel-IT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Msg("No se pudo abrir el asistente de instalación.\n\nDetalle técnico: " + ex.Message,
+                    Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
-
-        private TaskConfigForm configForm = null;
 
         private void OpenConfig()
         {
             if (configForm != null && !configForm.IsDisposed)
             {
+                configForm.WindowState = FormWindowState.Normal;
                 configForm.BringToFront();
                 configForm.Activate();
                 return;
             }
 
-            configForm = new TaskConfigForm(installDir, LoadTrayIcon(), dpi, delegate(string cmd, bool elevate, Action<int> onDone)
-            {
-                RunPowerShell(cmd, elevate, onDone);
-            }, delegate
-            {
-                OpenSetup();
-            });
+            configForm = new TaskConfigForm(installDir, LoadTrayIcon(), dpi,
+                delegate(string cmd, bool elevate, Action<int> onDone)
+                {
+                    RunPowerShell(cmd, elevate, delegate(int code)
+                    {
+                        // La ventana recarga el estado real de las tareas al terminar, por eso un resultado ilegible no se trata como error.
+                        if (onDone != null) onDone(code == ExitUnknown ? 0 : code);
+                    });
+                },
+                delegate { OpenSetup(); });
             configForm.Show();
+            configForm.Activate();
         }
 
-        private bool IsAutoStartEnabled()
+        // ---------------------------------------------------------------------
+        //  Inicio automático
+        // ---------------------------------------------------------------------
+        private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+
+        private static bool IsAutoStartForUser()
         {
             try
             {
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
-                {
-                    if (key != null && key.GetValue("SentinelIT_Tray") != null) return true;
-                }
-                using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
-                {
-                    if (key != null && key.GetValue("SentinelIT_Tray") != null) return true;
-                }
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunKey, false))
+                    return key != null && key.GetValue(Branding.AutoStartName) != null;
             }
-            catch { }
-            return false;
+            catch { return false; }
+        }
+
+        private static bool IsAutoStartForMachine()
+        {
+            try
+            {
+                using (RegistryKey key = Registry.LocalMachine.OpenSubKey(RunKey, false))
+                    return key != null && key.GetValue(Branding.AutoStartName) != null;
+            }
+            catch { return false; }
         }
 
         private void OnAutoStartClicked()
@@ -1011,30 +1255,40 @@ internal static class TrayTheme
             bool enable = itemAutoStart.Checked;   // CheckOnClick ya alternó el estado
             try
             {
-                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKey))
                 {
-                    if (key == null) throw new InvalidOperationException("Clave Run no disponible.");
-                    if (enable) key.SetValue("SentinelIT_Tray", "\"" + Application.ExecutablePath + "\"");
-                    else key.DeleteValue("SentinelIT_Tray", false);
+                    if (key == null) throw new InvalidOperationException("No se pudo abrir la clave de inicio de Windows.");
+                    if (enable) key.SetValue(Branding.AutoStartName, "\"" + Application.ExecutablePath + "\"");
+                    else key.DeleteValue(Branding.AutoStartName, false);
                 }
             }
             catch (Exception ex)
             {
-                itemAutoStart.Checked = !enable;   // revierte el check si falló
-                MessageBox.Show("No se pudo configurar el inicio automático:\n" + ex.Message, "Sentinel-IT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                itemAutoStart.Checked = !enable;   // revierte si falló
+                Msg("No se pudo cambiar el inicio automático.\n\nDetalle técnico: " + ex.Message,
+                    Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
         private void ExitMonitor()
         {
+            // Si la ventana de tareas está abierta con cambios sin guardar, se le da la opción de cancelar la salida.
+            if (configForm != null && !configForm.IsDisposed)
+            {
+                configForm.Close();
+                if (!configForm.IsDisposed) return;
+            }
+
             integrityTimer.Stop();
             trayIcon.Visible = false;
             trayIcon.Dispose();
+            menu.Dispose();
+            if (dummyForm != null && !dummyForm.IsDisposed) dummyForm.Dispose();
             ExitThread();
         }
 
         // ---------------------------------------------------------------------
-        //  Punto de entrada (instancia única + DPI awareness)
+        //  Punto de entrada (instancia única + DPI)
         // ---------------------------------------------------------------------
         [DllImport("user32.dll")]
         private static extern bool SetProcessDPIAware();
@@ -1043,7 +1297,7 @@ internal static class TrayTheme
         public static void Main(string[] args)
         {
             bool created;
-            using (Mutex single = new Mutex(true, @"Local\SentinelIT.TrayMonitor", out created))
+            using (Mutex single = new Mutex(true, Branding.MutexName, out created))
             {
                 if (!created) return;   // ya hay un monitor activo en esta sesión
 

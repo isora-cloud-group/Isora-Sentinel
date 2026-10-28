@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a defect, exception, or unexpected behavior in Sentinel-IT
+about: Report a defect, exception, or unexpected behavior in Isora Sentinel
 title: '[BUG] <Short description>'
 labels: ['bug', 'triage']
 assignees: ''
@@ -12,7 +12,7 @@ A clear and concise description of the bug or unexpected behavior.
 ## Environment Information
 - **OS Version:** Windows 10 / Windows 11 / Windows Server (specify build, e.g. 22H2 / 23H2)
 - **PowerShell Version:** `$PSVersionTable.PSVersion` (e.g. 5.1.22621 or 7.4.x)
-- **Sentinel-IT Version:** (e.g. v2.2.0)
+- **Isora Sentinel Version:** (e.g. v2.3.0)
 - **Execution Mode:** Manual Elevated / Scheduled Task (`NT AUTHORITY\SYSTEM`)
 - **Log Format:** TEXT / JSON
 
@@ -37,7 +37,7 @@ A clear and concise description of what you expected to happen.
 
 ## Actual Behavior / Error Logs
 ```text
-Paste log output or stack trace here from C:\Program Files\Sentinel-IT\logs\
+Paste log output or stack trace here from C:\Program Files\Isora-Sentinel\logs\
 ```
 
 ## Additional Context

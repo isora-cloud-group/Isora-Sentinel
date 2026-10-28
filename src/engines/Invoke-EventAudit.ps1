@@ -6,12 +6,14 @@
     - Event 1102: Audit log clearing (anti-forensics technique)
     - Event 4625: Failed authentication spikes (credential brute-forcing)
     - Event 4720 / 4726: Account creation or deletion anomalies
+    Enforces event caps to prevent log exhaustion under brute-force attacks.
     Emits structured SIEM forensic events for continuous compliance monitoring.
 #>
 [CmdletBinding()]
 param(
     [int]$Hours = 24,
-    [int]$FailedLogonThreshold = 10
+    [int]$FailedLogonThreshold = 10,
+    [int]$MaxEventsToLog = 50
 )
 
 $ErrorActionPreference = "Continue"
@@ -20,7 +22,12 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Event_Audit"
-try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
+try { 
+    Assert-SentinelIntegrity 
+} catch { 
+    Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
+    throw 
+}
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Event_Audit] - SECURITY EVENT LOG AUDIT START"
@@ -59,12 +66,18 @@ try {
 
     if ($ClearLogEvents -and $ClearLogEvents.Count -gt 0) {
         $AnomaliesDetected += $ClearLogEvents.Count
+        $loggedClear = 0
         foreach ($ev in $ClearLogEvents) {
+            if ($loggedClear -ge $MaxEventsToLog) {
+                Write-AuditEntry "AUDIT CAP: Truncated Event 1102 forensic records at $MaxEventsToLog." -Level "WARN"
+                break
+            }
             Write-AuditEntry "CRITICAL ANTI-FORENSICS ALERT: Security Audit Log was cleared." -Level "ERROR" -Metadata @{
                 EventID   = 1102
                 Timestamp = $ev.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
                 User      = try { (New-Object System.Security.Principal.SecurityIdentifier($ev.UserId)).Translate([System.Security.Principal.NTAccount]).Value } catch { [string]$ev.UserId }
             }
+            $loggedClear++
         }
     } elseif (-not $AccessDeniedDetected) {
         Write-AuditEntry "AUDIT: No audit log clearance events detected in window." -Level "SUCCESS"
@@ -83,7 +96,12 @@ try {
     }
     if ($SysClearEvents -and $SysClearEvents.Count -gt 0) {
         $AnomaliesDetected += $SysClearEvents.Count
+        $loggedSysClear = 0
         foreach ($ev in $SysClearEvents) {
+            if ($loggedSysClear -ge $MaxEventsToLog) {
+                Write-AuditEntry "AUDIT CAP: Truncated Event 104 records at $MaxEventsToLog." -Level "WARN"
+                break
+            }
             $uName = try { (New-Object System.Security.Principal.SecurityIdentifier($ev.UserId)).Translate([System.Security.Principal.NTAccount]).Value } catch { [string]$ev.UserId }
             Write-AuditEntry "CRITICAL ANTI-FORENSICS ALERT: System Log was cleared (Event 104)." -Level "ERROR" -Metadata @{
                 EventID   = 104
@@ -91,6 +109,7 @@ try {
                 Timestamp = $ev.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
                 User      = $uName
             }
+            $loggedSysClear++
         }
     }
 
@@ -137,13 +156,19 @@ try {
         } -ErrorAction SilentlyContinue
 
         if ($AccountChanges) {
+            $loggedAcc = 0
             foreach ($ev in $AccountChanges) {
+                if ($loggedAcc -ge $MaxEventsToLog) {
+                    Write-AuditEntry "AUDIT CAP: Truncated account provisioning logs at $MaxEventsToLog (Total: $($AccountChanges.Count))." -Level "INFO"
+                    break
+                }
                 $eventType = if ($ev.Id -eq 4720) { "AccountCreated" } else { "AccountDeleted" }
                 Write-AuditEntry "ACCOUNT ANOMALY AUDIT: $eventType detected." -Level "INFO" -Metadata @{
                     EventID   = $ev.Id
                     EventType = $eventType
                     Timestamp = $ev.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
                 }
+                $loggedAcc++
             }
         }
     } catch {

@@ -4,6 +4,7 @@
 .DESCRIPTION
     Audits disk encryption status across Operating System and fixed data volumes.
     Evaluates ProtectionStatus, EncryptionPercentage, and KeyProtector types without altering state.
+    Supports bilingual English/Spanish manage-bde output parsing for international deployments.
     Emits structured SIEM forensic events for cryptographic compliance monitoring.
 #>
 [CmdletBinding()]
@@ -18,7 +19,12 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_BitLocker_Audit"
-try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
+try { 
+    Assert-SentinelIntegrity 
+} catch { 
+    Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
+    throw 
+}
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_BitLocker_Audit] - CRYPTOGRAPHIC COMPLIANCE START"
@@ -75,7 +81,7 @@ try {
     }
 
     if (-not $cmdletSucceeded) {
-        # Fallback to manage-bde.exe parsing
+        # Fallback to manage-bde.exe parsing (bilingual regex: English and Spanish)
         Write-AuditEntry "AUDIT: Invoking manage-bde.exe fallback..."
         try {
             $bdeExe = Join-Path $env:SystemRoot "System32\manage-bde.exe"
@@ -84,8 +90,10 @@ try {
             $lines = $bdeOutput -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
             foreach ($line in $lines) {
                 Write-AuditEntry $line.Trim() -Level "INFO"
-                if ($line -match "Volume\s+([A-Z]:)") { $volumesAudited++ }
-                if ($line -match "Protection Off|Conversion Status:\s+Fully Decrypted|Percentage Encrypted:\s+0") {
+                if ($line -match "(?:Volume|Volumen)\s+([A-Z]:)") { 
+                    $volumesAudited++ 
+                }
+                if ($line -match "Protection\s*Off|Protecci[oó]n\s*(?:desactivada|deshabilitada)|Conversion Status:\s*Fully Decrypted|Estado de conversi[oó]n:\s*Totalmente descifrado|Percentage Encrypted:\s*0|Porcentaje cifrado:\s*0") {
                     $unprotectedCount++
                 }
             }
@@ -94,7 +102,7 @@ try {
         }
     }
 
-    $summaryLevel = if ($unprotectedCount -eq 0) { "SUCCESS" } else { "WARN" }
+    $summaryLevel = if ($unprotectedCount -eq 0 -and $volumesAudited -gt 0) { "SUCCESS" } elseif ($volumesAudited -eq 0) { "WARN" } else { "WARN" }
     Write-AuditEntry "RESULT: BitLocker cryptographic compliance audit concluded." -Level $summaryLevel -Metadata @{
         VolumesAudited   = $volumesAudited
         UnprotectedCount = $unprotectedCount

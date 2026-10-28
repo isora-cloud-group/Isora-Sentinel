@@ -1,7 +1,7 @@
-# Sentinel-IT — AI Agent Assistant Guide (CLAUDE.md)
+# Isora Sentinel — AI Agent Assistant Guide (CLAUDE.md)
 
 ## Project Overview
-Sentinel-IT is a sovereign, zero-dependency PowerShell automation suite for Windows endpoints. It executes as `NT AUTHORITY\SYSTEM` to enforce endpoint hardening, maintenance, and ISO compliance mapping (ISO/IEC 27001:2022 and ISO/IEC 20000-1:2018), producing structured forensic logs for SIEM platforms (Splunk, Elastic, Datadog, Microsoft Sentinel).
+Isora Sentinel is a sovereign, zero-dependency PowerShell automation suite for Windows endpoints. It executes as `NT AUTHORITY\SYSTEM` to enforce endpoint hardening, maintenance, and ISO compliance mapping (ISO/IEC 27001:2022 and ISO/IEC 20000-1:2018), producing structured forensic logs for SIEM platforms (Splunk, Elastic, Datadog, Microsoft Sentinel).
 
 **Author & Architecture:** Sandra Gabriela Puerto Torres  
 **Commercial Brand:** Isora Cloud Group  
@@ -22,10 +22,10 @@ Sentinel-IT is a sovereign, zero-dependency PowerShell automation suite for Wind
   * `Invoke-BitLockerAudit.ps1` (ISO 27001 Control A.8.24)
   * `Invoke-EventAudit.ps1` (ISO 27001 Control A.8.15)
 * `installer/`
-  * `Sentinel-IT-Setup.exe`: Standalone GUI WinForms Enterprise installer.
+  * `Isora-Sentinel-Setup.exe`: Standalone GUI WinForms Enterprise installer.
   * `Build-InstallerExe.ps1`: Zero-privilege build script compiling installer via native .NET `csc.exe`.
   * `Build-IntegrityManifest.ps1`: Generates SHA-256 hashes in `integrity.manifest.json`.
-  * `Install-Sentinel.ps1`: CLI deployment to `C:\Program Files\Sentinel-IT\` and registers scheduled tasks.
+  * `Install-Sentinel.ps1`: CLI deployment to `C:\Program Files\Isora-Sentinel\` and registers scheduled tasks.
   * `Uninstall-Sentinel.ps1`: Deregisters scheduled tasks and unregisters from Windows Programs & Features.
 * `docs/`
   * `OPERATOR_GUIDE.md`: Comprehensive enterprise operator and administration manual.

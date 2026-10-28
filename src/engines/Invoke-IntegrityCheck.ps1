@@ -18,7 +18,12 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Integrity_Check"
-try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
+try { 
+    Assert-SentinelIntegrity 
+} catch { 
+    Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
+    throw 
+}
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Integrity_Check] - SYSTEM INTEGRITY AUDIT START"

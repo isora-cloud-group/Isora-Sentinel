@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-    Integration and Engine Dry-Run Tests for Sentinel-IT Suite.
+    Integration and Engine Dry-Run Tests for Isora Sentinel Suite.
 .DESCRIPTION
     Validates parameter binding, privilege boundaries, and dry-run execution
-    for all 6 Sentinel-IT engines under test harness conditions.
+    for all 6 Isora Sentinel engines under test harness conditions.
 #>
 
-Describe "Sentinel-IT Engines Suite Tests" {
+Describe "Isora Sentinel Engines Suite Tests" {
     BeforeAll {
         $script:EnginesDir = (Resolve-Path (Join-Path $PSScriptRoot "..\src\engines")).Path
         $TestDir = Join-Path $env:TEMP ("SentinelEngineTest_" + [Guid]::NewGuid().ToString("N"))
@@ -58,11 +58,12 @@ Describe "Sentinel-IT Engines Suite Tests" {
             $cmd.Parameters.ContainsKey("IncludeRemovable") | Should -Be $true
         }
 
-        It "Invoke-EventAudit accepts -Hours and -FailedLogonThreshold parameters" {
+        It "Invoke-EventAudit accepts -Hours, -FailedLogonThreshold and -MaxEventsToLog parameters" {
             $scriptPath = Join-Path $script:EnginesDir "Invoke-EventAudit.ps1"
             $cmd = Get-Command $scriptPath
             $cmd.Parameters.ContainsKey("Hours") | Should -Be $true
             $cmd.Parameters.ContainsKey("FailedLogonThreshold") | Should -Be $true
+            $cmd.Parameters.ContainsKey("MaxEventsToLog") | Should -Be $true
         }
 
         It "Invoke-ArchiveDownloads accepts -DaysOld, -CustomArchiveDir and -AuditOnly parameters" {

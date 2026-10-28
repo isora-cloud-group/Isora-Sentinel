@@ -1,6 +1,6 @@
-<#
+﻿<#
 .SYNOPSIS
-    Builds the standalone GUI Installer executable (Sentinel-IT-Setup.exe) for Sentinel-IT.
+    Builds the standalone GUI Installer executable (Isora-Sentinel-Setup.exe) for Isora Sentinel.
 .DESCRIPTION
     1. Updates cryptographic integrity manifest (integrity.manifest.json).
     2. Packages source modules, license, uninstaller, and manifest into an embedded package archive.
@@ -9,7 +9,7 @@
     Requires ZERO administrator privileges to compile.
 #>
 param(
-    [string]$OutputName = "Sentinel-IT-Setup.exe",
+    [string]$OutputName = "Isora-Sentinel-Setup.exe",
     [string]$CertThumbprint = ""
 )
 
@@ -18,7 +18,7 @@ $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyI
 $ProjectRoot = (Resolve-Path (Join-Path $ScriptDir "..")).Path
 
 Write-Host "============================================================" -ForegroundColor DarkCyan
-Write-Host " ISORA CLOUD GROUP | Sentinel-IT GUI Installer Builder" -ForegroundColor Cyan
+Write-Host " ISORA CLOUD GROUP | Isora Sentinel GUI Installer Builder" -ForegroundColor Cyan
 Write-Host " Arquitectura & Titular: Sandra Gabriela Puerto Torres" -ForegroundColor Gray
 Write-Host "============================================================" -ForegroundColor DarkCyan
 
@@ -58,7 +58,8 @@ $TempBuildDir = Join-Path $env:TEMP ("SentinelTrayBuild_" + [System.Guid]::NewGu
 New-Item -ItemType Directory -Path $TempBuildDir -Force | Out-Null
 $TraySource = Join-Path $ScriptDir "src\SentinelTray.cs"
 $ConfigFormSource = Join-Path $ScriptDir "src\TaskConfigForm.cs"
-$TrayExe = Join-Path $TempBuildDir "Sentinel-IT-Tray.exe"
+$LocSource = Join-Path $ScriptDir "src\Localization.cs"
+$TrayExe = Join-Path $TempBuildDir "Isora-Sentinel-Tray.exe"
 
 $trayArgs = @(
     "/nologo",
@@ -73,6 +74,7 @@ $trayArgs = @(
     "/out:$TrayExe",
     $TraySource,
     $ConfigFormSource,
+    $LocSource,
     $AsmInfo
 )
 if (Test-Path $AppIcon) {
@@ -82,18 +84,19 @@ if (Test-Path $AppIcon) {
 
 $procTray = Start-Process -FilePath $cscPath -ArgumentList $trayArgs -NoNewWindow -Wait -PassThru
 if ($procTray.ExitCode -ne 0 -or -not (Test-Path $TrayExe)) {
-    throw "Fallo al compilar Sentinel-IT-Tray.exe (código de salida: $($procTray.ExitCode))."
+    throw "Fallo al compilar Isora-Sentinel-Tray.exe (código de salida: $($procTray.ExitCode))."
 }
 Write-Host "[SUCCESS] Monitor de bandeja compilado ($([math]::Round((Get-Item $TrayExe).Length / 1024, 2)) KB)" -ForegroundColor Green
 if ($codeCert) {
     try {
-        Write-Host "[*] Firmando digitalmente Sentinel-IT-Tray.exe con Authenticode..." -ForegroundColor Yellow
+        Write-Host "[*] Firmando digitalmente Isora-Sentinel-Tray.exe con Authenticode..." -ForegroundColor Yellow
         $sigTray = Set-AuthenticodeSignature -FilePath $TrayExe -Certificate $codeCert -HashAlgorithm SHA256 -TimestampServer "http://timestamp.digicert.com" -ErrorAction SilentlyContinue
         if ($sigTray.Status -eq "Valid") {
-            Write-Host "[SUCCESS] Sentinel-IT-Tray.exe firmado con éxito por $($codeCert.Subject)" -ForegroundColor Green
+            Copy-Item -Path $TrayExe -Destination (Join-Path $ScriptDir "Isora-Sentinel-Tray.exe") -Force
+        Write-Host "[SUCCESS] Isora-Sentinel-Tray.exe firmado con éxito por $($codeCert.Subject)" -ForegroundColor Green
         }
     } catch {
-        Write-Warning "No se pudo firmar Sentinel-IT-Tray.exe: $($_.Exception.Message)"
+        Write-Warning "No se pudo firmar Isora-Sentinel-Tray.exe: $($_.Exception.Message)"
     }
 }
 
@@ -128,11 +131,11 @@ try {
         })
     }
 
-    # Add Sentinel-IT-Tray.exe
+    # Add Isora-Sentinel-Tray.exe
     if (Test-Path $TrayExe) {
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $TrayExe, "Sentinel-IT-Tray.exe") | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $TrayExe, "Isora-Sentinel-Tray.exe") | Out-Null
         $bundledFiles.Add([PSCustomObject]@{
-            Path = "Sentinel-IT-Tray.exe"
+            Path = "Isora-Sentinel-Tray.exe"
             Size = (Get-Item $TrayExe).Length
             SHA256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $TrayExe).Hash
         })
@@ -209,11 +212,12 @@ if (Test-Path $OutputExe) {
 
 if ($isLocked) {
     Write-Warning "El archivo '$OutputExe' está en ejecución o bloqueado por otra instancia."
-    $OutputExe = Join-Path $ScriptDir "Sentinel-IT-Setup.new.exe"
+    $OutputExe = Join-Path $ScriptDir "Isora-Sentinel-Setup.new.exe"
     Write-Host "-> Redirigiendo salida a binario nuevo: $OutputExe" -ForegroundColor Cyan
 }
 
 $CsSource = Join-Path $ScriptDir "src\SentinelSetup.cs"
+$UninstallSource = Join-Path $ScriptDir "src\UninstallForm.cs"
 $AsmInfo = Join-Path $ScriptDir "src\AssemblyInfo.cs"
 $AppManifest = Join-Path $ScriptDir "src\app.manifest"
 $AppIcon = Join-Path $ScriptDir "src\app.ico"
@@ -235,6 +239,8 @@ $cscArgs = @(
     "/resource:$TempZip,PackageArchive",
     "/out:$OutputExe",
     $CsSource,
+    $UninstallSource,
+    $LocSource,
     $AsmInfo
 )
 if (Test-Path $AppIcon) {
@@ -252,27 +258,36 @@ if ($TempBuildDir -and (Test-Path $TempBuildDir)) {
     Remove-Item $TempBuildDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# Remove any loose Tray.exe or PDB in installer directory so only Sentinel-IT-Setup.exe remains
-$looseTray = Join-Path $ScriptDir "Sentinel-IT-Tray.exe"
+# Remove any loose Tray.exe or PDB in installer directory so only Isora-Sentinel-Setup.exe remains
+$looseTray = Join-Path $ScriptDir "Isora-Sentinel-Tray.exe"
 if (Test-Path $looseTray) { Remove-Item $looseTray -Force -ErrorAction SilentlyContinue }
-$loosePdb = Join-Path $ScriptDir "Sentinel-IT-Setup.pdb"
+$loosePdb = Join-Path $ScriptDir "Isora-Sentinel-Setup.pdb"
 if (Test-Path $loosePdb) { Remove-Item $loosePdb -Force -ErrorAction SilentlyContinue }
-$looseTrayPdb = Join-Path $ScriptDir "Sentinel-IT-Tray.pdb"
+$looseTrayPdb = Join-Path $ScriptDir "Isora-Sentinel-Tray.pdb"
 if (Test-Path $looseTrayPdb) { Remove-Item $looseTrayPdb -Force -ErrorAction SilentlyContinue }
 
 if ($proc.ExitCode -eq 0 -and (Test-Path $OutputExe)) {
     # Firmar digitalmente el ejecutable del instalador con Authenticode y Timestamp RFC 3161
     if ($codeCert) {
         Write-Host "`n[*] Aplicando firma digital Authenticode (SHA-256) con DigiCert Timestamp..." -ForegroundColor Yellow
-        try {
-            $sigExe = Set-AuthenticodeSignature -FilePath $OutputExe -Certificate $codeCert -HashAlgorithm SHA256 -TimestampServer "http://timestamp.digicert.com" -ErrorAction SilentlyContinue
-            if ($sigExe.Status -eq "Valid") {
-                Write-Host "[SUCCESS] Firma digital Authenticode verificada con éxito: Status=Valid" -ForegroundColor Green
-            } else {
-                Write-Host "[!] Estado de firma: $($sigExe.Status) ($($sigExe.StatusMessage))" -ForegroundColor Yellow
+        $signed = $false
+        for ($retry = 0; $retry -lt 6; $retry++) {
+            Start-Sleep -Milliseconds 700
+            try {
+                $sigExe = Set-AuthenticodeSignature -FilePath $OutputExe -Certificate $codeCert -HashAlgorithm SHA256 -TimestampServer "http://timestamp.digicert.com" -ErrorAction Stop
+                if ($sigExe.Status -eq "Valid") {
+                    Write-Host "[SUCCESS] Firma digital Authenticode verificada con éxito: Status=Valid" -ForegroundColor Green
+                    $signed = $true
+                    break
+                } else {
+                    Write-Host "[!] Estado de firma: $($sigExe.Status) ($($sigExe.StatusMessage))" -ForegroundColor Yellow
+                    break
+                }
+            } catch {
+                if ($retry -eq 5) {
+                    Write-Warning "Fallo durante el firmado Authenticode tras varios intentos: $($_.Exception.Message)"
+                }
             }
-        } catch {
-            Write-Warning "Fallo durante el firmado Authenticode: $($_.Exception.Message)"
         }
     }
 
@@ -283,7 +298,7 @@ if ($proc.ExitCode -eq 0 -and (Test-Path $OutputExe)) {
     # 6. Generate Institutional Provenance Receipt (BUILD_PROVENANCE.json)
     $provenance = [ordered]@{
         artifact_name = [System.IO.Path]::GetFileName($OutputExe)
-        version = "2.2.0"
+        version = "2.3.0"
         timestamp_utc = (Get-Date).ToUniversalTime().ToString("o")
         architect = "Sandra Gabriela Puerto Torres"
         commercial_brand = "Isora Cloud Group"
@@ -321,7 +336,7 @@ public static class ShellCacheReloader {
     Write-Host "`n============================================================" -ForegroundColor DarkCyan
     Write-Host " BUILD SUCCESS: Standalone GUI Installer Created!" -ForegroundColor Green
     Write-Host " Binary Artifact : $OutputExe" -ForegroundColor White
-    Write-Host " Note            : Auto-contenido. Incluye Sentinel-IT-Tray.exe incrustado." -ForegroundColor Cyan
+    Write-Host " Note            : Auto-contenido. Incluye Isora-Sentinel-Tray.exe incrustado." -ForegroundColor Cyan
     Write-Host " File Size       : $([math]::Round($exeSizeKb, 2)) KB" -ForegroundColor Gray
     Write-Host " SHA-256 Digest  : $exeHash" -ForegroundColor DarkGray
     Write-Host " Provenance Doc  : $provJsonPath" -ForegroundColor DarkGray

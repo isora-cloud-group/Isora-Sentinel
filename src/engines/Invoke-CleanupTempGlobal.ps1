@@ -4,6 +4,7 @@
 .DESCRIPTION
     Systematically reclaims disk capacity by safely purging system temp folders,
     Windows Update download caches, and per-profile AppData Temp caches.
+    Enforces real-time TOCTOU symlink/junction defenses and path boundary constraints.
     Supports -AuditOnly switch for dry-run simulation in enterprise staging.
 #>
 [CmdletBinding()]
@@ -18,7 +19,12 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Cleanup_Temp_Global"
-try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
+try { 
+    Assert-SentinelIntegrity 
+} catch { 
+    Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
+    throw 
+}
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Cleanup_Temp_Global] - CAPACITY RECLAMATION START"
@@ -32,51 +38,73 @@ $TotalIdentified = 0
 
 function Clean-Directory {
     param([string]$Path)
-    if (Test-Path -LiteralPath $Path) {
-        $baseItem = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
-        if ($baseItem -and ($baseItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
-            Write-AuditEntry "SECURITY: Target directory is a reparse point. Skipping for safety." -Level "WARN" -Metadata @{ Path = $Path }
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+
+    $baseItem = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if (-not $baseItem) { return }
+    if ($baseItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+        Write-AuditEntry "SECURITY: Target directory is a reparse point. Skipping for safety." -Level "WARN" -Metadata @{ Path = $Path }
+        return
+    }
+
+    try {
+        $normalizedBase = [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/') + '\'
+        $Items = Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not $Items) { return }
+        
+        $Count = 0
+        $script:TotalIdentified += $Items.Count
+
+        if ($AuditOnly) {
+            Write-AuditEntry "AUDIT: Identified items in directory (Dry-Run)." -Level "INFO" -Metadata @{ Path = $Path; Count = $Items.Count }
             return
         }
-        try {
-            $Items = Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
-            if (-not $Items) { return }
+
+        # Sort descending by length so child items and subfiles are deleted before parent folders
+        $SortedItems = $Items | Sort-Object { $_.FullName.Length } -Descending
+        $cutoffDate = if ($DaysOld -gt 0) { (Get-Date).AddDays(-$DaysOld) } else { $null }
+
+        foreach ($Item in $SortedItems) {
+            $itemFullPath = [System.IO.Path]::GetFullPath($Item.FullName)
             
-            $Count = 0
-            $script:TotalIdentified += $Items.Count
-
-            if ($AuditOnly) {
-                Write-AuditEntry "AUDIT: Identified items in directory (Dry-Run)." -Level "INFO" -Metadata @{ Path = $Path; Count = $Items.Count }
-                return
+            # Boundary check: enforce containment within normalized target directory
+            if (-not $itemFullPath.StartsWith($normalizedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+                Write-AuditEntry "SECURITY: Path traversal boundary breach detected. Skipping item." -Level "WARN" -Metadata @{ Path = $Item.FullName }
+                continue
             }
 
-            # Sort descending by length so child items and subfiles are deleted before parent folders
-            $SortedItems = $Items | Sort-Object { $_.FullName.Length } -Descending
-            $cutoffDate = if ($DaysOld -gt 0) { (Get-Date).AddDays(-$DaysOld) } else { $null }
-            foreach ($Item in $SortedItems) {
-                if ($cutoffDate -and $Item.LastWriteTime -ge $cutoffDate) {
+            if ($cutoffDate -and $Item.LastWriteTime -ge $cutoffDate) {
+                continue
+            }
+
+            # Real-time fresh attribute query (defeats TOCTOU symlink/junction races)
+            try {
+                $freshAttr = [System.IO.File]::GetAttributes($Item.FullName)
+                if ($freshAttr -band [System.IO.FileAttributes]::ReparsePoint) {
+                    Write-AuditEntry "SECURITY: Reparse point detected during sanitization. Skipping item." -Level "WARN" -Metadata @{ Path = $Item.FullName }
                     continue
                 }
-                if ($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
-                    continue
+                if ($freshAttr -band [System.IO.FileAttributes]::ReadOnly) {
+                    [System.IO.File]::SetAttributes($Item.FullName, [System.IO.FileAttributes]::Normal)
                 }
-                if ($Item.Attributes -band [System.IO.FileAttributes]::ReadOnly) {
-                    try { [System.IO.File]::SetAttributes($Item.FullName, [System.IO.FileAttributes]::Normal) } catch { }
-                }
-                try {
-                    Remove-Item -LiteralPath $Item.FullName -Force -Recurse -ErrorAction Stop
-                    $Count++
-                } catch {
-                    # Files locked by running system processes are skipped gracefully
-                }
+            } catch {
+                continue
             }
-            if ($Count -gt 0) {
-                Write-AuditEntry "PURGE: Removed items from directory." -Level "SUCCESS" -Metadata @{ Path = $Path; Count = $Count }
-                $script:TotalCleaned += $Count
+
+            try {
+                # Never recurse on individual item deletion - prevents cascading into newly created junctions
+                Remove-Item -LiteralPath $Item.FullName -Force -Recurse:$false -ErrorAction Stop
+                $Count++
+            } catch {
+                # Files locked by running system processes or non-empty directories are skipped gracefully
             }
-        } catch {
-            Write-AuditEntry "I/O FAILURE: Could not process directory." -Level "WARN" -Metadata @{ Path = $Path; Error = $_.Exception.Message }
         }
+        if ($Count -gt 0) {
+            Write-AuditEntry "PURGE: Removed items from directory." -Level "SUCCESS" -Metadata @{ Path = $Path; Count = $Count }
+            $script:TotalCleaned += $Count
+        }
+    } catch {
+        Write-AuditEntry "I/O FAILURE: Could not process directory." -Level "WARN" -Metadata @{ Path = $Path; Error = $_.Exception.Message }
     }
 }
 

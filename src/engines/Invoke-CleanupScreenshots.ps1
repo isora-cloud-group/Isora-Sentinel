@@ -4,6 +4,7 @@
 .DESCRIPTION
     Purges local and OneDrive screenshot vectors across all user profiles to prevent
     unauthorized data retention and endpoint Data Loss (DLP).
+    Enforces real-time TOCTOU symlink/junction defenses and path containment.
     Supports -AuditOnly switch for dry-run simulation in enterprise staging.
 #>
 [CmdletBinding()]
@@ -17,7 +18,12 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Cleanup_Screenshots"
-try { Assert-SentinelIntegrity } catch { Write-AuditEntry "INTEGRITY WARNING: $($_.Exception.Message)" -Level "WARN" }
+try { 
+    Assert-SentinelIntegrity 
+} catch { 
+    Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
+    throw 
+}
 
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Cleanup_Screenshots] - SECURITY AUDIT START"
@@ -72,9 +78,6 @@ try {
         $Vectors = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
         # 1. Authoritative Registry Discovery (User Shell Folders & Shell Folders)
-        # Identifies exact user-redirected Pictures and Screenshots locations from Windows Registry:
-        # FOLDERID_Screenshots: {B7BEDE81-DF94-4788-BE95-FDE56E14E247}
-        # FOLDERID_Pictures:    My Pictures / {0DDD015D-B06C-45D5-8C4C-F59713854639}
         $pKey = $ProfileList | Where-Object { $_.ProfileImagePath -eq $ProfilePath } | Select-Object -First 1
         $sid = if ($pKey) { $pKey.PSChildName } else { $null }
 
@@ -137,9 +140,13 @@ try {
             }
         } finally {
             if ($tempHiveLoaded) {
-                [GC]::Collect()
-                [GC]::WaitForPendingFinalizers()
-                $null = reg unload "HKU\$tempHiveName" 2>&1
+                for ($retry = 0; $retry -lt 3; $retry++) {
+                    [GC]::Collect()
+                    [GC]::WaitForPendingFinalizers()
+                    $null = reg unload "HKU\$tempHiveName" 2>&1
+                    if ($LASTEXITCODE -eq 0) { break }
+                    Start-Sleep -Milliseconds 250
+                }
             }
         }
 
@@ -173,6 +180,7 @@ try {
                     continue
                 }
                 try {
+                    $normalizedBase = [System.IO.Path]::GetFullPath($PathItem).TrimEnd('\', '/') + '\'
                     $Assets = Get-ChildItem -LiteralPath $PathItem -File -Force -ErrorAction SilentlyContinue
                     if ($Assets -and $Assets.Count -gt 0) {
                         $TotalIdentified += $Assets.Count
@@ -181,17 +189,31 @@ try {
                         } else {
                             $vectorPurged = 0
                             foreach ($Asset in $Assets) {
-                                $isReparseOrCloud = ($Asset.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -or ($Asset.Attributes -band [System.IO.FileAttributes]::Offline)
-                                if (-not $isReparseOrCloud) {
-                                    if ($Asset.Attributes -band [System.IO.FileAttributes]::ReadOnly) {
-                                        try { [System.IO.File]::SetAttributes($Asset.FullName, [System.IO.FileAttributes]::Normal) } catch { }
+                                $assetFullPath = [System.IO.Path]::GetFullPath($Asset.FullName)
+                                if (-not $assetFullPath.StartsWith($normalizedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+                                    Write-AuditEntry "SECURITY: Path traversal boundary breach detected in screenshot asset." -Level "WARN" -Metadata @{ Path = $Asset.FullName }
+                                    continue
+                                }
+
+                                try {
+                                    $freshAttr = [System.IO.File]::GetAttributes($Asset.FullName)
+                                    $isReparseOrCloud = ($freshAttr -band [System.IO.FileAttributes]::ReparsePoint) -or ($freshAttr -band [System.IO.FileAttributes]::Offline)
+                                    if ($isReparseOrCloud) {
+                                        continue
                                     }
-                                    Remove-Item -LiteralPath $Asset.FullName -Force -ErrorAction SilentlyContinue
+                                    if ($freshAttr -band [System.IO.FileAttributes]::ReadOnly) {
+                                        [System.IO.File]::SetAttributes($Asset.FullName, [System.IO.FileAttributes]::Normal)
+                                    }
+                                    Remove-Item -LiteralPath $Asset.FullName -Force -Recurse:$false -ErrorAction Stop
                                     $vectorPurged++
+                                } catch {
+                                    # Locked or vanished files skipped safely
                                 }
                             }
                             $TotalPurged += $vectorPurged
-                            Write-AuditEntry "PURGE: Cleared assets from vector." -Level "SUCCESS" -Metadata @{ User = $UserName; Path = $PathItem; Count = $vectorPurged }
+                            if ($vectorPurged -gt 0) {
+                                Write-AuditEntry "PURGE: Cleared assets from vector." -Level "SUCCESS" -Metadata @{ User = $UserName; Path = $PathItem; Count = $vectorPurged }
+                            }
                         }
                     }
                 } catch {
