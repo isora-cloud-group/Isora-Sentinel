@@ -1,29 +1,29 @@
-# Regulatory Compliance & Audit Traceability Matrix
+# Control Mapping & Audit Traceability Matrix
 ### ISO/IEC 27001:2022 · ISO/IEC 20000-1:2018 · SOC 2 Type II · CIS Benchmark
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
-**Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Document Version:** 2.3.0  
+**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
+**Document Version:** 2.4.7  
 **Purpose:** Provides technical traceability, control justification, and auditor evidence verification for accreditation assessors, ISMS compliance officers, and external security auditors.
 
 ---
 
 ## 1. Scope & Statement of Applicability
 
-**Isora Sentinel** automates technical endpoint hardening, sensitive data leakage prevention (DLP), cryptographic validation, and continuous integrity monitoring on Microsoft Windows endpoints. Every execution produces **deterministic, immutable forensic audit trails** designed to substantiate compliance during internal and third-party accreditation audits.
+**Isora Sentinel** automates technical endpoint hardening, sensitive data leakage prevention (DLP), cryptographic validation, and continuous integrity monitoring on Microsoft Windows endpoints. Every execution produces **deterministic, structured audit trails** designed to support evidence collection and control verification during internal reviews and third-party audits.
 
-> **Regulatory Disclaimer:** Deploying Isora Sentinel fulfills the technical implementation and auditability requirements for the specific controls detailed below. Full organizational ISO/IEC 27001 or ISO/IEC 20000-1 certification requires an overarching organizational governance framework, risk assessment methodology, and formal Information Security Management System (ISMS) policies.
+> **Important Disclaimer:** Isora Sentinel supports evidence collection and control verification, but does not certify compliance with any standard and does not replace an audit. Deploying Isora Sentinel assists with technical control verification. Full organizational ISO/IEC 27001 or ISO/IEC 20000-1 certification requires an overarching organizational governance framework, risk assessment methodology, and formal Information Security Management System (ISMS) policies.
 
 ---
 
 ## 2. ISO/IEC 27001:2022 (Annex A) Control Mapping Matrix
 
-| Execution Engine | ISO 27001:2022 Control | Control Title & Domain | Risk Mitigated | Technical Implementation in Isora Sentinel | Forensic Evidence Emitted |
+| Execution Engine | ISO 27001:2022 Control | Control Title & Domain | Risk Mitigated | Technical Implementation in Isora Sentinel | Audit Telemetry Emitted |
 | :--- | :---: | :--- | :--- | :--- | :--- |
-| **`Invoke-CleanupScreenshots.ps1`** | **A.8.1** | **User endpoint devices**<br>*(Technological Controls)* | Inadvertent leakage of sensitive data (credentials, personally identifiable information [PII], payment card data, intellectual property) stored in screenshots left on disk or synchronized to unmanaged cloud drives. | Discovers all user profiles via `ProfileList` and user hives. Discovers standard and OneDrive screenshot folders (`Pictures\Screenshots`, `Capturas`). Evaluates reparse points (0x00000400) to prevent forced cloud re-hydration. Purges local artifacts and supports `-AuditOnly` for non-destructive simulation. | `ProfileCount`, `Path`, `TotalIdentified`, `TotalPurged`, `ExecutionMode`. Severity level `SUCCESS` or `WARN`. |
+| **`Invoke-CleanupScreenshots.ps1`** | **A.8.1** | **User endpoint devices**<br>*(Technological Controls)* | Inadvertent leakage of sensitive data (credentials, personally identifiable information [PII], payment card data, intellectual property) stored in screenshots left on disk or synchronized to unmanaged cloud drives. | Discovers all user profiles via `ProfileList` and user hives. Discovers standard and OneDrive screenshot folders (`Pictures\Screenshots`, `Capturas`). Evaluates reparse points (0x00000400) to prevent forced cloud re-hydration. Runs in audit-only mode by default; purges local artifacts only when `-Apply` is explicitly passed. Supports `-AuditOnly` for backward compatibility. | `ProfileCount`, `Path`, `TotalIdentified`, `TotalPurged`, `ExecutionMode`. Severity level `SUCCESS` or `WARN`. |
 | **`Invoke-DefenderScan.ps1`** | **A.8.7** | **Protection against malware**<br>*(Technological Controls)* | Infection by ransomware, trojans, or zero-day malware due to stale signature definitions or disabled antimalware scans on remote endpoints. | Discovers active Microsoft Defender platform path dynamically, refreshes signature definitions with network fault tolerance (`-SignatureUpdate`), and triggers automated Quick (`-ScanType 1`) or Full (`-ScanType 2`) scans via `MpCmdRun.exe`. | `EnginePath`, `ScanType`, `SignatureUpdateCode`, `ExitCode`, live threat detection strings. |
 | **`Invoke-EventAudit.ps1`** | **A.8.15** | **Logging**<br>*(Technological Controls)* | Undetected anti-forensic log tampering (clearing the security event log), credential brute-forcing bursts, or rogue account provisioning. | Queries Windows `Security.evtx` for Event 1102 (Audit log cleared), Event 4625 (Failed logon bursts exceeding configurable threshold), and Events 4720/4726 (Account creation/deletion anomalies) across a rolling time window (`-Hours`). | Immediate `ERROR` alert if Event 1102 is found; structured `WARN` on brute-force spikes with `AnomaliesDetected`, `EventID`, `User`, `Timestamp`. |
-| **`Invoke-ArchiveDownloads.ps1`** | **A.8.10** | **Information deletion**<br>*(Technological Controls)* | Retention of obsolete, unmanaged sensitive files and installer assets in unbacked Downloads folders. | Discovers user Downloads folders across all profiles, identifies assets exceeding configured aging threshold (`-DaysOld`, default 30), and relocates them to a protected archive location (`Documents\Isora_Sentinel_Archived\Downloads`) with an informative policy notice file. | `User`, `MovedCount`, `BytesReclaimed`, `ArchiveDir`. |
+| **`Invoke-ArchiveDownloads.ps1`** | **A.8.10** | **Information deletion**<br>*(Technological Controls)* | Retention of obsolete, unmanaged sensitive files and installer assets in unbacked Downloads folders. | Discovers user Downloads folders across all profiles, identifies assets exceeding configured aging threshold (`-DaysOld`, default 30), in audit-only mode by default. When `-Apply` is explicitly passed, relocates them to a protected archive location (`Documents\Isora_Sentinel_Archived\Downloads`) with an informative policy notice file. | `User`, `MovedCount`, `BytesReclaimed`, `ArchiveDir`. |
 | **`Invoke-IntegrityCheck.ps1`** | **A.8.20** | **Networks and systems security**<br>*(Technological Controls)* | Unauthorized binary modification, rootkits, driver poisoning, or silent component corruption in the Windows Component Store (`WinSxS`). | Executes `DISM.exe /Online /Cleanup-Image /ScanHealth` to verify operating system digital signatures and component store health. Evaluates return codes (0 = Healthy, 20 = Repairable Corruption, 3010 = Reboot Needed). Supports automated healing via `-AutoRepair`. | `DismPath`, `DismCode`, `HealthStatus`, `AutoRepair`. |
 | **`Invoke-BitLockerAudit.ps1`** | **A.8.24** | **Use of cryptography**<br>*(Technological Controls)* | Unauthorized data-at-rest exposure due to lost, stolen, or decommissioned laptops and workstations without active encryption. | Queries Windows BitLocker management APIs (or `manage-bde.exe`) across all OS and fixed data volumes. Verifies `ProtectionStatus = On`, `EncryptionPercentage = 100%`, and validates key protectors (TPM, Recovery Password, PIN) without altering state. | `MountPoint`, `ProtectionStatus`, `VolumeStatus`, `EncryptionPct`, `KeyProtectors`. |
 
@@ -31,9 +31,9 @@
 
 ## 3. ISO/IEC 20000-1:2018 (IT Service Management) Control Mapping
 
-| Execution Engine | ISO 20000-1 Clause | Service Process Domain | Operational Risk Mitigated | Technical Implementation in Isora Sentinel | Forensic Evidence Emitted |
+| Execution Engine | ISO 20000-1 Clause | Service Process Domain | Operational Risk Mitigated | Technical Implementation in Isora Sentinel | Audit Telemetry Emitted |
 | :--- | :---: | :--- | :--- | :--- | :--- |
-| **`Invoke-CleanupTempGlobal.ps1`** | **§8.2** | **Capacity Management**<br>*(Service Delivery Operations)* | System drive (`C:\`) disk space exhaustion, I/O performance bottlenecks, failed Windows Updates, and service crashes resulting from accumulated temporary assets. | Systematically and safely purges `C:\Windows\Temp`, Windows Update download caches (`SoftwareDistribution\Download`), Windows Error Reporting (`WER`) crash dumps, and per-profile user `%TEMP%` directories. Supports `-AuditOnly`. | `Path`, `TotalIdentified`, `TotalCleaned`, `ReclaimedBytes`. |
+| **`Invoke-CleanupTempGlobal.ps1`** | **§8.2** | **Capacity Management**<br>*(Service Delivery Operations)* | System drive (`C:\`) disk space exhaustion, I/O performance bottlenecks, failed Windows Updates, and service crashes resulting from accumulated temporary assets. | Evaluates `C:\Windows\Temp`, Windows Update download caches (`SoftwareDistribution\Download`), Windows Error Reporting (`WER`) crash dumps, and per-profile user `%TEMP%` directories in audit-only mode by default. Purges files only when `-Apply` is explicitly passed. | `Path`, `TotalIdentified`, `TotalCleaned`, `ReclaimedBytes`. |
 
 ---
 
@@ -55,7 +55,7 @@
 * **SI-3 (Malicious Code Protection):** Antimalware updates and automated scans (`Invoke-DefenderScan.ps1`).
 * **SI-4 (Information System Monitoring):** Security event monitoring and anti-forensics alerting (`Invoke-EventAudit.ps1`).
 * **SC-13 (Cryptographic Protection):** Volume encryption state enforcement (`Invoke-BitLockerAudit.ps1`).
-* **AU-9 (Protection of Audit Information):** Centralized, read-only forensic log store (`Sentinel-Logger.psm1`).
+* **AU-9 (Protection of Audit Information):** Centralized, read-only audit log store (`Sentinel-Logger.psm1`).
 
 ---
 
@@ -71,7 +71,7 @@ Get-ScheduledTask -TaskPath "\Isora Sentinel\" |
 ```
 *Expected Result:* Tasks show `Ready` state and `LastTaskResult` of `0` (Success).
 
-### 5.2. Inspect Forensic Telemetry Logs
+### 5.2. Inspect Audit Telemetry Logs
 ```powershell
 Get-ChildItem -Path "C:\Program Files\Isora-Sentinel\logs" -Recurse -Filter "*.log" |
     Sort-Object LastWriteTime -Descending |
@@ -79,7 +79,8 @@ Get-ChildItem -Path "C:\Program Files\Isora-Sentinel\logs" -Recurse -Filter "*.l
 ```
 *Expected Result:* Dedicated directories exist for each control with up-to-date `.log` files containing structured execution evidence.
 
-### 5.3. Verify Cryptographic Anti-Tampering Manifest
+### 5.3. Verify Tamper-Evident Integrity Check
+> **Limitation Note:** The manifest file is not cryptographically signed. Therefore, a user with administrative rights can alter both files and manifest. This check is designed to detect accidental file corruption or unsophisticated modification only.
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -Command {
     Import-Module "C:\Program Files\Isora-Sentinel\lib\Sentinel-Core.psm1"
@@ -89,8 +90,8 @@ powershell.exe -ExecutionPolicy Bypass -Command {
 ```
 *Expected Result:* Zero discrepancies reported; returns exit code `0`.
 
-### 5.4. Query Live SIEM Forensic Records
+### 5.4. Query Live SIEM Audit Records
 ```powershell
-# Read latest BitLocker audit forensic record:
+# Read latest BitLocker audit telemetry record:
 Get-Content (Get-ChildItem "C:\Program Files\Isora-Sentinel\logs\ISO_BitLocker_Audit\*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName | Select-Object -First 5
 ```

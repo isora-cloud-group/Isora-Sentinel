@@ -1,4 +1,4 @@
-﻿using SentinelIT;
+﻿using IsoraSentinel;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -11,7 +11,7 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace SentinelIT.Installer
+namespace IsoraSentinel.Installer
 {
     /// <summary>
     /// Asistente de desinstalación de Isora Sentinel Suite.
@@ -22,7 +22,7 @@ namespace SentinelIT.Installer
     public class UninstallForm : Form
     {
         private const string AppName = "Isora Sentinel Suite";
-        private const string AppVersion = "2.3.0";
+        private const string AppVersion = "2.4.7";
         private const string ArchivedFolderName = "Isora_Sentinel_Archived";
 
         private enum Outcome { Success, SuccessWithWarnings, Failed }
@@ -115,7 +115,7 @@ namespace SentinelIT.Installer
 
         private static string LocateInstallDir()
         {
-            string[] keys = new string[] { "Isora-Sentinel", "Sentinel-IT" };
+            string[] keys = new string[] { "Isora-Sentinel" };
             foreach (string k in keys)
             {
                 try
@@ -135,7 +135,7 @@ namespace SentinelIT.Installer
             if (string.IsNullOrEmpty(pf)) pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string def1 = Path.Combine(pf, "Isora-Sentinel");
             if (Directory.Exists(def1)) return def1;
-            string def2 = Path.Combine(pf, "Sentinel-IT");
+            string def2 = Path.Combine(pf, "Isora Sentinel");
             if (Directory.Exists(def2)) return def2;
             return AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
         }
@@ -150,7 +150,7 @@ namespace SentinelIT.Installer
             {
                 if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return false;
                 if (Directory.Exists(Path.Combine(dir, ".git"))) return false; // Protección: un repositorio git nunca es un path de instalación
-                string[] marks = new string[] { "integrity.manifest.json", "Isora-Sentinel-Tray.exe", "Sentinel-IT-Tray.exe" };
+                string[] marks = new string[] { "integrity.manifest.json", "Isora-Sentinel-Tray.exe" };
                 foreach (string m in marks)
                 {
                     if (File.Exists(Path.Combine(dir, m))) return true;
@@ -958,7 +958,7 @@ namespace SentinelIT.Installer
             // 1. Procesos
             SetProgress(10, "Cerrando el icono de la bandeja del sistema…");
             Log("Cerrando el monitor de la bandeja…");
-            string[] procNames = new string[] { "Isora-Sentinel-Tray", "Sentinel-IT-Tray" };
+            string[] procNames = new string[] { "Isora-Sentinel-Tray", "IsoraSentinel-Tray", "IsoraSentinelTray", "SentinelTray" };
             bool anyProc = false;
             foreach (string pName in procNames)
             {
@@ -997,14 +997,14 @@ namespace SentinelIT.Installer
             {
                 UnregisterTask("Isora Sentinel\\" + t, ref removed, ref absent);
                 UnregisterTask("Isora-Sentinel\\" + t, ref removed, ref absent);
-                UnregisterTask("Sentinel-IT\\" + t, ref removed, ref absent);
+
             }
             Log("[INFO] Tareas eliminadas: " + removed + ". Tareas que no estaban instaladas: " + absent + ".", Theme.AccentLight);
 
             // Carpetas de tareas vacías (mejor esfuerzo, sin avisos)
             try { RunSchtasks("/Delete /TN \"Isora Sentinel\" /F"); } catch { }
             try { RunSchtasks("/Delete /TN \"Isora-Sentinel\" /F"); } catch { }
-            try { RunSchtasks("/Delete /TN \"Sentinel-IT\" /F"); } catch { }
+
 
             // 3. Registro de Windows
             SetProgress(55, "Limpiando la configuración de Windows…");
@@ -1012,13 +1012,13 @@ namespace SentinelIT.Installer
             try
             {
                 Registry.LocalMachine.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel", false);
-                Registry.LocalMachine.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel-IT", false);
+
                 Log("[OK] Entrada de «Aplicaciones instaladas» eliminada.", Theme.SuccessLight);
             }
             catch (Exception ex) { Warn("No se pudo quitar la entrada de «Aplicaciones instaladas»: " + ex.Message); }
 
             Log("Quitando el inicio automático de la bandeja (HKLM y HKCU)…");
-            string[] runValueNames = new string[] { "SentinelIT_Tray", "IsoraSentinel_Tray", "Isora-Sentinel-Tray", "Sentinel-IT-Tray" };
+            string[] runValueNames = new string[] { "IsoraSentinel_Tray", "Isora-Sentinel-Tray", "SentinelTray" };
             try
             {
                 using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
@@ -1056,6 +1056,62 @@ namespace SentinelIT.Installer
                 }
             }
             catch (Exception ex) { Warn("No se pudo quitar el inicio automático en HKCU: " + ex.Message); }
+
+            try
+            {
+                foreach (string sid in Registry.Users.GetSubKeyNames())
+                {
+                    if (sid.EndsWith("_Classes", StringComparison.OrdinalIgnoreCase) || sid.StartsWith(".DEFAULT", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    try
+                    {
+                        using (RegistryKey userRun = Registry.Users.OpenSubKey(sid + @"\Software\Microsoft\Windows\CurrentVersion\Run", true))
+                        {
+                            if (userRun != null)
+                            {
+                                foreach (string val in runValueNames)
+                                {
+                                    if (userRun.GetValue(val) != null)
+                                    {
+                                        userRun.DeleteValue(val, false);
+                                        Log("[OK] Inicio automático eliminado en perfil de usuario: " + val, Theme.SidebarMuted);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
+            // 3.1 Accesos directos del Menú Inicio y Startup
+            try
+            {
+                string commonPrograms = Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms);
+                string smFolder = Path.Combine(commonPrograms, "Isora Sentinel");
+                if (Directory.Exists(smFolder))
+                {
+                    Directory.Delete(smFolder, true);
+                    Log("[OK] Carpeta del Menú Inicio eliminada: " + smFolder, Theme.SuccessLight);
+                }
+                string userPrograms = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+                string smUserFolder = Path.Combine(userPrograms, "Isora Sentinel");
+                if (Directory.Exists(smUserFolder))
+                {
+                    Directory.Delete(smUserFolder, true);
+                }
+
+                string commonStartup = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup);
+                string scStartup = Path.Combine(commonStartup, "Isora Sentinel.lnk");
+                if (File.Exists(scStartup))
+                {
+                    File.Delete(scStartup);
+                    Log("[OK] Acceso directo de inicio común eliminado.", Theme.SuccessLight);
+                }
+            }
+            catch (Exception ex) { Warn("Aviso al limpiar accesos directos: " + ex.Message); }
 
             // 4. Archivos
             SetProgress(80, "Eliminando los archivos del programa…");
@@ -1099,10 +1155,10 @@ namespace SentinelIT.Installer
 
                 string currentExeName = Path.GetFileName(Application.ExecutablePath);
                 string[] rootFiles = new string[] {
-                    "Isora-Sentinel-Tray.exe", "Sentinel-IT-Tray.exe",
-                    "Isora-Sentinel-Setup.exe", "Sentinel-IT-Setup.exe",
-                    "Isora-Sentinel-Uninstall.exe", "Sentinel-IT-Uninstall.exe",
-                    "integrity.manifest.json", "LICENSE", "app.ico", "app.svg",
+                    "Isora-Sentinel-Tray.exe",
+                    "Isora-Sentinel-Setup.exe",
+                    "Isora-Sentinel-Uninstall.exe",
+                    "integrity.manifest.json", "LICENSE", "NOTICE", "app.ico", "app.svg",
                     "Uninstall-Sentinel.ps1"
                 };
                 foreach (string rf in rootFiles)

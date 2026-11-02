@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Institutional Security Auditor and Forensic Decompilation Inspector for Isora-Sentinel-Setup.exe.
+    Security Inspection and Integrity Verification Utility for Isora-Sentinel-Setup.exe.
 .DESCRIPTION
-    Designed for cybersecurity teams and technical auditors (e.g., Banco de la Republica,
-    banks, government agencies, and SOC 2 / ISO 27001 lead auditors).
+    Designed for system administrators and technical auditors conducting verification
+    and code review.
     
     Inspects Isora-Sentinel-Setup.exe WITHOUT executing it:
     1. Reads PE Assembly attributes (Author, Brand, Copyright, Version).
@@ -32,7 +32,7 @@ $fullExePath = (Resolve-Path $InstallerPath).Path
 
 Write-Host "============================================================" -ForegroundColor DarkCyan
 Write-Host " ISORA SENTINEL SUITE - AUDITORIA DE SEGURIDAD Y DECOMPILACION" -ForegroundColor Cyan
-Write-Host " Entorno de Inspeccion Forense para Equipos de Ciberseguridad" -ForegroundColor Gray
+Write-Host " Entorno de Inspeccion y Auditoria de Integridad" -ForegroundColor Gray
 Write-Host "============================================================" -ForegroundColor DarkCyan
 
 Write-Host ""
@@ -99,7 +99,7 @@ if ($manifestEntry) {
 }
 
 Write-Host ""
-Write-Host "[3] TABLA FORENSE DE INTEGRIDAD Y MODULOS SOBERANOS:" -ForegroundColor Yellow
+Write-Host "[3] TABLA DE INTEGRIDAD Y MODULOS SOBERANOS:" -ForegroundColor Yellow
 Write-Host "------------------------------------------------------------------------------------------------" -ForegroundColor DarkGray
 Write-Host ("{0,-38} {1,10}  {2,-64}  {3}" -f "MODULO / ARCHIVO", "TAMANO", "HASH SHA-256", "ESTADO") -ForegroundColor Cyan
 Write-Host "------------------------------------------------------------------------------------------------" -ForegroundColor DarkGray
@@ -194,7 +194,7 @@ Write-Host "  * Cero Sockets Remotos: Toda la logica de ejecucion es estrictamen
 Write-Host "============================================================" -ForegroundColor DarkCyan
 
 if ($allVerified) {
-    Write-Host "DICTAMEN FORENSE: 100% DE LOS MODULOS VERIFICADOS Y CONFORMES." -ForegroundColor Green
+    Write-Host "DICTAMEN DE INTEGRIDAD: TODOS LOS MODULOS VERIFICADOS Y CONFORMES." -ForegroundColor Green
 } else {
-    Write-Host "DICTAMEN FORENSE: SE DETECTARON DISCREPANCIAS EN EL ARCHIVO." -ForegroundColor Red
+    Write-Host "DICTAMEN DE INTEGRIDAD: SE DETECTARON DISCREPANCIAS EN EL ARCHIVO." -ForegroundColor Red
 }

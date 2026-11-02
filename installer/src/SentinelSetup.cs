@@ -1,4 +1,4 @@
-﻿using SentinelIT;
+﻿using IsoraSentinel;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -16,7 +16,7 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace SentinelIT.Installer
+namespace IsoraSentinel.Installer
 {
     // =====================================================================
     //  TOKENS DE DISEÑO (contraste revisado, objetivo WCAG AA >= 4.5:1)
@@ -933,7 +933,7 @@ namespace SentinelIT.Installer
             this.AutoScaleDimensions = new SizeF(96F, 96F);
             this.AutoScaleMode = AutoScaleMode.Dpi;
 
-            this.Text = "Isora Sentinel Suite v2.3.0 — Asistente de Instalación Enterprise";
+            this.Text = "Isora Sentinel Suite v2.4.7 · Asistente de Instalación";
             this.ClientSize = new Size(980, 680);
             this.MinimumSize = new Size(820, 600);
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -1000,7 +1000,7 @@ namespace SentinelIT.Installer
             lblAuthor = new Label();
             lblAuthor.Dock = DockStyle.Fill;
             lblAuthor.UseMnemonic = false;
-            lblAuthor.Text = "Sandra Gabriela Puerto Torres\nLicencia MIT (código abierto)";
+            lblAuthor.Text = "Sandra Gabriela Puerto Torres\nLicencia Apache-2.0 (código abierto)";
             lblAuthor.Font = Theme.F(8.75F);
             lblAuthor.ForeColor = Theme.SidebarText;
             sideFooter.Controls.Add(lblAuthor);
@@ -1040,7 +1040,7 @@ namespace SentinelIT.Installer
             brandPanel.Controls.Add(lblEdition);
 
             Label lblBadge = new Label();
-            lblBadge.Text = " v2.3.0 • ISO/IEC 27001 ";
+            lblBadge.Text = " v2.4.7 \u2022 ISO/IEC 27001 ";
             lblBadge.Font = Theme.F(8F, FontStyle.Bold);
             lblBadge.ForeColor = Color.FromArgb(125, 211, 252);   // Sky 300
             lblBadge.BackColor = Theme.SidebarActive;
@@ -1186,7 +1186,7 @@ namespace SentinelIT.Installer
             btnLangToggle.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnLangToggle.Location = new Point(headerPanel.Width - 130, 24);
             btnLangToggle.Size = new Size(100, 32);
-            btnLangToggle.Text = Loc.IsSpanish ? "ðŸŒ English" : "ðŸŒ EspaÃ±ol";
+            btnLangToggle.Text = Loc.IsSpanish ? "🌐 English" : "🌐 Español";
             btnLangToggle.Font = Theme.F(8.5F, FontStyle.Bold);
             btnLangToggle.ForeColor = Theme.Accent;
             btnLangToggle.BackColor = Color.White;
@@ -1196,7 +1196,7 @@ namespace SentinelIT.Installer
             btnLangToggle.Click += delegate
             {
                 Loc.Current = Loc.IsSpanish ? Language.English : Language.Spanish;
-                btnLangToggle.Text = Loc.IsSpanish ? "ðŸŒ English" : "ðŸŒ EspaÃ±ol";
+                btnLangToggle.Text = Loc.IsSpanish ? "🌐 English" : "🌐 Español";
                 UpdateLanguageUi();
             };
             headerPanel.Controls.Add(btnLangToggle);
@@ -1236,8 +1236,8 @@ namespace SentinelIT.Installer
             cardPriv.AccentBar = true;
             cardPriv.AccentColor = isAdmin ? Theme.Success : Theme.Warning;
             cardPriv.Controls.Add(Lbl(
-                isAdmin ? "✔  Se detectaron privilegios de administrador. Puede continuar con la instalación."
-                        : "⚠  Al instalar, Windows solicitará confirmación de administrador (UAC).",
+                isAdmin ? "•  Se detectaron privilegios de administrador. Puede continuar con la instalación."
+                        : "•  Al instalar, Windows solicitará confirmación de administrador (UAC).",
                 9.5F, FontStyle.Bold, isAdmin ? Theme.Success : Theme.Warning));
             s0.Controls.Add(cardPriv);
 
@@ -1252,7 +1252,7 @@ namespace SentinelIT.Installer
             cardUpgradeNotice.AccentColor = Theme.Accent;
             cardUpgradeNotice.Visible = false;
             cardUpgradeNotice.Controls.Add(Lbl(
-                "ℹ  Modo de actualización activo: Se detectó una versión previa en el sistema. Los registros históricos (logs) se mantendrán intactos y se creará una copia de seguridad de auditoría en la carpeta backup\\.",
+                "•  Modo de actualización activo: Se detectó una versión previa en el sistema. Los registros históricos (logs) se mantendrán intactos y se creará una copia de seguridad de auditoría en la carpeta backup\\.",
                 9F, FontStyle.Bold, Theme.AccentText));
             s1.Controls.Add(cardUpgradeNotice);
 
@@ -1299,7 +1299,7 @@ namespace SentinelIT.Installer
             cardOpts.Controls.Add(rowTasks);
 
             OptionRow rowReg = new OptionRow(
-                "Registrar en «Aplicaciones instaladas» de Windows",
+                "Registrar en «Aplicaciones instaladasí de Windows",
                 "Permite desinstalación formal y limpia desde la Configuración de Windows.", true, null);
             chkRegistry = rowReg.Check;
             cardOpts.Controls.Add(rowReg);
@@ -1342,12 +1342,14 @@ namespace SentinelIT.Installer
             cardTasks.Controls.Add(chkAll);
 
             taskScreenshots = new TaskScheduleRow("Limpieza de capturas de pantalla",
-                "Previene acumulación de capturas en carpetas locales y OneDrive.", true, "Diario", 0, 0, "03:00");
+                "Previene acumulación de capturas en carpetas locales y OneDrive.", true, "Diario", 0, 0, "03:00",
+                new string[] { "Solo auditoría (seguro)", "Aplicar eliminación" }, 0);
             taskScreenshots.Tag = 4;
             cardTasks.Controls.Add(taskScreenshots);
 
             taskTemp = new TaskScheduleRow("Limpieza de archivos temporales",
-                "Libera espacio en carpetas temporales sin seguir enlaces simbólicos (junctions).", true, "Diario", 0, 0, "03:00");
+                "Libera espacio en carpetas temporales sin seguir enlaces simbólicos (junctions).", true, "Diario", 0, 0, "03:00",
+                new string[] { "Solo auditoría (seguro)", "Aplicar purga" }, 0);
             cardTasks.Controls.Add(taskTemp);
 
             taskDefender = new TaskScheduleRow("Análisis con Microsoft Defender",
@@ -1369,7 +1371,8 @@ namespace SentinelIT.Installer
             cardTasks.Controls.Add(taskEventAudit);
 
             taskArchiveDownloads = new TaskScheduleRow("Archivado seguro de descargas",
-                @"Relocaliza descargas obsoletas (>30 días) a Documentos\Isora_Sentinel_Archived\Downloads.", true, "Mensual", 0, 0, "03:00");
+                @"Relocaliza descargas obsoletas (>30 días) a Documentos\Isora_Sentinel_Archived\Downloads.", true, "Mensual", 0, 0, "03:00",
+                new string[] { "Solo auditoría (seguro)", "Aplicar traslado" }, 0);
             cardTasks.Controls.Add(taskArchiveDownloads);
             s2.Controls.Add(cardTasks);
 
@@ -1457,18 +1460,18 @@ namespace SentinelIT.Installer
         // -----------------------------------------------------------------
                 private void UpdateLanguageUi()
         {
-            this.Text = Loc.T("Instalador â€” Isora Sentinel Suite", "Installer â€” Isora Sentinel Suite");
-            if (lblGovTitle != null) lblGovTitle.Text = Loc.T("AUTORÃA Y LICENCIA", "AUTHORSHIP & LICENSE");
-            if (lblAuthor != null) lblAuthor.Text = Loc.T("Sandra Gabriela Puerto Torres\nLicencia MIT (cÃ³digo abierto)", "Sandra Gabriela Puerto Torres\nMIT License (Open Source)");
-            if (btnBack != null) btnBack.Text = Loc.T("<  AtrÃ¡s", "<  Back");
+            this.Text = Loc.T("Instalador — Isora Sentinel Suite", "Installer — Isora Sentinel Suite");
+            if (lblGovTitle != null) lblGovTitle.Text = Loc.T("AUTORÍA Y LICENCIA", "AUTHORSHIP & LICENSE");
+            if (lblAuthor != null) lblAuthor.Text = Loc.T("Sandra Gabriela Puerto Torres\nLicencia Apache-2.0 (código abierto)", "Sandra Gabriela Puerto Torres\nApache-2.0 License (Open Source)");
+            if (btnBack != null) btnBack.Text = Loc.T("<  Atrás", "<  Back");
             if (btnNext != null) btnNext.Text = Loc.T("Siguiente  >", "Next  >");
             if (btnCancel != null) btnCancel.Text = Loc.T("Cancelar", "Cancel");
             if (btnInstall != null) btnInstall.Text = Loc.T("Instalar Suite", "Install Suite");
-            if (btnLangToggle != null) btnLangToggle.Text = Loc.IsSpanish ? "ðŸŒ English" : "ðŸŒ EspaÃ±ol";
+            if (btnLangToggle != null) btnLangToggle.Text = Loc.IsSpanish ? "🌐 English" : "🌐 Español";
 
             string[] stepTitles = new string[] {
                 Loc.T("Bienvenida y Alcance", "Welcome & Scope"),
-                Loc.T("UbicaciÃ³n y opciones", "Location & Options"),
+                Loc.T("Ubicación y opciones", "Location & Options"),
                 Loc.T("Tareas Programadas", "Scheduled Tasks"),
                 Loc.T("Instalando", "Installing")
             };
@@ -1613,7 +1616,7 @@ namespace SentinelIT.Installer
             {
                 string prompt = string.Format(
                     "La carpeta de destino contiene una versión previa de Isora Sentinel ({0}) en:\n{1}\n\n" +
-                    "¿Confirma que desea sobrescribir y actualizar a la versión 2.3.0?\n\n" +
+                    "¿Confirma que desea sobrescribir y actualizar a la versión 2.4.7?\n\n" +
                     "• Los registros históricos de auditoría (logs) se mantendrán intactos.\n" +
                     "• Se creará una copia de seguridad de auditoría de los archivos previos en backup\\.\n" +
                     "• Se cerrarán los procesos activos antiguos para permitir la actualización.",
@@ -1624,7 +1627,7 @@ namespace SentinelIT.Installer
                 DialogResult dr = MessageBox.Show(
                     this,
                     prompt,
-                    "Confirmación de sobrescritura — Isora Sentinel",
+                    "Confirmación de sobrescritura · Isora Sentinel",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question
                 );
@@ -1665,8 +1668,8 @@ namespace SentinelIT.Installer
                 string logsDir = txtLogsDir.Text.Trim();
 
                 Log("============================================================", Theme.AccentLight);
-                Log("INICIANDO INSTALACIÓN: Isora Sentinel Suite v2.3.0", Theme.AccentLight);
-                Log("Sandra Gabriela Puerto Torres · Licencia MIT (código abierto)", Theme.SidebarMuted);
+                Log("INICIANDO INSTALACIÓN: Isora Sentinel Suite v2.4.7", Theme.AccentLight);
+                Log("Sandra Gabriela Puerto Torres · Licencia Apache-2.0 (código abierto)", Theme.SidebarMuted);
                 Log("============================================================", Theme.AccentLight);
 
                 // Paso 1: Cerrar procesos activos viejos (requisito #3)
@@ -1783,7 +1786,7 @@ namespace SentinelIT.Installer
                         {
                             throw new Exception("Fallo de integridad: uno o más archivos difieren de su hash SHA-256 original.");
                         }
-                        Log(string.Format("✔ Integridad verificada: {0} archivos coinciden con el manifiesto.", verifiedCount), Theme.SuccessLight);
+                        Log(string.Format("✓ Integridad verificada: {0} archivos coinciden con el manifiesto.", verifiedCount), Theme.SuccessLight);
                     }
                     else
                     {
@@ -1795,10 +1798,11 @@ namespace SentinelIT.Installer
 
                 if (chkRegistry.Checked)
                 {
-                    SetProgress(75, "Registrando en «Aplicaciones instaladas» de Windows...");
+                    SetProgress(75, "Registrando en «Aplicaciones instaladasí de Windows...");
                     Log("Registrando entrada de desinstalación en el Registro de Windows...");
                     RegisterUninstall(targetDir);
-                    Log("[OK] Registro completado: HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Isora Sentinel", Theme.SuccessLight);
+                    Log("[OK] Registro completado en Aplicaciones instaladas.", Theme.SuccessLight);
+                    CreateStartMenuShortcuts(targetDir);
                 }
 
                 if (chkEnableTasks != null && chkEnableTasks.Checked)
@@ -1912,8 +1916,8 @@ namespace SentinelIT.Installer
             {
                 if (key != null)
                 {
-                    key.SetValue("DisplayName", "Isora Sentinel Suite (Endpoint Hardening & Governance)");
-                    key.SetValue("DisplayVersion", "2.3.0");
+                    key.SetValue("DisplayName", "Isora Sentinel Suite (Endpoint Auditing & Governance)");
+                    key.SetValue("DisplayVersion", "2.4.7");
                     key.SetValue("Publisher", "Sandra Gabriela Puerto Torres");
                     key.SetValue("InstallLocation", installDir);
                     if (txtDownloadsArchiveDir != null && !string.IsNullOrEmpty(txtDownloadsArchiveDir.Text.Trim()))
@@ -1955,12 +1959,17 @@ namespace SentinelIT.Installer
 
                 string triggerArg = t.Item3.GetSchtasksTriggerArgs();
                 string extraParam = "";
+                if ((t.Item1 == "Cleanup_Screenshots" || t.Item1 == "Cleanup_Temp_Global" || t.Item1 == "Archive_Downloads") &&
+                    t.Item3.cmbMode != null && t.Item3.cmbMode.SelectedIndex == 1)
+                {
+                    extraParam += " -Apply";
+                }
                 if (t.Item1 == "Archive_Downloads" && txtDownloadsArchiveDir != null)
                 {
                     string customDir = txtDownloadsArchiveDir.Text.Trim();
                     if (!string.IsNullOrEmpty(customDir))
                     {
-                        extraParam = " -CustomArchiveDir \\\"" + customDir.Replace("\"", "") + "\\\"";
+                        extraParam += " -CustomArchiveDir \\\"" + customDir.Replace("\"", "") + "\\\"";
                     }
                 }
                 string cmdArgs = string.Format(
@@ -2014,6 +2023,107 @@ namespace SentinelIT.Installer
                 else
                     Log("[AVISO] Aviso en tarea " + t.Item1 + " (se ejecutará bajo demanda desde el monitor)", Theme.WarningLight);
             }
+            try
+            {
+                string winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                string taskDir = Path.Combine(winDir, @"System32\Tasks\Isora Sentinel");
+                if (Directory.Exists(taskDir))
+                {
+                    ProcessStartInfo psiAcl = new ProcessStartInfo("icacls.exe", "\"" + taskDir + "\" /grant *S-1-5-32-545:(OI)(CI)RX /Q");
+                    psiAcl.CreateNoWindow = true;
+                    psiAcl.UseShellExecute = false;
+                    using (Process pAcl = Process.Start(psiAcl)) { pAcl.WaitForExit(2000); }
+                }
+            }
+            catch {
+            }
+        }
+
+        private static bool CreateShortcut(string shortcutPath, string targetPath, string workingDir, string description, string iconPath)
+        {
+            try
+            {
+                Type shellType = Type.GetTypeFromProgID("WScript.Shell");
+                if (shellType == null) return false;
+                object shell = Activator.CreateInstance(shellType);
+                object shortcut = shellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { shortcutPath });
+                if (shortcut == null) return false;
+                Type scType = shortcut.GetType();
+                scType.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { targetPath });
+                scType.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { workingDir });
+                scType.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { description });
+                if (!string.IsNullOrEmpty(iconPath) && File.Exists(iconPath))
+                {
+                    scType.InvokeMember("IconLocation", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { iconPath + ",0" });
+                }
+                scType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        private void CreateStartMenuShortcuts(string installDir)
+        {
+            try
+            {
+                string commonPrograms = Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms);
+                if (string.IsNullOrEmpty(commonPrograms) || !Directory.Exists(commonPrograms))
+                {
+                    commonPrograms = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs");
+                }
+
+                string sentinelFolder = Path.Combine(commonPrograms, "Isora Sentinel");
+                if (!Directory.Exists(sentinelFolder))
+                {
+                    Directory.CreateDirectory(sentinelFolder);
+                }
+
+                string trayExe = Path.Combine(installDir, "Isora-Sentinel-Tray.exe");
+                string setupExe = Path.Combine(installDir, "Isora-Sentinel-Setup.exe");
+                string iconPath = Path.Combine(installDir, "app.ico");
+                if (!File.Exists(iconPath)) iconPath = trayExe;
+
+                if (File.Exists(trayExe))
+                {
+                    CreateShortcut(
+                        Path.Combine(sentinelFolder, "Isora Sentinel.lnk"),
+                        trayExe,
+                        installDir,
+                        "Isora Sentinel Suite - Monitor y Observabilidad",
+                        iconPath
+                    );
+                }
+
+                if (File.Exists(setupExe))
+                {
+                    CreateShortcut(
+                        Path.Combine(sentinelFolder, "Asistente de Isora Sentinel.lnk"),
+                        setupExe,
+                        installDir,
+                        "Isora Sentinel Suite - Asistente de Configuración",
+                        iconPath
+                    );
+                }
+
+                string uninstExe = Path.Combine(installDir, "Isora-Sentinel-Uninstall.exe");
+                if (!File.Exists(uninstExe)) uninstExe = Path.Combine(installDir, "Isora-Sentinel-Setup.exe");
+                if (File.Exists(uninstExe))
+                {
+                    CreateShortcut(
+                        Path.Combine(sentinelFolder, "Desinstalar Isora Sentinel.lnk"),
+                        uninstExe,
+                        installDir,
+                        "Desinstalar Isora Sentinel Suite",
+                        iconPath
+                    );
+                }
+
+                Log("[OK] Accesos directos registrados en el Menú Inicio y búsqueda de Windows.", Theme.SuccessLight);
+            }
+            catch (Exception ex)
+            {
+                Log("[AVISO] No se pudieron registrar accesos directos en el Menú Inicio: " + ex.Message, Theme.WarningLight);
+            }
         }
 
         private void RegisterSystemTray(string installDir)
@@ -2021,26 +2131,70 @@ namespace SentinelIT.Installer
             string trayExe = Path.Combine(installDir, "Isora-Sentinel-Tray.exe");
             if (File.Exists(trayExe))
             {
-                // Registro estándar de inicio en Windows mediante la clave de ejecución Run
+                // Limpieza previa defensiva de entradas de registro huérfanas
+                CleanOrphanedAutoStartEntries();
+
+                // 1. Registro en HKLM Run
                 try
                 {
                     using (RegistryKey runKey = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
                     {
                         if (runKey != null)
                         {
-                            runKey.SetValue("SentinelIT_Tray", "\"" + trayExe + "\"");
-                            Log("[OK] Autoinicio configurado en registro: SentinelIT_Tray", Theme.SuccessLight);
+                            runKey.SetValue("IsoraSentinel_Tray", "\"" + trayExe + "\"");
+                            Log("[OK] Autoinicio configurado en registro HKLM: IsoraSentinel_Tray", Theme.SuccessLight);
                         }
                     }
                 }
                 catch { }
 
+                // 2. Registro en HKCU Run
                 try
                 {
-                    ProcessStartInfo psiRun = new ProcessStartInfo(trayExe);
-                    psiRun.UseShellExecute = true;
-                    Process.Start(psiRun);
-                    Log("[OK] Monitor de bandeja iniciado en la barra de tareas.", Theme.SuccessLight);
+                    using (RegistryKey runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+                    {
+                        if (runKey != null)
+                        {
+                            runKey.SetValue("IsoraSentinel_Tray", "\"" + trayExe + "\"");
+                        }
+                    }
+                }
+                catch { }
+
+                // 3. Acceso directo en carpeta Startup de Windows (garantía de arranque al reiniciar)
+                try
+                {
+                    string commonStartup = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup);
+                    if (Directory.Exists(commonStartup))
+                    {
+                        string iconPath = Path.Combine(installDir, "app.ico");
+                        CreateShortcut(
+                            Path.Combine(commonStartup, "Isora Sentinel.lnk"),
+                            trayExe,
+                            installDir,
+                            "Isora Sentinel Suite - Monitor de Bandeja",
+                            iconPath
+                        );
+                        Log("[OK] Autoinicio asegurado en carpeta Startup de Windows.", Theme.SuccessLight);
+                    }
+                }
+                catch { }
+
+                // 4. Iniciar monitor de bandeja si no está en ejecución
+                try
+                {
+                    Process[] existing = Process.GetProcessesByName("Isora-Sentinel-Tray");
+                    if (existing == null || existing.Length == 0)
+                    {
+                        ProcessStartInfo psiRun = new ProcessStartInfo(trayExe);
+                        psiRun.UseShellExecute = true;
+                        Process.Start(psiRun);
+                        Log("[OK] Monitor de bandeja iniciado en la barra de tareas.", Theme.SuccessLight);
+                    }
+                    else
+                    {
+                        Log("[OK] Monitor de bandeja ya se encuentra activo.", Theme.SuccessLight);
+                    }
                 }
                 catch { }
             }
@@ -2076,7 +2230,7 @@ namespace SentinelIT.Installer
 
                     string prompt = string.Format(
                         "Se ha detectado una versión previa de Isora Sentinel ({0}) instalada en:\n{1}\n\n" +
-                        "¿Desea sobrescribir y actualizar la instalación existente a la versión 2.3.0?\n\n" +
+                        "¿Desea sobrescribir y actualizar la instalación existente a la versión 2.4.7?\n\n" +
                         "• Los registros históricos de auditoría (logs) se preservarán intactos.\n" +
                         "• Se generará una copia de seguridad de auditoría de la versión previa en backup\\.\n" +
                         "• Se cerrarán los procesos activos antiguos para aplicar la actualización.",
@@ -2087,7 +2241,7 @@ namespace SentinelIT.Installer
                     DialogResult dr = MessageBox.Show(
                         this,
                         prompt,
-                        "Instalación previa detectada — Isora Sentinel",
+                        "Instalación previa detectada · Isora Sentinel",
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question
                     );
@@ -2096,6 +2250,7 @@ namespace SentinelIT.Installer
                     {
                         overwriteConfirmed = true;
                         if (cardUpgradeNotice != null) cardUpgradeNotice.Visible = true;
+                        try { TerminateExistingProcesses(targetDir); } catch { }
                     }
                     else
                     {
@@ -2123,32 +2278,46 @@ namespace SentinelIT.Installer
             detectedVersion = null;
             detectedPath = null;
 
-            try
+            // 1. Detección en registro Uninstall (64-bit y 32-bit)
+            string[] uninstallKeys = new string[] {
+                @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel",
+
+            };
+
+            foreach (string uKey in uninstallKeys)
             {
-                using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel"))
+                try
                 {
-                    if (key != null)
+                    using (RegistryKey baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
+                    using (RegistryKey key = baseKey.OpenSubKey(uKey))
                     {
-                        object loc = key.GetValue("InstallLocation");
-                        object ver = key.GetValue("DisplayVersion");
-                        if (loc != null && !string.IsNullOrEmpty(loc.ToString()))
+                        if (key != null)
                         {
-                            detectedPath = loc.ToString();
-                        }
-                        if (ver != null && !string.IsNullOrEmpty(ver.ToString()))
-                        {
-                            detectedVersion = ver.ToString();
+                            object loc = key.GetValue("InstallLocation");
+                            object ver = key.GetValue("DisplayVersion");
+                            if (loc != null && !string.IsNullOrEmpty(loc.ToString())) detectedPath = loc.ToString();
+                            if (ver != null && !string.IsNullOrEmpty(ver.ToString())) detectedVersion = ver.ToString();
+                            if (!string.IsNullOrEmpty(detectedPath)) break;
                         }
                     }
                 }
+                catch { }
             }
-            catch { }
 
-            string checkDir = !string.IsNullOrEmpty(dirToCheck) ? dirToCheck : (detectedPath ?? @"C:\Program Files\Isora-Sentinel");
+            // 2. Detección en sistema de archivos (rutas estándar y detectadas)
+            string[] candidateDirs = new string[] {
+                !string.IsNullOrEmpty(dirToCheck) ? dirToCheck : null,
+                detectedPath,
+                @"C:\Program Files\Isora-Sentinel",
 
-            if (Directory.Exists(checkDir))
+            };
+
+            foreach (string checkDir in candidateDirs)
             {
+                if (string.IsNullOrEmpty(checkDir) || !Directory.Exists(checkDir)) continue;
+
                 string trayExe = Path.Combine(checkDir, "Isora-Sentinel-Tray.exe");
+
                 string manifest = Path.Combine(checkDir, "integrity.manifest.json");
                 string enginesDir = Path.Combine(checkDir, "engines");
                 string srcDir = Path.Combine(checkDir, "src");
@@ -2158,11 +2327,12 @@ namespace SentinelIT.Installer
                     if (string.IsNullOrEmpty(detectedPath)) detectedPath = checkDir;
                     if (string.IsNullOrEmpty(detectedVersion))
                     {
-                        if (File.Exists(trayExe))
+                        string exeToCheck = File.Exists(trayExe) ? trayExe : null;
+                        if (exeToCheck != null)
                         {
                             try
                             {
-                                FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(trayExe);
+                                FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(exeToCheck);
                                 if (!string.IsNullOrEmpty(fvi.FileVersion)) detectedVersion = fvi.FileVersion;
                             }
                             catch { }
@@ -2178,82 +2348,145 @@ namespace SentinelIT.Installer
 
         private void TerminateExistingProcesses(string targetDir)
         {
-            Log("Verificando y deteniendo procesos activos de Isora Sentinel...", Theme.AccentLight);
+            Log("Verificando y deteniendo procesos activos de Isora Sentinel y versiones previas...", Theme.AccentLight);
 
-            // 1. Cerrar procesos de Isora-Sentinel-Tray
-            try
+            int currentPid = Process.GetCurrentProcess().Id;
+
+            // 1. Cerrar procesos por nombres conocidos (actuales y heredados de versiones previas)
+            string[] candidateProcessNames = new string[] {
+                "Isora-Sentinel-Tray",
+
+
+
+                "IsoraSentinel-Tray",
+                "IsoraSentinelTray",
+                "SentinelTray",
+                "Isora-Sentinel-Uninstall",
+
+            };
+
+            foreach (string pName in candidateProcessNames)
             {
-                Process[] trayProcesses = Process.GetProcessesByName("Isora-Sentinel-Tray");
-                if (trayProcesses != null && trayProcesses.Length > 0)
+                try
                 {
-                    Log(string.Format("Deteniendo {0} instancia(s) activa(s) de Isora-Sentinel-Tray...", trayProcesses.Length), Theme.WarningLight);
-                    foreach (Process p in trayProcesses)
+                    Process[] procs = Process.GetProcessesByName(pName);
+                    if (procs != null && procs.Length > 0)
                     {
-                        try
+                        Log(string.Format("Deteniendo {0} instancia(s) activa(s) de {1}...", procs.Length, pName), Theme.WarningLight);
+                        foreach (Process p in procs)
                         {
-                            p.CloseMainWindow();
-                            if (!p.WaitForExit(1500))
+                            if (p.Id == currentPid) continue;
+                            try
                             {
-                                p.Kill();
-                                p.WaitForExit(2000);
+                                p.CloseMainWindow();
+                                if (!p.WaitForExit(1000))
+                                {
+                                    p.Kill();
+                                    p.WaitForExit(1500);
+                                }
                             }
-                        }
-                        catch { }
-                        finally
-                        {
-                            try { p.Dispose(); } catch { }
+                            catch { }
+                            finally
+                            {
+                                try { p.Dispose(); } catch { }
+                            }
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Log("Aviso al cerrar instancias de bandeja: " + ex.Message, Theme.WarningLight);
+                catch (Exception ex)
+                {
+                    Log("Aviso al cerrar instancias de " + pName + ": " + ex.Message, Theme.WarningLight);
+                }
             }
 
-            // Cerrar instancias previas del monitor de bandeja usando API nativa gestionada
+            // 2. Cerrar cualquier otro proceso activo que se ejecute desde targetDir, rutas previas o contenga 'Sentinel' y 'Tray'
             try
             {
-                foreach (Process proc in Process.GetProcessesByName("Isora-Sentinel-Tray"))
+                Process[] allProcs = Process.GetProcesses();
+                foreach (Process p in allProcs)
                 {
+                    if (p.Id == currentPid) continue;
                     try
                     {
-                        proc.CloseMainWindow();
-                        if (!proc.WaitForExit(1500))
+                        string pName = p.ProcessName.ToLowerInvariant();
+                        bool matchName = pName.Contains("sentinel") && pName.Contains("tray");
+                        bool matchPath = false;
+
+                        try
                         {
-                            proc.Kill();
+                            if (p.MainModule != null && !string.IsNullOrEmpty(p.MainModule.FileName))
+                            {
+                                string modPath = p.MainModule.FileName;
+                                if (!string.IsNullOrEmpty(targetDir) && modPath.IndexOf(targetDir, StringComparison.OrdinalIgnoreCase) >= 0)
+                                    matchPath = true;
+                                if (modPath.IndexOf("(Join-Path", StringComparison.OrdinalIgnoreCase) >= 0)
+                                    matchPath = true;
+                                if (modPath.IndexOf("Isora-Sentinel", StringComparison.OrdinalIgnoreCase) >= 0 && modPath.IndexOf("Tray.exe", StringComparison.OrdinalIgnoreCase) >= 0)
+                                    matchPath = true;
+                            }
+                        }
+                        catch { }
+
+                        if (matchName || matchPath)
+                        {
+                            try
+                            {
+                                p.CloseMainWindow();
+                                if (!p.WaitForExit(1000))
+                                {
+                                    p.Kill();
+                                    p.WaitForExit(1500);
+                                }
+                            }
+                            catch { }
+                            finally
+                            {
+                                try { p.Dispose(); } catch { }
+                            }
                         }
                     }
                     catch { }
+                    finally
+                    {
+                        try { p.Dispose(); } catch { }
+                    }
                 }
             }
             catch { }
 
-            // 2. Detener tareas programadas de Isora Sentinel en ejecución
+            // 3. Detener tareas programadas en ejecución en todas las carpetas conocidas
             try
             {
+                string[] taskFolders = new string[] { "Isora Sentinel", "Isora-Sentinel", "" };
                 string[] tasks = new string[] {
                     "Cleanup_Screenshots", "Cleanup_Temp_Global", "Defender_Scan",
                     "Integrity_Check", "BitLocker_Audit", "Event_Audit", "Archive_Downloads", "SystemTray_Monitor"
                 };
-                foreach (string tName in tasks)
+                foreach (string folder in taskFolders)
                 {
-                    try
+                    foreach (string tName in tasks)
                     {
-                        ProcessStartInfo psiTask = new ProcessStartInfo("schtasks.exe", string.Format("/End /TN \"Isora Sentinel\\{0}\"", tName));
-                        psiTask.CreateNoWindow = true;
-                        psiTask.UseShellExecute = false;
-                        using (Process pt = Process.Start(psiTask))
+                        try
                         {
-                            pt.WaitForExit(1000);
+                            string tn = string.IsNullOrEmpty(folder) ? tName : string.Format("{0}\\{1}", folder, tName);
+                            ProcessStartInfo psiTask = new ProcessStartInfo("schtasks.exe", string.Format("/End /TN \"{0}\"", tn));
+                            psiTask.CreateNoWindow = true;
+                            psiTask.UseShellExecute = false;
+                            using (Process pt = Process.Start(psiTask))
+                            {
+                                pt.WaitForExit(1000);
+                            }
                         }
+                        catch { }
                     }
-                    catch { }
                 }
             }
             catch { }
 
-            // 3. Verificar liberación de bloqueo sobre el archivo Isora-Sentinel-Tray.exe
+            // 4. Limpieza de entradas huérfanas en el registro Run (HKCU, HKLM y HKEY_USERS)
+            CleanOrphanedAutoStartEntries();
+
+            // 5. Verificar liberación de bloqueo sobre los archivos ejecutables
             string trayExePath = Path.Combine(targetDir, "Isora-Sentinel-Tray.exe");
             if (File.Exists(trayExePath))
             {
@@ -2271,6 +2504,75 @@ namespace SentinelIT.Installer
             {
                 Log("[OK] Procesos previos verificados sin bloqueos activos.", Theme.SuccessLight);
             }
+        }
+
+        private void CleanOrphanedAutoStartEntries()
+        {
+            string[] runKeysToCheck = new string[] { "IsoraSentinel_Tray", "Isora-Sentinel-Tray", "SentinelTray" };
+
+            // Limpiar en HKCU
+            try
+            {
+                using (RegistryKey rk = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+                {
+                    if (rk != null)
+                    {
+                        foreach (string val in runKeysToCheck)
+                        {
+                            object v = rk.GetValue(val);
+                            if (v != null)
+                            {
+                                string sv = v.ToString().Replace("\"", "").Trim();
+                                if (sv.IndexOf("(Join-Path", StringComparison.OrdinalIgnoreCase) >= 0 ||
+
+                                    !File.Exists(sv))
+                                {
+                                    rk.DeleteValue(val, false);
+                                    Log("[OK] Entrada de autoinicio obsoleta eliminada en HKCU: " + val, Theme.SidebarMuted);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // Limpiar en HKEY_USERS (todas las colmenas montadas)
+            try
+            {
+                foreach (string sid in Registry.Users.GetSubKeyNames())
+                {
+                    if (sid.EndsWith("_Classes", StringComparison.OrdinalIgnoreCase) || sid.StartsWith(".DEFAULT", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    try
+                    {
+                        using (RegistryKey userRun = Registry.Users.OpenSubKey(sid + @"\Software\Microsoft\Windows\CurrentVersion\Run", true))
+                        {
+                            if (userRun != null)
+                            {
+                                foreach (string val in runKeysToCheck)
+                                {
+                                    object v = userRun.GetValue(val);
+                                    if (v != null)
+                                    {
+                                        string sv = v.ToString().Replace("\"", "").Trim();
+                                        if (sv.IndexOf("(Join-Path", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        
+                                            !File.Exists(sv))
+                                        {
+                                            userRun.DeleteValue(val, false);
+                                            Log("[OK] Entrada de autoinicio huérfana eliminada en perfil de usuario (" + val + ")", Theme.SidebarMuted);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
         }
 
         private static bool WaitForFileRelease(string filePath, int timeoutMs)
@@ -2309,15 +2611,15 @@ namespace SentinelIT.Installer
             int copiedFiles = 0;
             List<string> backupManifest = new List<string>();
             backupManifest.Add("============================================================");
-            backupManifest.Add("ISORA SENTINEL SUITE — COPIA DE SEGURIDAD DE AUDITORÍA");
+            backupManifest.Add("ISORA SENTINEL SUITE · COPIA DE SEGURIDAD DE AUDITORÍA");
             backupManifest.Add("============================================================");
             backupManifest.Add("Fecha de respaldo:   " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             backupManifest.Add("Versión respaldada: " + (string.IsNullOrEmpty(oldVersion) ? "Previa" : oldVersion));
-            backupManifest.Add("Versión entrante:   2.3.0");
+            backupManifest.Add("Versión entrante:   2.4.7");
             backupManifest.Add("Carpeta original:   " + targetDir);
             backupManifest.Add("Carpeta de logs:    " + logsDir + " (Preservada intacta)");
             backupManifest.Add("Titular:            Sandra Gabriela Puerto Torres");
-            backupManifest.Add("Licencia:           MIT (Código Abierto)");
+            backupManifest.Add("Licencia:           Apache-2.0 (Código Abierto)");
             backupManifest.Add("------------------------------------------------------------");
             backupManifest.Add("ARCHIVOS RESPALDADOS:");
 
@@ -2334,7 +2636,7 @@ namespace SentinelIT.Installer
             }
             catch { }
 
-            Log(string.Format("✔ Copia de seguridad completada ({0} archivos archivados en backup\\).", copiedFiles), Theme.SuccessLight);
+            Log(string.Format("✓ Copia de seguridad completada ({0} archivos archivados en backup\\).", copiedFiles), Theme.SuccessLight);
             Log("[OK] Registros históricos de auditoría preservados intactos en: " + logsDir, Theme.SuccessLight);
 
             return backupFolder;
@@ -2403,11 +2705,11 @@ namespace SentinelIT.Installer
 
             if (cmd == "--version" || cmd == "-v")
             {
-                Console.WriteLine("Isora Sentinel Suite v2.3.0");
-                Console.WriteLine("Autonomous Endpoint Hardening & Compliance Telemetry for Microsoft Windows");
-                Console.WriteLine("Architect & Sole Copyright Holder: Sandra Gabriela Puerto Torres");
+                Console.WriteLine("Isora Sentinel Suite v2.4.7");
+                Console.WriteLine("Autonomous Endpoint Auditing, Cleanup, and Compliance Telemetry for Microsoft Windows");
+                Console.WriteLine("Architect & Copyright Holder: Sandra Gabriela Puerto Torres");
                 Console.WriteLine("Commercial Brand & Distribution: Isora Cloud Group (ICG)");
-                Console.WriteLine("License: MIT (Open Source) - Zero External Dependencies");
+                Console.WriteLine("License: Apache-2.0 (Open Source) - Zero External Dependencies");
                 Console.WriteLine("Security Operations: security@isora.com.co");
                 return true;
             }
@@ -2415,7 +2717,7 @@ namespace SentinelIT.Installer
             if (cmd == "--help" || cmd == "-h" || cmd == "/?")
             {
                 Console.WriteLine("================================================================================");
-                Console.WriteLine(" Isora Sentinel Suite - Standalone Enterprise Installer & Forensic Auditor");
+                Console.WriteLine(" Isora Sentinel Suite - Standalone Installer & Auditor");
                 Console.WriteLine("================================================================================");
                 Console.WriteLine("Uso interactivo (GUI):");
                 Console.WriteLine("  Isora-Sentinel-Setup.exe                  Ejecuta el asistente interactivo de instalacion");
@@ -2432,7 +2734,7 @@ namespace SentinelIT.Installer
             if (cmd == "--audit")
             {
                 Console.WriteLine("================================================================================");
-                Console.WriteLine(" ISORA SENTINEL SUITE - AUDITORIA FORENSE DE INTEGRIDAD EN MEMORIA");
+                Console.WriteLine(" ISORA SENTINEL SUITE - AUDITORIA DE INTEGRIDAD EN MEMORIA");
                 Console.WriteLine(" Inspeccion estatica de modulos sin ejecucion de codigo privilegiado");
                 Console.WriteLine("================================================================================");
 
@@ -2453,7 +2755,7 @@ namespace SentinelIT.Installer
                         {
                         Console.WriteLine("Total de modulos incrustados en paquete: " + archive.Entries.Count);
                         Console.WriteLine();
-                        Console.WriteLine("{0,-42} {1,10}  {2}", "MODULO", "TAMANO", "ESTADO FORENSE SHA-256");
+                        Console.WriteLine("{0,-42} {1,10}  {2}", "MODULO", "TAMANO", "ESTADO SHA-256");
                         Console.WriteLine(new string('-', 80));
 
                         // Read integrity.manifest.json from package archive
@@ -2573,7 +2875,7 @@ namespace SentinelIT.Installer
                                 }
                             }
                             Console.WriteLine();
-                            Console.WriteLine("[EXITO] Se extrajeron {0} archivos. Estan listos para analisis con YARA, Defender o Kaspersky.", count);
+                            Console.WriteLine("[EXITO] Se extrajeron {0} archivos. Estan listos para analisis estatico, YARA o antivirus.", count);
                         }
                         }
                     }
@@ -2647,7 +2949,7 @@ public static void Main(string[] args)
             {
                 MessageBox.Show(
                     "Error al inicializar el asistente de instalación:\n\n" + ex.ToString(),
-                    "Error de Inicialización — Isora Sentinel",
+                    "Error de Inicialización · Isora Sentinel",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );

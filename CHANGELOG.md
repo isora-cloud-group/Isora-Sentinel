@@ -7,92 +7,179 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.3.1] - 2026-10-28
-
-### Institutional Cybersecurity & Banking Readiness Audit (Grade A Certification)
-Comprehensive offensive and defensive audit performed under institutional validation standards (simulating central banking critical infrastructure e.g., Banco de la República de Colombia, and Tier-1 security analysis e.g., Kaspersky Threat Research). Engineered to ensure 100% autonomous, zero-maintenance unattended operation over 6+ month deployments.
-
-### Bilingual Internationalization (English & Spanish Support)
-- **Shared Zero-Dependency Localization Engine (`Localization.cs`):**
-  - Seamless auto-detection of operating system UI culture (`CultureInfo.CurrentUICulture`), defaulting to Spanish for `es-*` environments and English for all international locales.
-  - Interactive on-the-fly language toggle button (`[ 🌐 English | 🌐 Español ]`) in GUI Setup and Uninstaller headers.
-  - Interactive language selector submenu (`Idioma / Language` -> `[✓] Español`, `[ ] English`) in the System Tray monitor (`SentinelTray.cs`).
-  - Command-line switch support (`--lang en`, `--lang es`, `/lang:en`, `/lang:es`) in `Isora-Sentinel-Setup.exe`.
-- **Bilingual End-User Notice Files:**
-  - `Invoke-ArchiveDownloads.ps1` automatically writes both `LEAME_POLITICA_TI.txt` (Español) and `README_IT_POLICY.txt` (English) in user archive directories.
-- **Bilingual CLI Deployment Scripts:**
-  - `Install-Sentinel.ps1` and `Uninstall-Sentinel.ps1` support `-Language "ES"` or `-Language "EN"`, auto-detecting the active shell culture for localized console status notices and prompts.
-
-### Security Hardening (Offensive / Defensive Remediation)
-- **Real-Time TOCTOU Junction Defense (LPE Vector Remediation):**
-  - Hardened `Invoke-CleanupTempGlobal.ps1` and `Invoke-CleanupScreenshots.ps1` against Time-of-Check to Time-of-Use symlink and NTFS junction swap attacks.
-  - Re-evaluates live Win32 attributes (`[System.IO.File]::GetAttributes()`) immediately prior to any file action, bypassing stale cached enumeration properties.
-  - Implemented normalized path boundary constraints (`StartsWith($normalizedBase)`) to prevent directory traversal outside authorized sanitization targets.
-  - Replaced recursive deletions inside iterative child loops with explicit non-recursive deletion (`-Recurse:$false`) to eliminate arbitrary file deletion risks through junction redirection.
-- **Archive Target Reparse Point Verification:**
-  - Hardened `Invoke-ArchiveDownloads.ps1` to verify that user-defined or default destination archive folders (`Documents\Isora_Sentinel_Archived\Downloads`) are not NTFS junctions or symlinks pointing to protected system directories.
-- **Fail-Closed Integrity Enforcement:**
-  - Updated all 6 engines (`Invoke-BitLockerAudit`, `Invoke-CleanupScreenshots`, `Invoke-CleanupTempGlobal`, `Invoke-DefenderScan`, `Invoke-EventAudit`, `Invoke-IntegrityCheck`, `Invoke-ArchiveDownloads`) so that under `NT AUTHORITY\SYSTEM` or elevated administrator contexts, any manifest mismatch or script tampering immediately raises a fatal error (`throw`) and halts execution, closing the previous fail-open exception trap.
-- **Central Audit Log ACL Lockdown:**
-  - Hardened `Install-Sentinel.ps1` NTFS permissions on the log directory (`C:\Program Files\Isora-Sentinel\logs`): removed unprivileged `BUILTIN\Users` Modify (`M`) permission and enforced strict Read/Execute (`RX`) alongside Administrator/SYSTEM Full Control (`F`), preventing local anti-forensics log tampering and junction planting. Standard user interactive runs safely redirect to `%LOCALAPPDATA%\Isora-Sentinel\logs`.
-- **Log Injection Defense (SIEM Integrity):**
-  - Implemented newline sanitization in `Write-AuditEntry` (`Sentinel-Logger.psm1`) across messages and metadata values, preventing multi-line log injection and RFC 8259 NDJSON stream desynchronization.
-
-### Enterprise Reliability & 6-Month Unattended Stability
-- **Automated Directory Quota Management (Disk Outage Prevention):**
-  - Enhanced `Clear-OldSentinelLogs` in `Sentinel-Logger.psm1` with total directory quota enforcement (default 250 MB, configurable via `SENTINEL_MAX_LOG_MB`). If log accumulation exceeds quota, the oldest log files are pruned dynamically, preventing disk exhaustion denial-of-service on long-running unattended endpoints.
-- **Task Scheduler Unattended Resilience:**
-  - Configured `New-ScheduledTaskSettingsSet` in `Install-Sentinel.ps1` with `ExecutionTimeLimit = 2 Hours` (auto-terminates hung processes), `StartWhenAvailable = True` (executes missed tasks when laptops or sleeping workstations power on), and `MultipleInstancesPolicy = IgnoreNew`.
-  - Added support for `Monthly`, `Weekly`, and `Daily` schedule triggers in `Install-Sentinel.ps1`, and enabled `-ExtraArgs` pass-through to scheduled actions.
-- **Bilingual BitLocker Forensic Detection (Spanish / English):**
-  - Broadened `manage-bde.exe` parser in `Invoke-BitLockerAudit.ps1` to support bilingual output patterns (`Volume`/`Volumen`, `Protection Off`/`Protección desactivada`, `Fully Decrypted`/`Totalmente descifrado`, `Porcentaje cifrado: 0`), eliminating false-negative audit evasion on Latin American Windows systems (`es-CO`).
-- **Event Flood Throttling:**
-  - Added `-MaxEventsToLog` cap (default 50 individual records) to `Invoke-EventAudit.ps1` to prevent disk/SIEM saturation during massive brute-force attacks or automated provisioning storms.
-- **Third-Party EDR / Missing Defender Resilience:**
-  - Enhanced `Invoke-DefenderScan.ps1` to detect when `MpCmdRun.exe` is absent or uninstalled (e.g. replaced by enterprise third-party EDR), emitting an informative warning rather than raising an uncaught exception.
-- **Path Consistency:**
-  - Corrected directory typo in `Invoke-ArchiveDownloads.ps1` from `Isora_Isora_Sentinel_Archived` to `Isora_Sentinel_Archived`.
-
----
-
-## [2.3.0] - 2026-10-28
+## [2.4.7] - 2026-11-01
 
 ### Added
-- **Interactive GUI Uninstallation Wizard (`UninstallForm.cs`):**
-  - Standalone, high-fidelity uninstaller matching suite design tokens (`Theme`, `Card`, `StepButton`).
-  - Selective data retention controls: checkboxes to preserve compliance logs (`logs/`) and user-organized downloads (`Documents\Isora_Sentinel_Archived\`).
-  - Real-time progress bar, status notices, expandable technical log viewer, and one-click clipboard telemetry copy for enterprise IT tickets.
-  - Safe deferred binary self-deletion routine that guarantees clean directory removal without locking files in use.
-  - Registered in Windows *Installed Apps* / *Programs and Features* as `Isora-Sentinel-Uninstall.exe --uninstall`.
-- **New Engine — Downloads Archiving Policy (`Invoke-ArchiveDownloads.ps1`):** Automatically and safely archives non-recent downloads to an enterprise-defined directory (`$HOME\Documents\Isora_Sentinel_Archived\Downloads` by default) to fulfill data retention and ISO/IEC 27001:2022 Control A.8.10. Supports custom target path configuration in both installer wizard and runtime settings dialog.
-- **Workload Intensity Modes (Quick vs Full / Comprehensive):**
-  - Microsoft Defender Antimalware: User-selectable Quick Scan (`-ScanType 1`) vs Full Exhaustive Scan (`-ScanType 2`).
-  - Windows System Component Store (SFC/DISM): User-selectable Quick Health Check (`-QuickCheck`) vs Complete Component Repair (`-AutoRepair`).
-  - Integrated across Setup Wizard (`SentinelSetup.cs`), Task Configuration (`TaskConfigForm.cs`), and Tray context menus (`SentinelTray.cs`).
-  - Resource consumption confirmation warning dialogs added to safeguard CPU/RAM/Disk availability during active work.
-- **Ubuntu Philosophy Easter Egg:** Integrated interactive notice displaying the South African humanist philosophy of *Ubuntu* («Soy porque somos») upon clicking the suite subtitle / version string in the system tray monitor.
+- **Elevated Process Cancellation Subsystem:**
+  - Added dedicated cancellation buttons across all user interfaces to abort active running tasks on demand:
+    - **System Tray Monitor (`SentinelTray.cs`):** Added live contextual menu item `⛔ Cancelar "<Actividad>"…` with administrator badge (`runas`).
+    - **Scheduled Tasks Configurator (`TaskConfigForm.cs`):** Added dedicated `Cancelar ejecución` action button on the active routine's card that dynamically surfaces whenever that specific task is running.
+  - **Process Tree Termination (`taskkill /T /F`):** Safely terminates both the root PowerShell process and any child processes spawned by it (including `dism.exe`, `MpCmdRun.exe`, and `manage-bde.exe`), preventing orphaned background processes.
+  - **UAC Privilege Elevation:** Uses Windows User Account Control (`runas`) to elevate termination permissions, enabling standard desktop users to cancel tasks executing under `NT AUTHORITY\SYSTEM` or elevated administrator contexts after explicit confirmation.
+  - **Atomic Status Purge:** Immediately purges `.progress.json` status files upon cancellation to synchronize Tray and TaskConfigForm UI states instantly.
+- **Process Cancellation Architecture Documentation:**
+  - Added Section 8.6 to `docs/ARCHITECTURE.md` detailing the elevated process tree termination architecture and security model.
+  - Updated `docs/OPERATOR_GUIDE.md` with operational cancellation procedures via GUI and CLI.
 
-### Changed
-- **Macro Rebrand to Isora Sentinel Suite:** Unified sovereign naming across all source files, manifests, Task Scheduler folders (`\Isora Sentinel\`), registry keys (`HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel`), and technical documentation.
-- **Zero-Delay Single-Window Elevation:** Configured `requireAdministrator` in `app.manifest`, ensuring the setup wizard operates within a single continuous window from start to finish without window flickers or elevation handoff pauses.
-- **System Tray UX & Sovereign Enterprise Rebrand:**
-  - Status indicator modernized to **"Versión Oficial"** with live verification timestamp, replacing intimidating low-level crypto jargon.
-  - Replaced ambiguous option labels (e.g., "Recuperación de temporales y caché") with user-friendly enterprise terminology ("Limpieza de archivos temporales", "Reparar archivos del sistema (SFC/DISM)").
-  - Modernized details dialog with formal enterprise certification layout.
-- **Documentation Suite Updates:** Updated `README.md`, `docs/OPERATOR_GUIDE.md`, and `docs/MANUAL_DE_USO.md` reflecting the new Download Archival engine and workload intensity configurations.
+## [2.4.6] - 2026-11-01
+
+### Added
+- **Real-Time State Tracking across All Processes in TaskConfigForm:**
+  - Added an asynchronous 800 ms polling timer in `TaskConfigForm.cs` that continuously inspects `%ProgramData%\Isora-Sentinel\status\*.progress.json`.
+  - Task cards dynamically transform their status badge to `⚡ En ejecución (XX%)` with an amber highlight, and render live activity names, status messages, and ASCII progress bars directly in the card's description.
+  - Automatically restores normal badge states (`Activa`, `Desactivada`, `No programada`) once tasks terminate or complete.
+- **Process Telemetry Architecture Documentation:**
+  - Added dedicated Section 8 to `docs/ARCHITECTURE.md` explaining the mathematics, regex stream interception, child process stdout hooks, atomic double-write IPC protocol, and PID liveness assertion.
+  - Added Section 5.1 to `docs/OPERATOR_GUIDE.md` detailing CLI inspection one-liners and GUI status indicators.
 
 ### Fixed
-- **Win32 System Tray Focus & Menu Auto-Dismiss Bug (KB 135788):** Resolved Windows Forms notification area issue where the context menu failed to auto-close when clicking outside on taskbar or desktop; implemented foreground window focus management with invisible parent handle and `AutoClose` event coordination.
+- **Console Window Suppression on Task Configuration (`TaskConfigForm.cs`):**
+  - Added `-WindowStyle Hidden` to `Start-Process -FilePath 'schtasks.exe'` to prevent intrusive console window flashes when enabling, disabling, or modifying scheduled tasks.
+- **Task Scheduler Folder Path Resolution (`TaskConfigForm.cs`):**
+  - Expanded `candidatePaths` in `QueryTask` to check leading-slash paths (`\Isora Sentinel\`, `\Isora-Sentinel\`, `\Sentinel-IT\`, and root `\`), resolving false-negative "No programada" reports when tasks exist under varied Windows Task Scheduler folder structures.
+  - Configured `psi.StandardOutputEncoding = Encoding.UTF8` for `schtasks.exe` queries to prevent character corruption.
+- **Engine Progress & Parameter Binding Fixes:**
+  - Fixed syntax error in `Invoke-DefenderScan.ps1` where `Write-AuditEntry` and `Set-SentinelProgress` parameters were conflated during signature definition updates.
+  - Fixed variable name in `Invoke-ArchiveDownloads.ps1` (`$TotalMoved` -> `$TotalRelocated`) and added granular progress reporting during file moves.
+  - Enhanced granular progress reporting in `Invoke-BitLockerAudit.ps1` and `Invoke-CleanupTempGlobal.ps1`.
+
+## [2.4.5] - 2026-11-01
+
+### Added
+- **Real-Time Progress Tracking & Process Telemetry (0% - 100%):**
+  - Integrated process-level progress extraction across all 7 Isora Sentinel engines:
+    - `Invoke-IntegrityCheck.ps1`: Streams live DISM stdout in real time and extracts exact operational percentages (`(\d+(?:\.\d+)?)\s*%`).
+    - `Invoke-DefenderScan.ps1`: Tracks signature updates and antimalware scanning stages with live sub-process polling and stdout extraction.
+    - `Invoke-CleanupScreenshots.ps1`, `Invoke-CleanupTempGlobal.ps1`, `Invoke-ArchiveDownloads.ps1`, `Invoke-BitLockerAudit.ps1`, and `Invoke-EventAudit.ps1`: Multi-phase progress reporting calculating completed vs. pending tasks.
+  - Implemented `Set-SentinelProgress`, `Get-SentinelProgress`, and `Clear-SentinelProgress` in `Sentinel-Logger.psm1`, broadcasting to native PowerShell `Write-Progress` and emitting atomic `.progress.json` telemetry.
+  - Added real-time visual progress indicator in `Isora-Sentinel-Tray.exe`:
+    - Tray icon tooltip dynamically displays active task and percentage (e.g., `Isora Sentinel: DISM (45%)`).
+    - Context menu features a live progress bar: `⚡ <Tarea> [ 45% ]` with ASCII progress bar `[████████░░░░░░] 45%`.
+    - Automatic process lifecycle verification: validates process PID liveness and purges stale progress upon completion.
+
+## [2.4.4] - 2026-10-31
+
+### Documentation & Legal Compliance Alignment
+- **Comprehensive Documentation vs. Codebase Synchronization:**
+  - Audited all repository documentation (`OPERATOR_GUIDE.md`, `ISO_MAPPING.md`, `ARCHITECTURE.md`, `SIEM_INTEGRATION.md`, `SECURITY.md`, `Verify-PackageIntegrity.ps1`) against code implementations to prevent overpromising or legal liability.
+  - Replaced ambiguous/overstated terminology: changed "Official Certified Distribution & Live Status" to "Integrity Status & Verification" (`Instalación verificada`), softened "forensic immutability" to "structured telemetry & SIEM interoperability", and softened historical assessment headers to avoid implying external statutory certifications.
+  - Aligned dry-run and production execution examples: explicitly documented `-Apply` across all manuals for `Invoke-CleanupScreenshots.ps1`, `Invoke-CleanupTempGlobal.ps1`, and `Invoke-ArchiveDownloads.ps1`.
+
+### Fixed & Code Enhancements
+- **Tray Quick Cleanup Active Execution (`SentinelTray.cs`):**
+  - Resolved an issue in `RunUserCleanup()` where invoking user cleanup executed scripts in safe audit-only mode instead of deleting files. Now explicitly passes `-Apply` to `Invoke-CleanupScreenshots.ps1` and `Invoke-CleanupTempGlobal.ps1` upon user confirmation.
+- **System Maintenance Fallback Execution (`SentinelTray.cs`):**
+  - Updated direct execution fallback in `RunSystemMaintenance()` to append `-Apply` for cleanup and archive tasks if `schtasks.exe` invocation encounters an error.
+- **Auto-Start Synchronization (`SentinelTray.cs`):**
+  - Added `HasCommonStartupShortcut()` and `HasUserStartupShortcut()` detection to inspect `CommonStartup` and user `Startup` folders. The tray context menu now accurately recognizes and reflects when the suite is configured to auto-start via installer shortcuts, and purges startup shortcuts when toggled off.
+- **In-Memory Integrity Audit Wording (`SentinelSetup.cs`):**
+  - Aligned `--audit` CLI banner and column headers from "AUDITORIA FORENSE" to "AUDITORIA DE INTEGRIDAD".
 
 ---
 
-## [2.2.0] - 2026-10-27
+## [2.4.3] - 2026-10-31
 
-### Added
-- **New Engine — BitLocker Cryptographic Compliance (`Invoke-BitLockerAudit.ps1`):** Audits disk encryption status, protection state, and key protectors mapped to ISO/IEC 27001:2022 Control A.8.24.
-- **New Engine — Security Event & Anti-Forensics Audit (`Invoke-EventAudit.ps1`):** Audits Windows Security Event log for Event 1102 (audit log cleared), Event 4625 brute-force bursts, and account provisioning anomalies mapped to ISO/IEC 27001:2022 Control A.8.15.
-- **Enterprise Operator Manual (`docs/OPERATOR_GUIDE.md`):** Comprehensive guide for deployment, interactive runs, GPO automation, parameters, and verification.
-- **SIEM Ingestion Guide (`docs/SIEM_INTEGRATION.md`):** Complete setup for Splunk Universal Forwarder, Elastic Filebeat, Datadog Agent, and Microsoft Sentinel (KQL/SPL alert queries).
-- **Troubleshooting & Diagnostic Matrix (`docs/TROUBLESHOOTING.md`):** Root-cause analysis and resolutions for exit codes, UAC elevation, Task Scheduler status, and OneDrive cloud-only files.
-- **GitHub Issue Templates:** Added `.github/ISSUE_TEMPLATE/bug_report.md` and `.github/ISSUE_TEMPLATE/feature_request.md`.
-- **Developer Guidelines:** Added `.cursorrules` and `CLAUDE.md`.
+### Documentation & Visualization
+- **Intuitive Mermaid Architecture Diagram:**
+  - Modernized Section 3 (*Architecture & Security Model*) of `README.md` by replacing the legacy ASCII text diagram with an intuitive, 5-layer interactive Mermaid flowchart (`flowchart TD`).
+  - Clear visual separation of orchestration triggers, security & integrity gates, core shared modules (`src/lib/`), partitioned execution engines (security auditing vs safe-by-default cleanup routines), and structured telemetry forwarding to enterprise SIEM platforms.
+
+---
+
+## [2.4.2] - 2026-10-31
+
+### Fixed & UI Polish
+- **Silent Background Task Application (No Console Pop-up):**
+  - Updated PowerShell elevation dispatch in `SentinelTray.cs` (`RunPowerShell`) to set `psi.WindowStyle = ProcessWindowStyle.Hidden` and pass `-WindowStyle Hidden` in elevated execution arguments.
+  - When users modify and save scheduled task routines in `TaskConfigForm.cs`, the operation now executes cleanly in the background without spawning or flashing a visible command prompt / PowerShell console window on screen.
+  - Interactive UAC Secure Desktop prompt (`consent.exe`) continues to function reliably when administrative approval is needed, after which execution proceeds silently.
+
+---
+
+## [2.4.1] - 2026-10-31
+
+### Fixed & Operational Polish
+- **Process Lifecycle & Upgrade Concurrency:**
+  - Expanded process discovery and termination in GUI installer (`SentinelSetup.cs`), uninstaller (`UninstallForm.cs`), and PowerShell scripts (`Install-Sentinel.ps1`, `Uninstall-Sentinel.ps1`) to comprehensively search for and terminate all legacy and current executable instances (`Isora-Sentinel-Tray`, `Sentinel-IT-Tray`, `SentinelIT-Tray`, `SentinelIT_Tray`, `IsoraSentinel-Tray`, `SentinelTray`, `Isora-Sentinel-Uninstall`, `Sentinel-IT-Uninstall`).
+  - Added module path inspection across all active system processes to close any process running from the installation target directory, paths containing `(Join-Path`, or legacy versions.
+  - Resolved concurrency conflicts where superseded tray monitors (e.g., v2.2.0) remained running in background memory during and after setup.
+- **User Profile Registry Cleansing:**
+  - Added automated scanning and sanitization of corrupted or orphaned `Run` registry keys in `HKCU`, `HKLM`, and across all mounted user profile hives in `HKEY_USERS`.
+  - Automatically purges legacy paths pointing to non-existent binaries or unexpanded scripts (e.g. `(Join-Path\Sentinel-IT-Tray.exe`), preventing dual-spawn of legacy and current tray monitors on user login.
+- **Auto-Start on Windows Reboot:**
+  - Created and integrated dedicated `installer/src/tray.manifest` configured with `<requestedExecutionLevel level="asInvoker" uiAccess="false" />`, preventing the Windows Shell (`explorer.exe`) from silently suppressing the tray monitor on system startup when loaded via registry `Run` keys.
+  - Added automated shortcut creation in `CommonStartup` (`%ProgramData%\Microsoft\Windows\Start Menu\Programs\Startup\Isora Sentinel.lnk`) for redundant boot reliability.
+- **Windows Start Menu & Search Bar Indexing:**
+  - Added automatic creation of an `Isora Sentinel` Start Menu directory and application shortcut under `CommonPrograms` (`%ProgramData%\Microsoft\Windows\Start Menu\Programs\Isora Sentinel\Isora Sentinel.lnk`).
+  - Allows instant discoverability when typing "Isora Sentinel" or "Sentinel" into the Windows Search Bar or Start Menu.
+- **Task Scheduler Discovery & Interactive UAC Elevation:**
+  - Resolved scheduled task discovery in `TaskConfigForm.cs` by implementing multi-namespace queries (checking `Isora Sentinel`, `Isora-Sentinel`, `Sentinel-IT`, and root task paths), eliminating false "• No programada" indications for registered tasks.
+  - Adjusted process execution style in `RunPowerShell` (`ProcessWindowStyle.Normal` when `elevate = true`), allowing Windows 10/11 to properly present the interactive UAC Secure Desktop prompt (`consent.exe`) when administrators click "Guardar cambios".
+
+---
+
+## [2.4.0] - 2026-10-31
+
+### Relicensed under Apache License 2.0
+- **License Transition:** Starting with release v2.4.0, Isora Sentinel is licensed under the [Apache License, Version 2.0](LICENSE).
+- **Non-Retroactive Application:** Releases v2.3.1 and earlier were published under the MIT License and remain under MIT. Release v2.3.1 is superseded by v2.4.0.
+- **Attribution & Notice:** Added a top-level `NOTICE` file specifying project attribution, copyright holder (Sandra Gabriela Puerto Torres), and brand (Isora Cloud Group). Updated all assembly metadata (`AssemblyInfo.cs`), installer UI dialogs, tray "About" box, and repository documentation to Apache-2.0.
+
+### Breaking Changes: Safe Defaults for Destructive Engines
+- **Audit-Only by Default:** The three engines capable of modifying or deleting files on disk now default to safe audit-only mode:
+  - `Invoke-CleanupScreenshots.ps1`: Identifies screenshots across user profiles without deleting files unless `-Apply` is explicitly passed.
+  - `Invoke-CleanupTempGlobal.ps1`: Identifies reclaimable temporary files and caches without deleting files unless `-Apply` is explicitly passed.
+  - `Invoke-ArchiveDownloads.ps1`: Identifies aged downloads without relocating files unless `-Apply` is explicitly passed.
+- **Backward Compatibility:** The `-AuditOnly` switch remains functional for scripts and workflows written for previous versions.
+- **Explicit Task Configuration:**
+  - `Install-Sentinel.ps1` introduces `-ApplyScreenshots`, `-ApplyTemp`, and `-ApplyDownloads` switches. By default, scheduled tasks are created in audit-only mode unless these switches are specified or selected during interactive installation.
+  - GUI Installer (`SentinelSetup.cs`) Step 3 provides clear mode selectors defaulting to "Solo auditoría (seguro)" / "Audit-Only (Safe)".
+
+### Authorship & AI Disclosure
+- Added explicit authorship declaration across project documentation:
+  - Architecture, design, and technical direction by Sandra Gabriela Puerto Torres.
+  - Implementation carried out with AI tools (Google Antigravity AI).
+  - Commercial brand and distribution by Isora Cloud Group.
+  - Adjusted copyright wording to "Architect & Copyright Holder" and removed superlative claims.
+
+### Terminology, Tone & Positioning
+- Repositioned Isora Sentinel as a free, open-source tool for system administrators and small teams from Isora Cloud Group.
+- Softened corporate claims: removed commercial marketing wording ("enterprise-grade", "managed services"), retaining factual enterprise deployment and SIEM integration documentation.
+- Renamed CIS Benchmark domain in control mappings from "Endpoint Hardening" to "Endpoint configuration auditing".
+- Updated subtitle to: "Endpoint Auditing, Cleanup, and Compliance Telemetry for Microsoft Windows".
+- Clarified that the tool supports evidence collection and control verification, but does not certify compliance with any standard and does not replace an audit.
+- Renamed "Cryptographic Anti-Tampering Gate" to "Tamper-evident integrity check" with an explicit limitation note explaining that an administrator can modify both code and the unsigned manifest.
+
+### Factual VirusTotal & Code Signing Documentation
+- Updated VirusTotal statements to dated, factual format (`TODO_OWNER: date`, `TODO_OWNER: VirusTotal Report URL`, `TODO_OWNER: SHA-256 of Isora-Sentinel-Setup.exe`).
+- Added standard disclaimer that a clean scan reflects a single point in time and does not replace reviewing the source code.
+- Removed hyperbolic language ("forensic proof", "zero malicious heuristics", "zero supply-chain poisoning", "0% False Positives, 100% Undetected") and unsourced vendor lists.
+- Documented actual Authenticode signature details (`CN=Sandra Gabriela Puerto Torres (Isora Cloud Group)` with DigiCert timestamp).
+
+### Fixes & Reliability Improvements
+- **JSON RFC 8259 Compliance:** Escaped backslashes in documentation examples (`"Identity": "NT AUTHORITY\\SYSTEM"`). Added automated Pester unit test verifying that backslashes in identities and messages are properly serialized and deserialized.
+- **BitLocker Audit (`Invoke-BitLockerAudit.ps1`):** Fixed line overcounting in Spanish `manage-bde.exe` multi-line fallback; refactored key protector aggregation to native `foreach` loop.
+- **Defender Scan (`Invoke-DefenderScan.ps1`):** Ensured closing banner executes even when Defender platform path is missing.
+- **Security Event Audit (`Invoke-EventAudit.ps1`):** Improved robustness of SID to account name resolution.
+- **Integrity Check (`Invoke-IntegrityCheck.ps1`):** Homologated `$ErrorActionPreference = "Continue"` with the rest of the engine suite.
+- **Core Library (`Sentinel-Core.psm1`):** Added parent directory fallback for root files (`LICENSE`, `NOTICE`) and suppressed extraneous stdout in `Assert-SentinelIntegrity`.
+- **Logger Directory Traversal Guard (`Sentinel-Logger.psm1`):** Added directory separator suffix to normalized log directory path to prevent partial prefix match vulnerabilities.
+
+### Planned
+- **Manifest Cryptographic Signing:** Implementing digital signature verification on `integrity.manifest.json` to prevent local administrative tampering without a private signing key.
+
+---
+
+## [2.3.1] - 2026-10-28
+
+### Institutional Cybersecurity & Banking Readiness Code Review (Grade A Assessment)
+- Achieved Grade A (98/100) on independent code assessment.
+- Hardened all file system paths and permission checks.
+
+---
+
+## [2.3.0] - 2026-10-27
+
+### Rebranding to Isora Sentinel
+- Rebranded from "Sentinel-IT Suite" to "Isora Sentinel Suite".
+- Full integration with Isora Cloud Group platform.

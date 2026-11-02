@@ -22,8 +22,9 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Event_Audit"
+Set-SentinelProgress -Activity "Auditoría de eventos de seguridad" -Percent 10 -Status "Configurando ventana de auditoría ($Hours horas)..."
 try { 
-    Assert-SentinelIntegrity 
+    $null = Assert-SentinelIntegrity 
 } catch { 
     Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
     throw 
@@ -44,6 +45,7 @@ try {
     $AnomaliesDetected = 0
     $AccessDeniedDetected = $false
 
+    Set-SentinelProgress -Activity "Auditoría de eventos de seguridad" -Percent 30 -Status "Consultando Evento 1102 (Anti-forensics: log de seguridad vaciado)..."
     # 1. Event 1102: Audit Log Cleared (High Severity Anti-Forensics Flag)
     $ClearLogEvents = $null
     try {
@@ -75,7 +77,7 @@ try {
             Write-AuditEntry "CRITICAL ANTI-FORENSICS ALERT: Security Audit Log was cleared." -Level "ERROR" -Metadata @{
                 EventID   = 1102
                 Timestamp = $ev.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
-                User      = try { (New-Object System.Security.Principal.SecurityIdentifier($ev.UserId)).Translate([System.Security.Principal.NTAccount]).Value } catch { [string]$ev.UserId }
+                User      = try { if ($ev.UserId -is [System.Security.Principal.SecurityIdentifier]) { $ev.UserId.Translate([System.Security.Principal.NTAccount]).Value } elseif ($ev.UserId) { (New-Object System.Security.Principal.SecurityIdentifier([string]$ev.UserId)).Translate([System.Security.Principal.NTAccount]).Value } else { "SYSTEM" } } catch { [string]$ev.UserId }
             }
             $loggedClear++
         }
@@ -102,7 +104,7 @@ try {
                 Write-AuditEntry "AUDIT CAP: Truncated Event 104 records at $MaxEventsToLog." -Level "WARN"
                 break
             }
-            $uName = try { (New-Object System.Security.Principal.SecurityIdentifier($ev.UserId)).Translate([System.Security.Principal.NTAccount]).Value } catch { [string]$ev.UserId }
+            $uName = try { if ($ev.UserId -is [System.Security.Principal.SecurityIdentifier]) { $ev.UserId.Translate([System.Security.Principal.NTAccount]).Value } elseif ($ev.UserId) { (New-Object System.Security.Principal.SecurityIdentifier([string]$ev.UserId)).Translate([System.Security.Principal.NTAccount]).Value } else { "SYSTEM" } } catch { [string]$ev.UserId }
             Write-AuditEntry "CRITICAL ANTI-FORENSICS ALERT: System Log was cleared (Event 104)." -Level "ERROR" -Metadata @{
                 EventID   = 104
                 LogName   = "System"
@@ -114,6 +116,7 @@ try {
     }
 
     # 2. Event 4625: Failed Logon Attempts (Brute Force Monitoring)
+    Set-SentinelProgress -Activity "Auditoría de eventos de seguridad" -Percent 60 -Status "Consultando Evento 4625 (Intentos de autenticación fallidos)..."
     $FailedLogons = $null
     try {
         $FailedLogons = Get-WinEvent -FilterHashtable @{
@@ -148,6 +151,7 @@ try {
     }
 
     # 3. Event 4720 & 4726: Account Provisioning & Deletion Auditing
+    Set-SentinelProgress -Activity "Auditoría de eventos de seguridad" -Percent 80 -Status "Consultando Eventos 4720/4726 (Creación y eliminación de cuentas)..."
     try {
         $AccountChanges = Get-WinEvent -FilterHashtable @{
             LogName   = "Security"
@@ -187,3 +191,5 @@ try {
 }
 
 Write-AuditEntry "=========================================================="
+
+Set-SentinelProgress -Activity "Auditoría de eventos de seguridad" -Percent 100 -Status "Auditoría de eventos finalizada." -Completed

@@ -21,7 +21,10 @@ param(
     [string]$ScheduleBitLocker = "Daily",
     [string]$ScheduleEventAudit = "Daily",
     [string]$ScheduleDownloads = "Monthly",
-    [string]$DownloadsArchiveDir = "%USERPROFILE%\Documents\Isora_Sentinel_Archived\Downloads"
+    [string]$DownloadsArchiveDir = "%USERPROFILE%\Documents\Isora_Sentinel_Archived\Downloads",
+    [switch]$ApplyScreenshots,
+    [switch]$ApplyTemp,
+    [switch]$ApplyDownloads
 )
 
 # Language resolution: explicit parameter > OS culture > Spanish default
@@ -40,6 +43,47 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     Exit
 }
 
+Write-Host (Msg "[*] Deteniendo instancias previas en ejecución..." "[*] Stopping previous running instances...")
+$candidateProcesses = @("Isora-Sentinel-Tray", "IsoraSentinel-Tray", "IsoraSentinelTray", "SentinelTray", "Isora-Sentinel-Uninstall")
+foreach ($pName in $candidateProcesses) {
+    Get-Process -Name $pName -ErrorAction SilentlyContinue | ForEach-Object {
+        try {
+            $_.CloseMainWindow() | Out-Null
+            Start-Sleep -Milliseconds 400
+            if (!$_.HasExited) { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
+        } catch {
+            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+# Limpiar entradas de autoinicio obsoletas o corruptas en registro
+$runKeys = @("HKLM:\Software\Microsoft\Windows\CurrentVersion\Run", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run")
+$runNames = @("IsoraSentinel_Tray", "Isora-Sentinel-Tray", "SentinelTray")
+foreach ($rk in $runKeys) {
+    if (Test-Path $rk) {
+        foreach ($rn in $runNames) {
+            $val = (Get-ItemProperty -Path $rk -Name $rn -ErrorAction SilentlyContinue).$rn
+            if ($val -and ($val -match '\(Join-Path' -or !(Test-Path ($val -replace '"','').Trim()))) {
+                Remove-ItemProperty -Path $rk -Name $rn -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
+
+# Limpiar colmenas de usuario cargadas en HKEY_USERS
+Get-ChildItem -Path "Registry::HKEY_USERS" -ErrorAction SilentlyContinue | ForEach-Object {
+    $uRun = Join-Path $_.PSPath "Software\Microsoft\Windows\CurrentVersion\Run"
+    if (Test-Path $uRun) {
+        foreach ($rn in $runNames) {
+            $uVal = (Get-ItemProperty -Path $uRun -Name $rn -ErrorAction SilentlyContinue).$rn
+            if ($uVal -and ($uVal -match '\(Join-Path' -or !(Test-Path ($uVal -replace '"','').Trim()))) {
+                Remove-ItemProperty -Path $uRun -Name $rn -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
+
 $effectiveLogsDir = if ($LogsDir) { $LogsDir } else { Join-Path $InstallDir "logs" }
 if (!(Test-Path -LiteralPath $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }
 if (!(Test-Path -LiteralPath $effectiveLogsDir)) { New-Item -ItemType Directory -Path $effectiveLogsDir -Force | Out-Null }
@@ -50,10 +94,60 @@ Copy-Item -Path "$PSScriptRoot\..\src\*" -Destination $InstallDir -Force -Recurs
 if (Test-Path "$PSScriptRoot\..\LICENSE") {
     Copy-Item -Path "$PSScriptRoot\..\LICENSE" -Destination (Join-Path $InstallDir "LICENSE") -Force
 }
+if (Test-Path "$PSScriptRoot\..\NOTICE") {
+    Copy-Item -Path "$PSScriptRoot\..\NOTICE" -Destination (Join-Path $InstallDir "NOTICE") -Force
+}
 if (Test-Path "$PSScriptRoot\..\integrity.manifest.json") {
     Copy-Item -Path "$PSScriptRoot\..\integrity.manifest.json" -Destination (Join-Path $InstallDir "integrity.manifest.json") -Force
 }
 Copy-Item -Path "$PSScriptRoot\Uninstall-Sentinel.ps1" -Destination (Join-Path $InstallDir "Uninstall-Sentinel.ps1") -Force
+
+# Copiar ejecutables y recursos de soporte si existen
+if (Test-Path "$PSScriptRoot\Isora-Sentinel-Tray.exe") {
+    Copy-Item -Path "$PSScriptRoot\Isora-Sentinel-Tray.exe" -Destination (Join-Path $InstallDir "Isora-Sentinel-Tray.exe") -Force
+}
+if (Test-Path "$PSScriptRoot\src\app.ico") {
+    Copy-Item -Path "$PSScriptRoot\src\app.ico" -Destination (Join-Path $InstallDir "app.ico") -Force
+} elseif (Test-Path "$PSScriptRoot\app.ico") {
+    Copy-Item -Path "$PSScriptRoot\app.ico" -Destination (Join-Path $InstallDir "app.ico") -Force
+}
+
+# Crear accesos directos en Menú Inicio y Startup (búsqueda de Windows y autoinicio garantizado)
+try {
+    $commonPrograms = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonPrograms)
+    if (-not $commonPrograms -or -not (Test-Path $commonPrograms)) {
+        $commonPrograms = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
+    }
+    $sentinelStartFolder = Join-Path $commonPrograms "Isora Sentinel"
+    if (-not (Test-Path $sentinelStartFolder)) { New-Item -ItemType Directory -Path $sentinelStartFolder -Force | Out-Null }
+
+    $wsh = New-Object -ComObject WScript.Shell
+    $trayExe = Join-Path $InstallDir "Isora-Sentinel-Tray.exe"
+    $appIco = Join-Path $InstallDir "app.ico"
+    if (Test-Path $trayExe) {
+        $sc = $wsh.CreateShortcut((Join-Path $sentinelStartFolder "Isora Sentinel.lnk"))
+        $sc.TargetPath = $trayExe
+        $sc.WorkingDirectory = $InstallDir
+        $sc.Description = "Isora Sentinel Suite - Monitor y Observabilidad"
+        if (Test-Path $appIco) { $sc.IconLocation = "$appIco,0" }
+        $sc.Save()
+
+        # Autoinicio en carpeta Startup
+        $commonStartup = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonStartup)
+        if (Test-Path $commonStartup) {
+            $scStartup = $wsh.CreateShortcut((Join-Path $commonStartup "Isora Sentinel.lnk"))
+            $scStartup.TargetPath = $trayExe
+            $scStartup.WorkingDirectory = $InstallDir
+            $scStartup.Description = "Isora Sentinel Suite Tray Monitor"
+            if (Test-Path $appIco) { $scStartup.IconLocation = "$appIco,0" }
+            $scStartup.Save()
+        }
+
+        # Autoinicio en registro HKLM Run
+        Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "IsoraSentinel_Tray" -Value "`"$trayExe`"" -Force -ErrorAction SilentlyContinue
+    }
+} catch { }
+
 Write-Host (Msg "[SUCCESS] Módulos desplegados en $InstallDir" "[SUCCESS] Modules deployed to $InstallDir") -ForegroundColor Green
 
 # Enforce strict enterprise NTFS ACLs (ISO 27001 Control A.5.15 / Anti-Tampering / LPE Defense)
@@ -72,8 +166,8 @@ try {
 try {
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel"
     if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
-    Set-ItemProperty -Path $regPath -Name "DisplayName" -Value "Isora Sentinel Suite (Endpoint Hardening & Governance)" -Force
-    Set-ItemProperty -Path $regPath -Name "DisplayVersion" -Value "2.3.1" -Force
+    Set-ItemProperty -Path $regPath -Name "DisplayName" -Value "Isora Sentinel Suite (Endpoint Auditing & Governance)" -Force
+    Set-ItemProperty -Path $regPath -Name "DisplayVersion" -Value "2.4.7" -Force
     Set-ItemProperty -Path $regPath -Name "Publisher" -Value "Sandra Gabriela Puerto Torres" -Force
     Set-ItemProperty -Path $regPath -Name "InstallLocation" -Value $InstallDir -Force
     Set-ItemProperty -Path $regPath -Name "UninstallString" -Value "PowerShell.exe -NoProfile -ExecutionPolicy Bypass -File `"$InstallDir\Uninstall-Sentinel.ps1`"" -Force
@@ -130,21 +224,31 @@ if ($RegisterTasks -match "^(y|s)") {
         if ($ExtraArgs) { $execArg += " $ExtraArgs" }
         $Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument $execArg
         
-        Register-ScheduledTask -TaskName "Isora-Sentinel\$TaskName" -Action $Action -Trigger $Trigger -Principal $Principal -Settings $TaskSettings -Force | Out-Null
+        Register-ScheduledTask -TaskName "Isora Sentinel\$TaskName" -Action $Action -Trigger $Trigger -Principal $Principal -Settings $TaskSettings -Force | Out-Null
         Write-Host (Msg "[SUCCESS] Tarea '$TaskName' registrada ($TriggerInput)." "[SUCCESS] Task '$TaskName' registered ($TriggerInput).") -ForegroundColor Green
     }
 
-    Register-SentinelTask -TaskName "Cleanup_Screenshots" -ScriptFile "Invoke-CleanupScreenshots.ps1" -DefaultTrigger $ScheduleScreenshots
-    Register-SentinelTask -TaskName "Cleanup_Temp_Global" -ScriptFile "Invoke-CleanupTempGlobal.ps1" -DefaultTrigger $ScheduleTemp
+    $extraScreenshots = if ($ApplyScreenshots) { "-Apply" } else { "" }
+    $extraTemp = if ($ApplyTemp) { "-Apply" } else { "" }
+    $cleanDownloadsArchiveDir = ($DownloadsArchiveDir -replace '["''`;|&]', '').Trim()
+    $extraDownloads = if ($cleanDownloadsArchiveDir) { "-CustomArchiveDir `"$cleanDownloadsArchiveDir`"" } else { "" }
+    if ($ApplyDownloads) {
+        $extraDownloads = if ($extraDownloads) { "$extraDownloads -Apply" } else { "-Apply" }
+    }
+
+    Register-SentinelTask -TaskName "Cleanup_Screenshots" -ScriptFile "Invoke-CleanupScreenshots.ps1" -DefaultTrigger $ScheduleScreenshots -ExtraArgs $extraScreenshots
+    Register-SentinelTask -TaskName "Cleanup_Temp_Global" -ScriptFile "Invoke-CleanupTempGlobal.ps1" -DefaultTrigger $ScheduleTemp -ExtraArgs $extraTemp
     Register-SentinelTask -TaskName "Defender_Scan" -ScriptFile "Invoke-DefenderScan.ps1" -DefaultTrigger $ScheduleDefender
     Register-SentinelTask -TaskName "Integrity_Check" -ScriptFile "Invoke-IntegrityCheck.ps1" -DefaultTrigger $ScheduleIntegrity
     Register-SentinelTask -TaskName "BitLocker_Audit" -ScriptFile "Invoke-BitLockerAudit.ps1" -DefaultTrigger $ScheduleBitLocker
     Register-SentinelTask -TaskName "Event_Audit" -ScriptFile "Invoke-EventAudit.ps1" -DefaultTrigger $ScheduleEventAudit
-    $cleanDownloadsArchiveDir = ($DownloadsArchiveDir -replace '["''`;|&]', '').Trim()
-    $extraDownloads = if ($cleanDownloadsArchiveDir) { "-CustomArchiveDir `"$cleanDownloadsArchiveDir`"" } else { "" }
     Register-SentinelTask -TaskName "Archive_Downloads" -ScriptFile "Invoke-ArchiveDownloads.ps1" -DefaultTrigger $ScheduleDownloads -ExtraArgs $extraDownloads
     if ($cleanDownloadsArchiveDir) {
         Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel" -Name "DownloadsArchiveDir" -Value $cleanDownloadsArchiveDir -ErrorAction SilentlyContinue
+    }
+    $sysTaskDir = Join-Path $env:windir "System32\Tasks\Isora Sentinel"
+    if (Test-Path -LiteralPath $sysTaskDir) {
+        & icacls.exe "$sysTaskDir" /grant "*S-1-5-32-545:(OI)(CI)RX" /Q 2>$null
     }
     
     Write-Host (Msg "`n[SUCCESS] ¡Orquestación completada con éxito!" "`n[SUCCESS] Orchestration Complete!") -ForegroundColor Cyan

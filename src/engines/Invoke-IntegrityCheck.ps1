@@ -12,14 +12,15 @@ param(
     [switch]$QuickCheck
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue" 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Integrity_Check"
+Set-SentinelProgress -Activity "Comprobación de Windows (DISM)" -Percent 5 -Status "Iniciando motor de comprobación e integridad..."
 try { 
-    Assert-SentinelIntegrity 
+    $null = Assert-SentinelIntegrity 
 } catch { 
     Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
     throw 
@@ -51,10 +52,45 @@ try {
     }
 
     Write-AuditEntry "AUDIT: Dispatching DISM online scan health event..." -Metadata @{ DismPath = $dismPath }
-    $dismArg = if ($QuickCheck) { "/CheckHealth" } else { "/ScanHealth" }
+    $dismArg = if ($QuickCheck) { "/CheckHealth" } elseif ($AutoRepair) { "/RestoreHealth" } else { "/ScanHealth" }
     Write-AuditEntry "AUDIT: Dispatching DISM online scan mode: $dismArg..."
-    $dismResult = & $dismPath /Online /Cleanup-Image $dismArg 2>&1 | Out-String
-    $dismCode = $LASTEXITCODE
+    $actDesc = if ($AutoRepair) { "Reparación de Windows (DISM)" } else { "Comprobación de Windows (DISM)" }
+    Set-SentinelProgress -Activity $actDesc -Percent 15 -Status "Ejecutando DISM $dismArg en segundo plano..."
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $dismPath
+    $psi.Arguments = "/Online /Cleanup-Image $dismArg"
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+    $dismOutputList = New-Object System.Collections.Generic.List[string]
+
+    $proc.add_OutputDataReceived({
+        param($sender, $e)
+        if ($e.Data) {
+            $line = $e.Data
+            $dismOutputList.Add($line)
+            if ($line -match '(\d+(?:\.\d+)?)\s*%') {
+                $rawPct = [double]$matches[1]
+                $clamped = [int][math]::Min(98, [math]::Max(10, $rawPct))
+                Set-SentinelProgress -Activity $actDesc -Percent $clamped -Status "DISM $($dismArg): $([math]::Round($rawPct, 1))% completado"
+            }
+        }
+    })
+    $proc.add_ErrorDataReceived({
+        param($sender, $e)
+        if ($e.Data) { $dismOutputList.Add($e.Data) }
+    })
+
+    [void]$proc.Start()
+    $proc.BeginOutputReadLine()
+    $proc.BeginErrorReadLine()
+    $proc.WaitForExit()
+    $dismCode = $proc.ExitCode
+    $dismResult = ($dismOutputList -join "`r`n")
 
     if ($dismResult) {
         $lines = $dismResult -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
@@ -112,3 +148,7 @@ try {
 }
 
 Write-AuditEntry "=========================================================="
+
+$finalAct = if ($AutoRepair) { "Reparación de Windows (DISM)" } else { "Comprobación de Windows (DISM)" }
+$finalMsg = if ($dismCode -eq 0) { "Comprobación/reparación finalizada con éxito." } else { "Proceso de componentes finalizado (Código $dismCode)." }
+Set-SentinelProgress -Activity $finalAct -Percent 100 -Status $finalMsg -Completed

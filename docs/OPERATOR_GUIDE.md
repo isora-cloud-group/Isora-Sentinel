@@ -1,8 +1,8 @@
-# Enterprise Operator & Deployment Manual — Isora Sentinel Suite
+# Operator & Deployment Manual — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
-**Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Software Version:** 2.3.0  
+**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
+**Software Version:** 2.4.7  
 **Target Operating Systems:** Windows 10 (1809+), Windows 11, Windows Server 2016 / 2019 / 2022 / 2025  
 **Execution Runtimes:** Windows PowerShell 5.1+ or PowerShell Core 7+ (`pwsh`)  
 **Privilege Context:** `NT AUTHORITY\SYSTEM` / Elevated Local Administrator  
@@ -13,7 +13,7 @@
 
 **Isora Sentinel** is an enterprise endpoint hardening and regulatory governance suite for corporate Microsoft Windows environments. Designed under a modular **Hub-and-Spoke** architecture, it separates shared core libraries and telemetry modules (`src/lib/`) from isolated, purpose-built execution engines (`src/engines/`).
 
-Each routine maps directly to international standards (**ISO/IEC 27001:2022** and **ISO/IEC 20000-1:2018**), outputting immutable, RFC 8259-compliant NDJSON forensic logs ready for immediate ingestion by enterprise SIEM platforms (Splunk, Elastic, Datadog, Microsoft Sentinel).
+Each routine maps directly to international standards (**ISO/IEC 27001:2022** and **ISO/IEC 20000-1:2018**), outputting RFC 8259-compliant NDJSON audit logs ready for immediate ingestion by enterprise SIEM platforms (Splunk, Elastic, Datadog, Microsoft Sentinel).
 
 ---
 
@@ -43,7 +43,7 @@ Ideal for systems administrators, desktop support engineers, and standalone work
      * Downloads Archival Directory: Configurable target path for archiving aged downloads (defaults to `$HOME\Documents\Isora_Sentinel_Archived\Downloads`).
      * Pre-Flight SHA-256 Validation: Verifies package hashes against `integrity.manifest.json` before writing files to disk.
      * Control Panel Registration: Enables Windows *Installed Apps* / *Programs and Features* registration.
-   * **Step 3 (SYSTEM Scheduled Tasks & Workload Modes):** Select which of the 7 automated routines to schedule, with configurable execution frequencies (Daily / Weekly / Monthly) and workload intensity modes (Quick vs Full scan for Defender; Quick check vs Full repair for Component Store) with safeguard resource warnings.
+   * **Step 3 (SYSTEM Scheduled Tasks & Workload Modes):** Select which of the 7 automated routines to schedule, with configurable execution frequencies (Daily / Weekly / Monthly), execution modes for cleanup engines (Audit-Only by default vs. Apply mode), and workload intensity modes (Quick vs Full scan for Defender; Quick check vs Full repair for Component Store) with safeguard resource warnings.
    * **Step 4 (Installation & Telemetry):**
      * Click **"Instalar Suite"**.
      * The installer detects any pre-existing installation, prompts for confirmation, gracefully closes old running processes, creates an audit backup archive (`backup/archive_YYYYMMDD_HHMMSS_vX_Y_Z/`), preserves historical logs, extracts fresh modules, validates SHA-256 hashes, registers the tasks under `NT AUTHORITY\SYSTEM`, and launches the System Tray Monitor.
@@ -87,18 +87,21 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Install-Sent
 | `-ScheduleIntegrity` | String | `Weekly` | Frequency for DISM integrity scan (`Daily`, `Weekly`, `Monthly`). |
 | `-ScheduleBitLocker` | String | `Daily` | Frequency for BitLocker audit (`Daily`, `Weekly`, `Monthly`). |
 | `-ScheduleEventAudit`| String | `Daily` | Frequency for security event audit (`Daily`, `Weekly`, `Monthly`). |
+| `-ApplyScreenshots` | Switch | `False` | Pass `-Apply` to screenshot task (default is safe audit-only). |
+| `-ApplyTemp` | Switch | `False` | Pass `-Apply` to temp cleanup task (default is safe audit-only). |
+| `-ApplyDownloads` | Switch | `False` | Pass `-Apply` to download archival task (default is safe audit-only). |
 
 ---
 
 ### 3.3. System Tray Monitor & Task Configurator (`Isora-Sentinel-Tray.exe`)
 The System Tray application provides continuous endpoint observability and interactive task management:
 
-* **Official Certified Distribution & Live Status:** Displays **"Versión Oficial"** with live verification timestamp and certification details, confirming all endpoint protection components are unaltered and authorized.
+* **Integrity Status & Verification:** Displays **"Instalación verificada"** with live verification timestamp, confirming local files match the SHA-256 integrity manifest.
 * **Workload Intensity Controls:** Allows selecting between Quick and Full Exhaustive scans for Defender and Component Store directly from the menu, with built-in modal confirmation warnings against accidental resource exhaustion.
 * **Ubuntu Philosophy Easter Egg:** Clicking the suite subtitle in the tray menu displays an institutional note on the humanist philosophy of Ubuntu («Soy porque somos»).
 * **On-Demand Routine Execution:** Trigger individual modules directly from the tray. Modules requiring administrative privileges (Defender, DISM, BitLocker, EventAudit) display a confirmation dialog, request UAC elevation, and execute through Task Scheduler under `NT AUTHORITY\SYSTEM`.
 * **Installed Services Configurator (`TaskConfigForm.cs`):** An intuitive Windows Forms management window that allows administrators to toggle individual routines, alter schedule frequencies (Daily, Weekly, Monthly, Yearly), modify execution times, and commit changes with UAC elevation.
-* **Auto-Start with Windows:** Easily toggled via the tray context menu, writing to the user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` registry hive.
+* **Auto-Start with Windows:** Easily toggled via the tray context menu, configuring both the user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` registry hive and Windows Startup shortcuts.
 
 ---
 
@@ -108,20 +111,24 @@ Administrators can invoke any engine manually from an elevated PowerShell termin
 
 ### 4.1. Sensitive Screenshot Purge (DLP)
 ```powershell
-# Safe simulation (identifies screenshots without deleting files):
+# Safe simulation (default: identifies screenshots without deleting files):
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupScreenshots.ps1
+# (or explicitly with -AuditOnly)
 powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupScreenshots.ps1 -AuditOnly
 
-# Production execution (purges unmanaged screenshots across all profiles):
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupScreenshots.ps1
+# Production execution (purges unmanaged screenshots across all profiles via -Apply):
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupScreenshots.ps1 -Apply
 ```
 
 ### 4.2. Temporary File & Cache Reclamation
 ```powershell
-# Safe simulation (reports reclaimable bytes without deletion):
+# Safe simulation (default: reports reclaimable bytes without deletion):
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupTempGlobal.ps1
+# (or explicitly with -AuditOnly)
 powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupTempGlobal.ps1 -AuditOnly
 
-# Production execution:
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupTempGlobal.ps1
+# Production execution (actively deletes aged temporary files via -Apply):
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupTempGlobal.ps1 -Apply
 ```
 
 ### 4.3. Microsoft Defender Scan & Updates
@@ -162,14 +169,16 @@ powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-EventAudit.ps1
 
 ### 4.7. Aged Downloads Relocation & Archival (ISO 27001 A.8.10)
 ```powershell
-# Safe simulation (identifies aged downloads without moving files):
+# Safe simulation (default: identifies aged downloads without moving files):
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1
+# (or explicitly with -AuditOnly)
 powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1 -AuditOnly
 
-# Production execution (relocates files older than 30 days to Documents\Isora_Sentinel_Archived\Downloads):
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1
+# Production execution (relocates files older than 30 days to Documents\Isora_Sentinel_Archived\Downloads via -Apply):
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1 -Apply
 
-# Custom aging threshold (60 days) with explicit destination path:
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1 -DaysOld 60 -CustomArchiveDir "D:\CorporateArchive\Downloads"
+# Custom aging threshold (60 days) with explicit destination path and -Apply:
+powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1 -Apply -DaysOld 60 -CustomArchiveDir "D:\CorporateArchive\Downloads"
 ```
 
 ---
@@ -177,6 +186,55 @@ powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloa
 ## 5. Windows Task Scheduler Management
 
 Automated routines are registered under the root task folder `\Isora Sentinel\`.
+
+### Real-Time Process Progress & State Tracking:
+
+Isora Sentinel features a high-fidelity telemetry engine that extracts execution progress (0% - 100%) and operational status across all 7 maintenance routines in real time:
+
+#### 1. Visual Monitoring via UI:
+* **System Tray Monitor:**
+  * While a task is running, the notification area icon tooltip dynamically updates (e.g., `Isora Sentinel: Comprobación de Windows (DISM) (45%)`).
+  * Right-clicking the tray icon reveals a dedicated live progress item with a high-contrast ASCII bar:
+    ```text
+    ⚡ Comprobación de Windows (DISM) [45%]
+      [██████░░░░░░] 45%  DISM /ScanHealth: 38.0% completado
+    ```
+* **Scheduled Tasks Configuration Window (`TaskConfigForm`):**
+  * When opened via *Configuración de servicios instalados* or tray menu *Programar tareas...*, each routine card polls the status store every 800 ms.
+  * Active routines dynamically transform their badge from `Activa` to `⚡ En ejecución (XX%)` with an amber highlight, while the card note renders real-time phase descriptions and progress indicators.
+
+#### 2. Querying Live Progress via PowerShell CLI:
+Operators and SOC automation scripts can query the real-time progress of any running task directly from the atomic status store:
+```powershell
+# View all active task progress reports:
+$statusDir = "$env:ProgramData\Isora-Sentinel\status"
+if (Test-Path $statusDir) {
+    Get-ChildItem -Path $statusDir -Filter "*.progress.json" | ForEach-Object {
+        $p = Get-Content $_.FullName -Raw | ConvertFrom-Json
+        [PSCustomObject]@{
+            Engine    = $p.engine
+            Activity  = $p.activity
+            Progress  = "$($p.percent)%"
+            Status    = $p.status
+            PID       = $p.pid
+            UpdatedAt = $p.updated_at
+        }
+    } | Format-Table -AutoSize
+}
+```
+
+
+#### 3. Canceling / Aborting an Active Routine on Demand:
+If an operator needs to immediately stop a running task (such as a full Defender scan or DISM scan causing unwanted disk load):
+* **Via System Tray:** Right-click the Isora Sentinel tray icon and select **`⛔ Cancelar "<Actividad>"…`**. Confirm the prompt and accept the standard Windows UAC elevation dialog.
+* **Via Scheduled Tasks Window (`TaskConfigForm`):** Open the tasks window, find the card showing `⚡ En ejecución (XX%)`, and click the red **`Cancelar ejecución`** button.
+* **Via Elevated CLI:**
+  ```powershell
+  # Find PID from status file and kill process tree:
+  $status = Get-Content "$env:ProgramData\Isora-Sentinel\status\*.progress.json" | ConvertFrom-Json
+  taskkill.exe /PID $status.pid /T /F
+  Remove-Item "$env:ProgramData\Isora-Sentinel\status\*.progress.json" -Force
+  ```
 
 ### Inspecting Task Status via PowerShell:
 ```powershell

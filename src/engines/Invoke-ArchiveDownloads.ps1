@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Downloads Lifecycle & Storage Tiering Engine - ISO/IEC 27001:2022 Control A.8.10 / A.8.1
 .DESCRIPTION
@@ -12,9 +12,10 @@
 #>
 [CmdletBinding()]
 param(
+    [switch]$Apply,
+    [switch]$AuditOnly,
     [int]$DaysOld = 30,
     [string]$CustomArchiveDir = "",
-    [switch]$AuditOnly,
     [switch]$IncludeSubdirectories,
     [switch]$SkipIntegrityCheck
 )
@@ -25,21 +26,27 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Archive_Downloads"
+Set-SentinelProgress -Activity "Organización y archivado de descargas" -Percent 5 -Status "Iniciando motor de archivado..."
 
 if (-not $SkipIntegrityCheck) {
     try { 
-        Assert-SentinelIntegrity 
+        $null = Assert-SentinelIntegrity 
     } catch { 
         Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
         throw 
     }
 }
 
+# Safe by default: Audit-only mode unless -Apply is explicitly specified.
+$AuditMode = (-not $Apply) -or $AuditOnly
+
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Archive_Downloads] - POLICY EXECUTION START"
 Write-AuditEntry "   Aging Threshold: $DaysOld days"
-if ($AuditOnly) {
-    Write-AuditEntry "   MODE: Audit-Only (Dry-Run / No files will be moved)" -Level "WARN"
+if ($AuditMode) {
+    Write-AuditEntry "   MODE: Audit-Only (Dry-Run / Safe default / No files will be moved)" -Level "WARN"
+} else {
+    Write-AuditEntry "   MODE: Apply (Active relocation enabled via -Apply)" -Level "INFO"
 }
 Write-AuditEntry "=========================================================="
 
@@ -222,7 +229,7 @@ function Process-UserDownloads {
     $script:TotalIdentified += $eligibleFiles.Count
     $userBytes = ($eligibleFiles | Measure-Object -Property Length -Sum).Sum
 
-    if ($AuditOnly) {
+    if ($AuditMode) {
         Write-AuditEntry "AUDIT: Found eligible downloads for relocation." -Level "INFO" -Metadata @{
             User            = $UserName
             EligibleCount   = $eligibleFiles.Count
@@ -238,7 +245,11 @@ function Process-UserDownloads {
         if (-not (Test-Path -LiteralPath $archiveDir)) {
             New-Item -ItemType Directory -Path $archiveDir -Force | Out-Null
         }
-        New-PolicyNoticeFile -ArchiveDir (Split-Path $archiveDir -Parent)
+        $noticeTargetDir = Split-Path $archiveDir -Parent
+        if (-not $noticeTargetDir -or $noticeTargetDir -match '^[A-Za-z]:\\?$') {
+            $noticeTargetDir = $archiveDir
+        }
+        New-PolicyNoticeFile -ArchiveDir $noticeTargetDir
     } catch {
         Write-AuditEntry "I/O FAILURE: Cannot initialize archive directory." -Level "ERROR" -Metadata @{
             User  = $UserName
@@ -249,7 +260,11 @@ function Process-UserDownloads {
     }
 
     $userMoved = 0
+    $fileIdx = 0
     foreach ($file in $eligibleFiles) {
+        $fileIdx++
+        $filePct = 40 + [int](($fileIdx / [math]::Max(1, $eligibleFiles.Count)) * 50)
+        Set-SentinelProgress -Activity "Organización y archivado de descargas" -Percent $filePct -Status "Reubicando: $($file.Name) ($fileIdx de $($eligibleFiles.Count))..."
         try {
             # Real-time fresh attribute check right before moving
             $freshAttr = [System.IO.File]::GetAttributes($file.FullName)
@@ -328,8 +343,8 @@ try {
 }
 
 Write-AuditEntry "=========================================================="
-if ($AuditOnly) {
-    Write-AuditEntry "   [ISO_Archive_Downloads] - AUDIT COMPLETE"
+if ($AuditMode) {
+    Write-AuditEntry "   [ISO_Archive_Downloads] - AUDIT COMPLETE (Safe Default)"
     Write-AuditEntry "   Identified Aged Downloads : $TotalIdentified"
 } else {
     Write-AuditEntry "   [ISO_Archive_Downloads] - POLICY APPLIED"
@@ -337,3 +352,5 @@ if ($AuditOnly) {
     Write-AuditEntry "   Total Storage Reclaimed   : $([math]::Round($TotalBytes / 1MB, 2)) MB ($TotalBytes bytes)"
 }
 Write-AuditEntry "=========================================================="
+
+Set-SentinelProgress -Activity "Organización y archivado de descargas" -Percent 100 -Status "Archivado finalizado ($TotalRelocated archivos organizados)." -Completed

@@ -1,11 +1,11 @@
-# Enterprise Operator Manual — Isora Sentinel Suite
+# Operator Manual — Isora Sentinel Suite
 
 > **Notice:** The canonical, fully expanded Enterprise Operator & Deployment Manual is now maintained in English at **[docs/OPERATOR_GUIDE.md](OPERATOR_GUIDE.md)**.
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
-**Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) • [GitHub: @sandra-puerto](https://github.com/sandra-puerto) • [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Software Version:** 2.3.1  
-**VirusTotal Multi-Vendor Audit:** [0/71 Clean Report (d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90)](https://www.virustotal.com/gui/file/d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90?nocache=1)
+**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) • [GitHub: @sandra-puerto](https://github.com/sandra-puerto) • [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
+**Software Version:** 2.4.7  
+**VirusTotal Multi-Vendor Scan:** [TODO_OWNER: VirusTotal Report URL](TODO_OWNER: VirusTotal Report URL)
 
 ---
 
@@ -38,10 +38,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Install-Sent
 [System.Environment]::SetEnvironmentVariable("SENTINEL_LOG_FORMAT", "JSON", "Machine")
 ```
 
-### 5. Multi-Vendor Security Verification (VirusTotal 0/71)
-The compiled executable has passed multi-vendor static and behavioral analysis with **0 detections out of 71 security engines**:
-* **VirusTotal URL:** [https://www.virustotal.com/gui/file/d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90?nocache=1](https://www.virustotal.com/gui/file/d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90?nocache=1)
-* **SHA-256:** `d868caca4e02ec83001320023fee4dbb31f08c44d5123d2757d8e34becfa4c90`
+### 5. Multi-Vendor Security Verification (VirusTotal)
+The compiled executable is submitted to VirusTotal for analysis across security engines:
+* **VirusTotal URL:** [TODO_OWNER: VirusTotal Report URL](TODO_OWNER: VirusTotal Report URL)
+* **SHA-256:** `BD282F5184D654F8BD3CC7CCA34BD1AAB6DA359CD366A2D21CE70430E7E9EC41`
+* **Important Note:** A clean antivirus scan reflects a single point in time and does not prove the software is safe; it is not a substitute for reviewing the source code.
 
 ### 6. Full Documentation
 Please refer to **[OPERATOR_GUIDE.md](OPERATOR_GUIDE.md)** for detailed technical parameters, Task Scheduler XML integration, dry-run simulation instructions, and disaster recovery procedures.

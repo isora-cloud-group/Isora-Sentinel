@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Uninstaller for Isora Sentinel Suite (Bilingual English / Spanish)
 .DESCRIPTION
@@ -26,13 +26,15 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     Exit
 }
 
-Write-Host (Msg "[*] Deteniendo proceso del monitor de bandeja si está activo..." "[*] Stopping System Tray monitor process if running...")
-Stop-Process -Name "Isora-Sentinel-Tray" -Force -ErrorAction SilentlyContinue
-Stop-Process -Name "Sentinel-IT-Tray" -Force -ErrorAction SilentlyContinue
+Write-Host (Msg "[*] Deteniendo procesos de Isora Sentinel y versiones previas..." "[*] Stopping Isora Sentinel and legacy processes...")
+$candidateProcesses = @("Isora-Sentinel-Tray", "IsoraSentinel-Tray", "IsoraSentinelTray", "SentinelTray", "Isora-Sentinel-Setup")
+foreach ($pName in $candidateProcesses) {
+    Stop-Process -Name $pName -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host (Msg "[*] Eliminando Tareas Programadas..." "[*] Removing Scheduled Tasks...")
 $Tasks = @("Cleanup_Screenshots", "Cleanup_Temp_Global", "Defender_Scan", "Integrity_Check", "BitLocker_Audit", "Event_Audit", "Archive_Downloads", "SystemTray_Monitor")
-$TaskFolders = @("Isora Sentinel", "Isora-Sentinel", "Sentinel-IT")
+$TaskFolders = @("Isora Sentinel", "Isora-Sentinel")
 foreach ($Folder in $TaskFolders) {
     foreach ($Task in $Tasks) {
         $taskPath = "$Folder\$Task"
@@ -86,8 +88,8 @@ $InstallDir = if ($regInstallLoc -and (Test-Path -LiteralPath $regInstallLoc)) {
 # Clean up Windows Registry entries
 try {
     $regKeys = @(
-        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel",
-        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel-IT"
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel"
+
     )
     foreach ($rk in $regKeys) {
         if (Test-Path $rk) {
@@ -97,7 +99,7 @@ try {
     }
     $runHklm = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
     $runHkcu = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-    $runValues = @("SentinelIT_Tray", "IsoraSentinel_Tray", "Isora-Sentinel-Tray", "Sentinel-IT-Tray")
+    $runValues = @("IsoraSentinel_Tray", "Isora-Sentinel-Tray", "SentinelTray")
     foreach ($v in $runValues) {
         if (Get-ItemProperty -Path $runHklm -Name $v -ErrorAction SilentlyContinue) {
             Remove-ItemProperty -Path $runHklm -Name $v -Force -ErrorAction SilentlyContinue
@@ -105,6 +107,33 @@ try {
         if (Get-ItemProperty -Path $runHkcu -Name $v -ErrorAction SilentlyContinue) {
             Remove-ItemProperty -Path $runHkcu -Name $v -Force -ErrorAction SilentlyContinue
         }
+    }
+    Get-ChildItem -Path "Registry::HKEY_USERS" -ErrorAction SilentlyContinue | ForEach-Object {
+        $uRun = Join-Path $_.PSPath "Software\Microsoft\Windows\CurrentVersion\Run"
+        if (Test-Path $uRun) {
+            foreach ($v in $runValues) {
+                if (Get-ItemProperty -Path $uRun -Name $v -ErrorAction SilentlyContinue) {
+                    Remove-ItemProperty -Path $uRun -Name $v -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+
+    # Clean up Start Menu and Startup shortcuts
+    $commonPrograms = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonPrograms)
+    if ($commonPrograms) {
+        $smFolder = Join-Path $commonPrograms "Isora Sentinel"
+        if (Test-Path $smFolder) { Remove-Item -Path $smFolder -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+    $userPrograms = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
+    if ($userPrograms) {
+        $smUserFolder = Join-Path $userPrograms "Isora Sentinel"
+        if (Test-Path $smUserFolder) { Remove-Item -Path $smUserFolder -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+    $commonStartup = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonStartup)
+    if ($commonStartup) {
+        $scStartup = Join-Path $commonStartup "Isora Sentinel.lnk"
+        if (Test-Path $scStartup) { Remove-Item -Path $scStartup -Force -ErrorAction SilentlyContinue }
     }
 } catch {
     # Non-fatal if key could not be opened

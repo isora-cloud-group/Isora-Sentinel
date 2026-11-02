@@ -1,8 +1,9 @@
 # Enterprise SIEM Ingestion & Security Operations Guide — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
-**Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Compliance Standard:** ISO/IEC 27001:2022 Control A.8.15 (Logging and Monitoring)  
+**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
+**Control Mapping:** ISO/IEC 27001:2022 Control A.8.15 (Logging and Monitoring)
+**Software Version:** 2.4.7  
 **Telemetry Format:** UTF-8 JSON (RFC 8259) delimited by newlines (NDJSON)  
 **Supported Platforms:** Splunk Enterprise / Cloud, Elastic Stack (ELK), Datadog Log Management, Microsoft Sentinel (Azure Monitor)  
 
@@ -10,17 +11,17 @@
 
 ## 1. Zero-Dependency Ingestion Architecture
 
-Isora Sentinel avoids the pitfalls of running background daemon sockets or pushing TLS traffic directly inside PowerShell scripts. Instead, it emits structured, atomic forensic logs directly to the local filesystem at `C:\Program Files\Isora-Sentinel\logs\<EngineName>\*.log`.
+Isora Sentinel avoids the pitfalls of running background daemon sockets or pushing TLS traffic directly inside PowerShell scripts. Instead, it emits structured, atomic audit logs directly to the local filesystem at `C:\Program Files\Isora-Sentinel\logs\<EngineName>\*.log`.
 
 Industry-standard enterprise log forwarders (Splunk Universal Forwarder, Elastic Filebeat, Datadog Agent, Azure Monitor Agent) harvest these files in real time, handling local disk buffers, bandwidth throttling, compression, and TLS transmission to the central SIEM repository:
 
 ```mermaid
 flowchart TD
-    subgraph SentinelIT["Isora Sentinel Execution Layer"]
+    subgraph IsoraSentinel["Isora Sentinel Execution Layer"]
         Engines["Isora Sentinel Engines\n(NT AUTHORITY\\SYSTEM)"]
     end
 
-    subgraph LocalForensicStore["Local Telemetry Store (NTFS ACL Hardened)"]
+    subgraph LocalTelemetryStore["Local Telemetry Store (NTFS ACL Hardened)"]
         direction TB
         LogBitLocker["logs\\ISO_BitLocker_Audit\\*.log"]
         LogScreenshots["logs\\ISO_Cleanup_Screenshots\\*.log"]
@@ -64,7 +65,7 @@ To configure Isora Sentinel to output standardized NDJSON logs across all schedu
 # Set machine-wide environment variable (persistent across reboots):
 [System.Environment]::SetEnvironmentVariable("SENTINEL_LOG_FORMAT", "JSON", "Machine")
 
-# Optional: Override forensic log root directory:
+# Optional: Override audit log root directory:
 # [System.Environment]::SetEnvironmentVariable("SENTINEL_LOG_DIR", "D:\EnterpriseLogs\Isora Sentinel", "Machine")
 ```
 
@@ -115,14 +116,14 @@ Add to `%SPLUNK_HOME%\etc\system\local\inputs.conf`:
 [monitor://C:\Program Files\Isora-Sentinel\logs\...\*.log]
 disabled = false
 index = endpoint_compliance
-sourcetype = sentinel:it:json
+sourcetype = isora:sentinel:json
 multiline_event_extra_regex = false
 ```
 
 Add to `%SPLUNK_HOME%\etc\system\local\props.conf`:
 
 ```ini
-[sentinel:it:json]
+[isora:sentinel:json]
 SHOULD_LINEMERGE = false
 LINE_BREAKER = ([\r\n]+)
 TIME_PREFIX = \"Timestamp\":\s*\"
@@ -134,11 +135,11 @@ AUTO_KV_JSON = true
 #### Splunk Detection Rules (SPL):
 ```spl
 # Alert 1: Security Event Log Cleared (Anti-Forensics / T1070)
-index=endpoint_compliance sourcetype="sentinel:it:json" Level="ERROR" Message="*Audit Log Cleared*"
+index=endpoint_compliance sourcetype="isora:sentinel:json" Level="ERROR" Message="*Audit Log Cleared*"
 | table Timestamp, Host, Identity, Message, Metadata.EventID
 
 # Alert 2: BitLocker Encryption Dropped Below 100%
-index=endpoint_compliance sourcetype="sentinel:it:json" Metadata.AuditStandard="*A.8.24*" Metadata.ProtectionStatus!="On"
+index=endpoint_compliance sourcetype="isora:sentinel:json" Metadata.AuditStandard="*A.8.24*" Metadata.ProtectionStatus!="On"
 | table Timestamp, Host, Metadata.MountPoint, Metadata.ProtectionStatus, Metadata.EncryptionPct
 ```
 
@@ -176,7 +177,7 @@ application: "isora-sentinel" and Level: ("WARN" or "ERROR")
 ---
 
 ### 4.3. Datadog Log Agent
-Add to `C:\ProgramData\Datadog\conf.d\sentinel_it.d\conf.yaml`:
+Add to `C:\ProgramData\Datadog\conf.d\isora_sentinel.d\conf.yaml`:
 
 ```yaml
 logs:
@@ -195,11 +196,11 @@ logs:
 ### 4.4. Microsoft Sentinel (Azure Monitor Agent)
 Create a Data Collection Rule (DCR) targeting custom text logs:
 * **File Pattern:** `C:\Program Files\Isora-Sentinel\logs\*\*.log`
-* **Custom Table:** `SentinelIT_CL`
+* **Custom Table:** `IsoraSentinel_CL`
 
 #### Microsoft Sentinel Detection Rule (KQL):
 ```kql
-SentinelIT_CL
+IsoraSentinel_CL
 | where TimeGenerated >= ago(24h)
 | where Level_s == "ERROR" or (Level_s == "WARN" and Message_s has "BRUTE-FORCE")
 | extend EventID = tostring(parse_json(Metadata_s).EventID)

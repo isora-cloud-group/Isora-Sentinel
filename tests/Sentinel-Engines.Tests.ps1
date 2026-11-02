@@ -24,15 +24,17 @@ Describe "Isora Sentinel Engines Suite Tests" {
     }
 
     Context "Script Signatures and Parameter Validation" {
-        It "Invoke-CleanupScreenshots accepts -AuditOnly switch" {
+        It "Invoke-CleanupScreenshots accepts -Apply and -AuditOnly switches" {
             $scriptPath = Join-Path $script:EnginesDir "Invoke-CleanupScreenshots.ps1"
             $cmd = Get-Command $scriptPath
+            $cmd.Parameters.ContainsKey("Apply") | Should -Be $true
             $cmd.Parameters.ContainsKey("AuditOnly") | Should -Be $true
         }
 
-        It "Invoke-CleanupTempGlobal accepts -AuditOnly and -DaysOld parameters" {
+        It "Invoke-CleanupTempGlobal accepts -Apply, -AuditOnly and -DaysOld parameters" {
             $scriptPath = Join-Path $script:EnginesDir "Invoke-CleanupTempGlobal.ps1"
             $cmd = Get-Command $scriptPath
+            $cmd.Parameters.ContainsKey("Apply") | Should -Be $true
             $cmd.Parameters.ContainsKey("AuditOnly") | Should -Be $true
             $cmd.Parameters.ContainsKey("DaysOld") | Should -Be $true
         }
@@ -66,13 +68,28 @@ Describe "Isora Sentinel Engines Suite Tests" {
             $cmd.Parameters.ContainsKey("MaxEventsToLog") | Should -Be $true
         }
 
-        It "Invoke-ArchiveDownloads accepts -DaysOld, -CustomArchiveDir and -AuditOnly parameters" {
+        It "Invoke-ArchiveDownloads accepts -Apply, -DaysOld, -CustomArchiveDir and -AuditOnly parameters" {
             $scriptPath = Join-Path $script:EnginesDir "Invoke-ArchiveDownloads.ps1"
             $cmd = Get-Command $scriptPath
+            $cmd.Parameters.ContainsKey("Apply") | Should -Be $true
             $cmd.Parameters.ContainsKey("DaysOld") | Should -Be $true
             $cmd.Parameters.ContainsKey("CustomArchiveDir") | Should -Be $true
             $cmd.Parameters.ContainsKey("AuditOnly") | Should -Be $true
             $cmd.Parameters.ContainsKey("IncludeSubdirectories") | Should -Be $true
+        }
+
+        It "Destructive engines default to safe audit-only mode without -Apply" {
+            $sScript = Join-Path $script:EnginesDir "Invoke-CleanupScreenshots.ps1"
+            $tScript = Join-Path $script:EnginesDir "Invoke-CleanupTempGlobal.ps1"
+            $aScript = Join-Path $script:EnginesDir "Invoke-ArchiveDownloads.ps1"
+
+            $sCmd = Get-Command $sScript
+            $tCmd = Get-Command $tScript
+            $aCmd = Get-Command $aScript
+
+            $sCmd.Parameters.ContainsKey("Apply") | Should -Be $true
+            $tCmd.Parameters.ContainsKey("Apply") | Should -Be $true
+            $aCmd.Parameters.ContainsKey("Apply") | Should -Be $true
         }
     }
 }

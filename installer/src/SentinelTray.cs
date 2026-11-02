@@ -1,8 +1,8 @@
-﻿using SentinelIT;
+﻿using IsoraSentinel;
 // ============================================================================
 // Isora Sentinel Suite - Monitor de Bandeja del Sistema (System Tray)
 // Copyright (c) 2026 Sandra Gabriela Puerto Torres
-// Licencia: MIT (Open Source)
+// Licencia: Apache-2.0 (Open Source)
 // ============================================================================
 
 using System;
@@ -18,11 +18,12 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace SentinelIT.Tray
+namespace IsoraSentinel.Tray
 {
     // =========================================================================
     //  IDENTIDAD DEL PRODUCTO (un solo lugar; debe coincidir con el instalador
@@ -31,10 +32,10 @@ namespace SentinelIT.Tray
     internal static class Branding
     {
         public const string ProductName   = "Isora Sentinel";
-        public const string Version       = "2.3.0";
+        public const string Version       = "2.4.7";
         public const string TaskFolder    = "Isora Sentinel";          // Carpeta en el Programador de tareas
         public const string UninstallKey  = "Isora-Sentinel";          // HKLM\...\Uninstall\<clave>
-        public const string AutoStartName = "SentinelIT_Tray";         // Valor en ...\Run (igual que el instalador)
+        public const string AutoStartName = "IsoraSentinel_Tray";         // Valor en ...\Run (igual que el instalador)
         public const string SetupExe      = "Isora-Sentinel-Setup.exe";
         public const string MutexName     = @"Local\IsoraSentinel.TrayMonitor";
     }
@@ -268,6 +269,209 @@ namespace SentinelIT.Tray
     // =========================================================================
     //  CONTEXTO PRINCIPAL
     // =========================================================================
+
+    // =========================================================================
+    //  EXTRACCION DE PROGRESO DE PROCESOS EN EJECUCION (0% - 100%)
+    // =========================================================================
+    public class TaskProgressInfo
+    {
+        public string Engine = "";
+        public string Activity = "";
+        public string Status = "";
+        public int Percent = 0;
+        public int Pid = 0;
+        public DateTime UpdatedAt = DateTime.MinValue;
+        public bool Completed = false;
+        public string FilePath = "";
+
+        public bool IsActive()
+        {
+            if (Completed) return false;
+            if (Pid > 0)
+            {
+                try
+                {
+                    Process p = Process.GetProcessById(Pid);
+                    try
+                    {
+                        if (p.HasExited) return false;
+                    }
+                    catch (System.ComponentModel.Win32Exception)
+                    {
+                        // En Windows, consultar HasExited sobre un proceso elevado desde un proceso
+                        // con token estándar genera Win32Exception (Acceso denegado).
+                        // Esto demuestra fehacientemente que el proceso existe y está en ejecución con privilegios elevados.
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        return false;
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    // El proceso con este PID ya no existe
+                    return false;
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    // Acceso denegado en GetProcessById confirma que el proceso existe y está protegido/elevado
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+            if (UpdatedAt > DateTime.MinValue && (DateTime.UtcNow - UpdatedAt).TotalSeconds > 300)
+                return false;
+            return true;
+        }
+
+        public string GetProgressBar(int length)
+        {
+            int p = Math.Max(0, Math.Min(100, Percent));
+            int filled = (int)Math.Round((p / 100.0) * length);
+            if (filled > length) filled = length;
+            if (filled < 0) filled = 0;
+            return "[" + new string('\u2588', filled) + new string('\u2591', length - filled) + "] " + p + "%";
+        }
+
+        public static TaskProgressInfo Parse(string json)
+        {
+            TaskProgressInfo info = new TaskProgressInfo();
+            if (string.IsNullOrEmpty(json)) return info;
+            try
+            {
+                Match mEng = Regex.Match(json, @"""engine""\s*:\s*""([^""]+)""");
+                if (mEng.Success) info.Engine = mEng.Groups[1].Value;
+
+                Match mAct = Regex.Match(json, @"""activity""\s*:\s*""([^""]+)""");
+                if (mAct.Success) info.Activity = mAct.Groups[1].Value;
+
+                Match mStat = Regex.Match(json, @"""status""\s*:\s*""([^""]+)""");
+                if (mStat.Success) info.Status = mStat.Groups[1].Value;
+
+                Match mPct = Regex.Match(json, @"""percent""\s*:\s*(\d+)");
+                if (mPct.Success) int.TryParse(mPct.Groups[1].Value, out info.Percent);
+
+                Match mPid = Regex.Match(json, @"""pid""\s*:\s*(\d+)");
+                if (mPid.Success) int.TryParse(mPid.Groups[1].Value, out info.Pid);
+
+                Match mDate = Regex.Match(json, @"""updated_at""\s*:\s*""([^""]+)""");
+                if (mDate.Success) DateTime.TryParse(mDate.Groups[1].Value, null, System.Globalization.DateTimeStyles.AdjustToUniversal, out info.UpdatedAt);
+
+                Match mComp = Regex.Match(json, @"""completed""\s*:\s*(true|false)", RegexOptions.IgnoreCase);
+                if (mComp.Success) info.Completed = (mComp.Groups[1].Value.ToLower() == "true");
+            }
+            catch { }
+            return info;
+        }
+
+        public static bool MatchesTask(string engineName, string taskName)
+        {
+            if (string.IsNullOrEmpty(engineName) || string.IsNullOrEmpty(taskName)) return false;
+            string cleanEng = engineName.Replace("ISO_", "").Replace("Invoke-", "").Replace(".ps1", "").Replace("-", "_").Trim();
+            string cleanTask = taskName.Replace("ISO_", "").Replace("Invoke-", "").Replace(".ps1", "").Replace("-", "_").Trim();
+            return string.Equals(cleanEng, cleanTask, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static List<TaskProgressInfo> FindAllActiveProgress(string installDir)
+        {
+            List<TaskProgressInfo> activeList = new List<TaskProgressInfo>();
+            List<string> dirs = new List<string>();
+            string progData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            if (!string.IsNullOrEmpty(progData)) dirs.Add(Path.Combine(progData, @"Isora-Sentinel\status"));
+            if (!string.IsNullOrEmpty(installDir)) dirs.Add(Path.Combine(installDir, @"logs\.status"));
+            string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrEmpty(localApp)) dirs.Add(Path.Combine(localApp, @"Isora-Sentinel\status"));
+            dirs.Add(Path.Combine(Path.GetTempPath(), @"Isora-Sentinel\status"));
+
+            HashSet<string> seenEngines = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string d in dirs)
+            {
+                try
+                {
+                    if (!Directory.Exists(d)) continue;
+                    string[] files = Directory.GetFiles(d, "*.progress.json");
+                    foreach (string f in files)
+                    {
+                        try
+                        {
+                            string raw = File.ReadAllText(f, Encoding.UTF8);
+                            TaskProgressInfo info = Parse(raw);
+                            if (info != null)
+                            {
+                                info.FilePath = f;
+                                if (info.IsActive())
+                                {
+                                    if (!seenEngines.Contains(info.Engine))
+                                    {
+                                        seenEngines.Add(info.Engine);
+                                        activeList.Add(info);
+                                    }
+                                }
+                                else if (info.Completed || !info.IsActive())
+                                {
+                                    try { File.Delete(f); } catch { }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            }
+
+            // Detección sintética de respaldo: Si hay un proceso pesado como Defender o DISM corriendo
+            // en segundo plano pero su archivo .progress.json fue purgado o aún no se ha escrito,
+            // se expone dinámicamente en el menú para que el usuario siempre pueda ver su avance y cancelarlo.
+            if (activeList.Count == 0)
+            {
+                try
+                {
+                    Process[] defProcs = Process.GetProcessesByName("MpCmdRun");
+                    if (defProcs != null && defProcs.Length > 0)
+                    {
+                        TaskProgressInfo synth = new TaskProgressInfo();
+                        synth.Engine = "ISO_Defender_Scan";
+                        synth.Activity = "Análisis de Microsoft Defender";
+                        synth.Status = "Escaneando archivos en segundo plano...";
+                        synth.Percent = 50;
+                        synth.Pid = defProcs[0].Id;
+                        synth.UpdatedAt = DateTime.UtcNow;
+                        activeList.Add(synth);
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    Process[] dismProcs = Process.GetProcessesByName("dism");
+                    if (dismProcs != null && dismProcs.Length > 0)
+                    {
+                        TaskProgressInfo synth = new TaskProgressInfo();
+                        synth.Engine = "ISO_Integrity_Check";
+                        synth.Activity = "Comprobación de Windows (DISM)";
+                        synth.Status = "Operación de componentes en curso...";
+                        synth.Percent = 50;
+                        synth.Pid = dismProcs[0].Id;
+                        synth.UpdatedAt = DateTime.UtcNow;
+                        activeList.Add(synth);
+                    }
+                }
+                catch { }
+            }
+
+            return activeList;
+        }
+
+        public static TaskProgressInfo FindActiveProgress(string installDir)
+        {
+            List<TaskProgressInfo> list = FindAllActiveProgress(installDir);
+            return (list != null && list.Count > 0) ? list[0] : null;
+        }
+    }
+
     public class SentinelTrayContext : ApplicationContext
     {
         // Códigos de resultado internos (los scripts devuelven 0 = correcto, >0 = incidencias)
@@ -287,8 +491,15 @@ namespace SentinelIT.Tray
         private NotifyIcon trayIcon;
         private ContextMenuStrip menu;
         private ToolStripMenuItem itemIntegrity;
+        private ToolStripMenuItem itemLiveProgress;
+        private ToolStripMenuItem itemLiveProgressBar;
+        private ToolStripMenuItem itemLiveCancel;
+        private ToolStripSeparator itemLiveProgressSep;
+        private TaskProgressInfo currentActiveProgress = null;
         private ToolStripMenuItem itemAutoStart;
         private System.Windows.Forms.Timer integrityTimer;
+        private System.Windows.Forms.Timer progressTimer;
+        private string lastIntegrityTip = "Isora Sentinel — Comprobando instalación";
         private Control invoker;                 // para volver al hilo de UI
         private string installDir;
         private string logsDir;
@@ -337,12 +548,18 @@ namespace SentinelIT.Tray
             iconFont = PickIconFont();
             LocateDirectories();
             InitializeTray();
+            CleanupLegacyStartupAndProcesses();
 
             RefreshIntegrityAsync(false);
             integrityTimer = new System.Windows.Forms.Timer();
             integrityTimer.Interval = 30 * 60 * 1000;   // reverificación cada 30 min
             integrityTimer.Tick += delegate { RefreshIntegrityAsync(false); };
             integrityTimer.Start();
+
+            progressTimer = new System.Windows.Forms.Timer();
+            progressTimer.Interval = 750;   // sondeo de avance en tiempo real cada 750 ms
+            progressTimer.Tick += delegate { PollTaskProgress(); };
+            progressTimer.Start();
         }
 
         // ---------------------------------------------------------------------
@@ -367,6 +584,13 @@ namespace SentinelIT.Tray
             string key = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + Branding.UninstallKey;
             try
             {
+                // Consultar vista nativa de 64 bits primero
+                using (RegistryKey baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
+                using (RegistryKey rk = baseKey.OpenSubKey(key))
+                {
+                    string v = (rk != null) ? rk.GetValue("InstallLocation") as string : null;
+                    if (!string.IsNullOrEmpty(v)) return v;
+                }
                 using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(key))
                 {
                     string v = (rk != null) ? rk.GetValue("InstallLocation") as string : null;
@@ -394,12 +618,19 @@ namespace SentinelIT.Tray
 
             string pf = Environment.GetEnvironmentVariable("ProgramW6432");
             if (string.IsNullOrEmpty(pf)) pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string defaultProg = Path.Combine(pf, "Isora Sentinel");
 
-            if (Directory.Exists(defaultProg))
+            string defHyphen = Path.Combine(pf, "Isora-Sentinel");
+            string defSpace  = Path.Combine(pf, "Isora Sentinel");
+
+            if (Directory.Exists(defHyphen))
             {
-                installDir = defaultProg;
-                logsDir = Path.Combine(defaultProg, "logs");
+                installDir = defHyphen;
+                logsDir = Path.Combine(defHyphen, "logs");
+            }
+            else if (Directory.Exists(defSpace))
+            {
+                installDir = defSpace;
+                logsDir = Path.Combine(defSpace, "logs");
             }
             else
             {
@@ -410,11 +641,26 @@ namespace SentinelIT.Tray
 
         private string ResolveEngine(string scriptName)
         {
-            string p = Path.Combine(installDir, @"engines\" + scriptName);
-            if (!File.Exists(p)) p = Path.Combine(installDir, @"src\engines\" + scriptName);
-            if (!File.Exists(p)) p = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\src\engines\" + scriptName);
-            if (!File.Exists(p)) p = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, scriptName);
-            return p;
+            string[] baseDirs = new string[] {
+                installDir,
+                @"C:\Program Files\Isora-Sentinel",
+                @"C:\Program Files\Isora Sentinel",
+                AppDomain.CurrentDomain.BaseDirectory,
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @".."),
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\src")
+            };
+
+            foreach (string dir in baseDirs)
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                string p1 = Path.Combine(dir, @"engines\" + scriptName);
+                if (File.Exists(p1)) return p1;
+                string p2 = Path.Combine(dir, @"src\engines\" + scriptName);
+                if (File.Exists(p2)) return p2;
+                string p3 = Path.Combine(dir, scriptName);
+                if (File.Exists(p3)) return p3;
+            }
+            return Path.Combine(installDir ?? @"C:\Program Files\Isora-Sentinel", @"engines\" + scriptName);
         }
 
         private static bool IsAdministrator()
@@ -558,6 +804,7 @@ namespace SentinelIT.Tray
         {
             menu = new ContextMenuStrip();
             menu.AutoClose = true;
+            menu.Opening += delegate { PollTaskProgress(); };
             menu.Closed += delegate
             {
                 if (dummyForm != null && !dummyForm.IsDisposed)
@@ -589,6 +836,32 @@ namespace SentinelIT.Tray
             itemIntegrity.Image = StatusDot(TrayTheme.TextMuted);
             itemIntegrity.ToolTipText = "Comprobando que los archivos de la instalación no hayan sido modificados.";
             menu.Items.Add(itemIntegrity);
+
+            // ---- Indicador de avance de tareas en ejecución (0% - 100%) ----
+            itemLiveProgress = NewItem("⚡ Sin tareas en ejecución (sistema en reposo)", G_Sync, null);
+            itemLiveProgress.Font = TrayTheme.Font(8.5F, FontStyle.Regular);
+            itemLiveProgress.ForeColor = TrayTheme.TextMuted;
+            itemLiveProgress.Enabled = false;
+            itemLiveProgress.Visible = true;
+            menu.Items.Add(itemLiveProgress);
+
+            itemLiveProgressBar = NewItem("  [░░░░░░░░░░░░] 0%", null, null);
+            itemLiveProgressBar.Font = new Font("Consolas", 8.5F, FontStyle.Regular);
+            itemLiveProgressBar.ForeColor = TrayTheme.TextMuted;
+            itemLiveProgressBar.Visible = false;
+            menu.Items.Add(itemLiveProgressBar);
+
+            itemLiveCancel = NewItem("  ⛔ Cancelar tarea en ejecución…", null, delegate { CancelActiveTask(); });
+            itemLiveCancel.Font = TrayTheme.Font(8.5F, FontStyle.Bold);
+            itemLiveCancel.ForeColor = Color.FromArgb(220, 38, 38); // Red
+            itemLiveCancel.ShortcutKeyDisplayString = "Administrador";
+            itemLiveCancel.ToolTipText = "Detiene y finaliza inmediatamente el proceso de la tarea en ejecución.";
+            itemLiveCancel.Visible = false;
+            menu.Items.Add(itemLiveCancel);
+
+            itemLiveProgressSep = new ToolStripSeparator();
+            itemLiveProgressSep.Visible = true;
+            menu.Items.Add(itemLiveProgressSep);
 
             menu.Items.Add(new ToolStripSeparator());
 
@@ -624,15 +897,15 @@ namespace SentinelIT.Tray
             menuTasks.DropDownItems.Add(NewSectionLabel(Loc.T("LIMPIEZA Y ORDEN", "CLEANUP & ORDER")));
             menuTasks.DropDownItems.Add(NewModuleItem("Eliminar capturas de pantalla", G_Camera,
                 "Elimina las capturas de pantalla guardadas en su cuenta, incluidas las carpetas sincronizadas con la nube.",
-                false, "Eliminar capturas de pantalla", "Invoke-CleanupScreenshots.ps1", "",
+                false, "Eliminar capturas de pantalla", "Invoke-CleanupScreenshots.ps1", "-Apply",
                 "Se eliminarán de forma permanente las capturas de pantalla guardadas en su cuenta, incluidas las de carpetas sincronizadas con la nube (OneDrive, Google Drive, Dropbox).\n\nEsta acción no se puede deshacer.",
                 true));
             menuTasks.DropDownItems.Add(NewModuleItem("Liberar espacio (archivos temporales)", G_Delete,
                 "Borra archivos temporales, informes de errores y cachés para liberar espacio en disco.",
-                false, "Liberar espacio", "Invoke-CleanupTempGlobal.ps1", "", null, false));
+                false, "Liberar espacio", "Invoke-CleanupTempGlobal.ps1", "-Apply", null, false));
             menuTasks.DropDownItems.Add(NewModuleItem("Organizar y archivar descargas", G_Folder,
                 "Organiza y archiva los archivos de su carpeta Descargas.",
-                false, "Organizar descargas", "Invoke-ArchiveDownloads.ps1", "",
+                false, "Organizar descargas", "Invoke-ArchiveDownloads.ps1", "-Apply",
                 "Se organizarán y archivarán los archivos de su carpeta Descargas.", false));
 
             menuTasks.DropDownItems.Add(NewSectionLabel(Loc.T("SEGURIDAD", "SECURITY")));
@@ -679,24 +952,27 @@ namespace SentinelIT.Tray
             menu.Items.Add(itemLogs);
 
             ToolStripMenuItem itemCfg = NewItem("Programar tareas…", G_Settings, delegate { OpenConfig(); });
-            itemCfg.ToolTipText = "Elija qué tareas se ejecutan automáticamente, cuándo y con qué frecuencia.";
+            itemCfg.ShortcutKeyDisplayString = "Administrador";
+            itemCfg.ToolTipText = "Requiere permisos de administrador. Configura las tareas automáticas del Programador de tareas de Windows.";
             menu.Items.Add(itemCfg);
 
             itemAutoStart = NewItem("Iniciar con Windows", null, delegate { OnAutoStartClicked(); });
             itemAutoStart.ToolTipText = "Abre este icono automáticamente cuando inicie sesión.";
             bool byUser = IsAutoStartForUser();
             bool byMachine = IsAutoStartForMachine();
-            if (byMachine && !byUser)
+            bool byCommonStartup = HasCommonStartupShortcut();
+            bool byUserStartup = HasUserStartupShortcut();
+            if ((byMachine || byCommonStartup) && !byUser)
             {
                 // Lo configuró la instalación para todos los usuarios: no se puede cambiar desde aquí.
-                itemAutoStart.Text = "Iniciar con Windows (lo gestiona TI)";
+                itemAutoStart.Text = Loc.T("Iniciar con Windows (administrado por el instalador)", "Start with Windows (managed by installer)");
                 itemAutoStart.Checked = true;
                 itemAutoStart.Enabled = false;
             }
             else
             {
                 itemAutoStart.CheckOnClick = true;
-                itemAutoStart.Checked = byUser;
+                itemAutoStart.Checked = byUser || byUserStartup;
             }
             menu.Items.Add(itemAutoStart);
 
@@ -726,7 +1002,7 @@ namespace SentinelIT.Tray
             };
         }
 
-        private Icon LoadTrayIcon()
+        internal static Icon LoadTrayIcon()
         {
             try
             {
@@ -804,7 +1080,9 @@ namespace SentinelIT.Tray
             Image old = itemIntegrity.Image;
             itemIntegrity.Image = StatusDot(dot);
             if (old != null) old.Dispose();
-            trayIcon.Text = tip;
+            lastIntegrityTip = tip;
+            if (itemLiveProgress == null || !itemLiveProgress.Visible)
+                trayIcon.Text = tip;
 
             if (showReport && r.State != IntegrityState.Checking) ShowIntegrityReport(r);
         }
@@ -865,7 +1143,7 @@ namespace SentinelIT.Tray
             sb.AppendLine("Mantenimiento y seguridad para equipos Windows: limpieza, análisis antimalware, comprobaciones de integridad y auditorías, con un registro de cada ejecución.");
             sb.AppendLine();
             sb.AppendLine("Autora: Sandra Gabriela Puerto Torres");
-            sb.AppendLine("Licencia: MIT (código abierto)");
+            sb.AppendLine("Licencia: Apache-2.0 (código abierto)");
             sb.AppendLine("Instalada en: " + installDir);
             sb.AppendLine();
             sb.AppendLine("Nuestra filosofía: Ubuntu");
@@ -895,17 +1173,19 @@ namespace SentinelIT.Tray
         {
             string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
             ProcessStartInfo psi = new ProcessStartInfo("powershell.exe");
-            psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand " + encoded;
             if (elevate)
             {
+                psi.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand " + encoded;
                 psi.UseShellExecute = true;
                 psi.Verb = "runas";
                 psi.WindowStyle = ProcessWindowStyle.Hidden;
             }
             else
             {
+                psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand " + encoded;
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
+                psi.WindowStyle = ProcessWindowStyle.Hidden;
             }
 
             Process p = new Process();
@@ -1044,7 +1324,7 @@ namespace SentinelIT.Tray
                 false, true)) return;
 
             string cmd = "$f = 0; foreach ($s in " + Q(a) + "," + Q(b) + ") { " +
-                         "$global:LASTEXITCODE = 0; try { & $s } catch { $f++; continue }; " +
+                         "$global:LASTEXITCODE = 0; try { & $s -Apply } catch { $f++; continue }; " +
                          "if ($LASTEXITCODE -ne 0) { $f++ } }; exit $f";
 
             running.Add(title);
@@ -1103,7 +1383,8 @@ namespace SentinelIT.Tray
                 else
                 {
                     sb.Append("schtasks.exe /Run /TN " + Q(Branding.TaskFolder + "\\" + task) + " 2>$null | Out-Null; ");
-                    sb.Append("if ($LASTEXITCODE -ne 0) { $global:LASTEXITCODE = 0; try { & " + Q(script) +
+                    string applyFallback = (task == "Cleanup_Screenshots" || task == "Cleanup_Temp_Global" || task == "Archive_Downloads") ? " -Apply" : "";
+                    sb.Append("if ($LASTEXITCODE -ne 0) { $global:LASTEXITCODE = 0; try { & " + Q(script) + applyFallback +
                               "; if ($LASTEXITCODE -ne 0) { $f++ } } catch { $f++ } }; ");
                 }
             }
@@ -1167,10 +1448,11 @@ namespace SentinelIT.Tray
             }
         }
 
-        private void OpenSetup()
+        private void OpenSetup() { OpenSetup(installDir); }
+        internal static void OpenSetup(string instDir)
         {
             List<string> candidates = new List<string>();
-            candidates.Add(Path.Combine(installDir, Branding.SetupExe));
+            if (!string.IsNullOrEmpty(instDir)) candidates.Add(Path.Combine(instDir, Branding.SetupExe));
             candidates.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Branding.SetupExe));
             string reg = InstallLocationFromRegistry();
             if (!string.IsNullOrEmpty(reg)) candidates.Add(Path.Combine(reg, Branding.SetupExe));
@@ -1182,7 +1464,7 @@ namespace SentinelIT.Tray
 
             if (setupExe == null)
             {
-                Msg("No se encontró el asistente de instalación en este equipo.\n\nVuelva a ejecutar el instalador original (" +
+                MessageBox.Show("No se encontró el asistente de instalación en este equipo.\n\nVuelva a ejecutar el instalador original (" +
                     Branding.SetupExe + ") o solicite apoyo al área de TI.",
                     Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -1196,13 +1478,65 @@ namespace SentinelIT.Tray
             }
             catch (Exception ex)
             {
-                Msg("No se pudo abrir el asistente de instalación.\n\nDetalle técnico: " + ex.Message,
+                MessageBox.Show("No se pudo abrir el asistente de instalación.\n\nDetalle técnico: " + ex.Message,
                     Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
+        internal static void RunPowerShellDirect(string cmd, bool elevate, Action<int> onDone)
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                int exitCode = 1;
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo();
+                    psi.FileName = "powershell.exe";
+                    psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"" + cmd + "\"";
+                    psi.CreateNoWindow = true;
+                    psi.UseShellExecute = elevate;
+                    if (elevate) psi.Verb = "runas";
+                    using (Process p = Process.Start(psi))
+                    {
+                        if (p != null)
+                        {
+                            p.WaitForExit();
+                            exitCode = p.ExitCode;
+                        }
+                    }
+                }
+                catch { }
+                if (onDone != null) onDone(exitCode);
+            });
+        }
+
         private void OpenConfig()
         {
+            // La configuración y consulta de tareas programadas del sistema requiere estrictamente elevación de administrador.
+            // Los usuarios estándar no tienen permisos para consultar tareas creadas como SYSTEM en el Programador de tareas de Windows.
+            if (!IsAdministrator())
+            {
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo();
+                    psi.FileName = Application.ExecutablePath;
+                    psi.Arguments = "--config";
+                    psi.Verb = "runas";
+                    psi.UseShellExecute = true;
+                    Process.Start(psi);
+                }
+                catch (Win32Exception)
+                {
+                    Notify(Branding.ProductName, "Se canceló la solicitud de permisos de administrador. Para ver y configurar las tareas programadas es obligatoria la elevación.", ToolTipIcon.Warning);
+                }
+                catch (Exception ex)
+                {
+                    Msg("No se pudo abrir la configuración con privilegios de administrador:\n\n" + ex.Message,
+                        Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                return;
+            }
+
             if (configForm != null && !configForm.IsDisposed)
             {
                 configForm.WindowState = FormWindowState.Normal;
@@ -1250,6 +1584,55 @@ namespace SentinelIT.Tray
             catch { return false; }
         }
 
+        private static bool HasCommonStartupShortcut()
+        {
+            try
+            {
+                string cs = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup);
+                return File.Exists(Path.Combine(cs, "Isora Sentinel.lnk"));
+            }
+            catch { return false; }
+        }
+
+        private static bool HasUserStartupShortcut()
+        {
+            try
+            {
+                string us = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                return File.Exists(Path.Combine(us, "Isora Sentinel.lnk"));
+            }
+            catch { return false; }
+        }
+
+        private void CleanupLegacyStartupAndProcesses()
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunKey, true))
+                {
+                    if (key != null)
+                    {
+                        string[] checkValues = new string[] { Branding.AutoStartName, "IsoraSentinel_Tray", "Isora-Sentinel-Tray" };
+                        foreach (string cv in checkValues)
+                        {
+                            object val = key.GetValue(cv);
+                            if (val != null)
+                            {
+                                string sVal = val.ToString().Replace("\"", "").Trim();
+                                if (sVal.IndexOf("(Join-Path", StringComparison.OrdinalIgnoreCase) >= 0 ||
+
+                                    !File.Exists(sVal))
+                                {
+                                    key.DeleteValue(cv, false);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
         private void OnAutoStartClicked()
         {
             bool enable = itemAutoStart.Checked;   // CheckOnClick ya alternó el estado
@@ -1258,8 +1641,24 @@ namespace SentinelIT.Tray
                 using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKey))
                 {
                     if (key == null) throw new InvalidOperationException("No se pudo abrir la clave de inicio de Windows.");
-                    if (enable) key.SetValue(Branding.AutoStartName, "\"" + Application.ExecutablePath + "\"");
-                    else key.DeleteValue(Branding.AutoStartName, false);
+                    if (enable)
+                    {
+                        key.SetValue(Branding.AutoStartName, "\"" + Application.ExecutablePath + "\"");
+                    }
+                    else
+                    {
+                        string[] checkValues = new string[] { Branding.AutoStartName, "IsoraSentinel_Tray", "Isora-Sentinel-Tray" };
+                        foreach (string cv in checkValues) key.DeleteValue(cv, false);
+                        try
+                        {
+                            string us = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                            string usLnk1 = Path.Combine(us, "Isora Sentinel.lnk");
+
+                            if (File.Exists(usLnk1)) File.Delete(usLnk1);
+
+                        }
+                        catch { }
+                    }
                 }
             }
             catch (Exception ex)
@@ -1268,6 +1667,98 @@ namespace SentinelIT.Tray
                 Msg("No se pudo cambiar el inicio automático.\n\nDetalle técnico: " + ex.Message,
                     Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
+        }
+
+
+        private void PollTaskProgress()
+        {
+            try
+            {
+                TaskProgressInfo info = TaskProgressInfo.FindActiveProgress(installDir);
+                currentActiveProgress = info;
+                if (info != null && info.IsActive())
+                {
+                    string shortTitle = "Isora Sentinel: " + info.Activity + " (" + info.Percent + "%)";
+                    if (shortTitle.Length > 63) shortTitle = shortTitle.Substring(0, 60) + "...";
+                    trayIcon.Text = shortTitle;
+
+                    if (itemLiveProgress != null)
+                    {
+                        itemLiveProgress.Text = "⚡ " + info.Activity + " [" + info.Percent + "%]";
+                        itemLiveProgress.Font = TrayTheme.Font(9.5F, FontStyle.Bold);
+                        itemLiveProgress.ForeColor = Color.FromArgb(2, 132, 199); // Sky blue
+                        itemLiveProgress.Enabled = true;
+                        itemLiveProgress.Visible = true;
+                    }
+                    if (itemLiveProgressBar != null)
+                    {
+                        string sub = "  " + info.GetProgressBar(12);
+                        if (!string.IsNullOrEmpty(info.Status)) sub += "  " + info.Status;
+                        itemLiveProgressBar.Text = sub;
+                        itemLiveProgressBar.Visible = true;
+                    }
+                    if (itemLiveCancel != null)
+                    {
+                        itemLiveCancel.Text = "  ⛔ Cancelar \"" + info.Activity + "\"…";
+                        itemLiveCancel.Visible = true;
+                        itemLiveCancel.Enabled = true;
+                    }
+                    if (itemLiveProgressSep != null) itemLiveProgressSep.Visible = true;
+                }
+                else
+                {
+                    if (itemLiveProgress != null)
+                    {
+                        itemLiveProgress.Text = "⚡ Sin tareas en ejecución (sistema en reposo)";
+                        itemLiveProgress.Font = TrayTheme.Font(8.5F, FontStyle.Regular);
+                        itemLiveProgress.ForeColor = TrayTheme.TextMuted;
+                        itemLiveProgress.Enabled = false;
+                        itemLiveProgress.Visible = true;
+                    }
+                    if (itemLiveProgressBar != null) itemLiveProgressBar.Visible = false;
+                    if (itemLiveCancel != null) itemLiveCancel.Visible = false;
+                    if (itemLiveProgressSep != null) itemLiveProgressSep.Visible = true;
+                    if (!string.IsNullOrEmpty(lastIntegrityTip)) trayIcon.Text = lastIntegrityTip;
+                }
+            }
+            catch { }
+        }
+
+        private void CancelActiveTask()
+        {
+            TaskProgressInfo target = currentActiveProgress ?? TaskProgressInfo.FindActiveProgress(installDir);
+            if (target == null || target.Pid <= 0)
+            {
+                Msg("No hay ninguna tarea activa que se pueda cancelar en este momento.", Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            DialogResult r = MessageBox.Show(dummyForm,
+                "¿Desea cancelar y detener de inmediato la ejecución de \"" + target.Activity + "\" (PID: " + target.Pid + ")?\n\n" +
+                "Esta operación requiere confirmación de permisos de administrador (UAC) para finalizar el árbol de procesos del sistema de forma segura.",
+                "Isora Sentinel · Cancelar Tarea en Ejecución",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (r != DialogResult.Yes) return;
+
+            string cmd = "try { & taskkill.exe /PID " + target.Pid + " /T /F } catch { }; " +
+                         "if ('" + target.Engine + "' -match 'Defender') { " +
+                         "  try { & $env:ProgramData\\Microsoft\\'Windows Defender'\\Platform\\*\\MpCmdRun.exe -Scan -Cancel } catch { }; " +
+                         "  try { & taskkill.exe /IM MpCmdRun.exe /F } catch { }; " +
+                         "}; " +
+                         "if ('" + target.Engine + "' -match 'Integrity|DISM') { try { & taskkill.exe /IM dism.exe /F } catch { } }; " +
+                         "$targetFile = '" + (target.FilePath ?? "").Replace("'", "''") + "'; " +
+                         "if ($targetFile -and (Test-Path $targetFile)) { Remove-Item $targetFile -Force -ErrorAction SilentlyContinue }; " +
+                         "$progDirs = @((Join-Path $env:ProgramData 'Isora-Sentinel\\status'), (Join-Path $env:LOCALAPPDATA 'Isora-Sentinel\\status'), (Join-Path ([System.IO.Path]::GetTempPath()) 'Isora-Sentinel\\status')); " +
+                         "foreach ($d in $progDirs) { if (Test-Path $d) { Get-ChildItem -Path $d -Filter '*" + target.Engine + "*.progress.json' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue } };";
+
+            RunPowerShell(cmd, true, delegate(int code)
+            {
+                currentActiveProgress = null;
+                PollTaskProgress();
+                Notify(Branding.ProductName, "Se ha cancelado y detenido la tarea \"" + target.Activity + "\".", ToolTipIcon.Info);
+            });
         }
 
         private void ExitMonitor()
@@ -1296,14 +1787,73 @@ namespace SentinelIT.Tray
         [STAThread]
         public static void Main(string[] args)
         {
+            try { SetProcessDPIAware(); } catch { }
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            if (args != null && args.Length > 0)
+            {
+                for (int i = 0; i < args.Length; i++)
+                {
+                    if (string.Equals(args[i], "--config", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(args[i], "--tasks", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!IsAdministrator())
+                        {
+                            try
+                            {
+                                ProcessStartInfo psi = new ProcessStartInfo();
+                                psi.FileName = Application.ExecutablePath;
+                                psi.Arguments = "--config";
+                                psi.Verb = "runas";
+                                psi.UseShellExecute = true;
+                                Process.Start(psi);
+                            }
+                            catch (Win32Exception)
+                            {
+                                // El usuario canceló la elevación de UAC
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show("Se requieren permisos de administrador para consultar y configurar las tareas programadas.\n\nDetalle: " + ex.Message,
+                                    Branding.ProductName + " · Elevación requerida", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            }
+                            return;
+                        }
+
+                        string instDir = AppDomain.CurrentDomain.BaseDirectory;
+                        TaskConfigForm cfg = new TaskConfigForm(instDir, LoadTrayIcon(), 1.0f,
+                            RunPowerShellDirect,
+                            delegate { OpenSetup(instDir); });
+                        Application.Run(cfg);
+                        return;
+                    }
+                }
+            }
+            // Terminar instancias huérfanas o duplicadas de versiones previas
+            try
+            {
+                int myPid = Process.GetCurrentProcess().Id;
+                string[] legacyNames = new string[] { "Isora-Sentinel-Tray", "IsoraSentinel-Tray", "SentinelTray" };
+                foreach (string leg in legacyNames)
+                {
+                    foreach (Process lp in Process.GetProcessesByName(leg))
+                    {
+                        if (lp.Id == myPid) continue;
+                        try { lp.Kill(); lp.WaitForExit(1000); } catch { }
+                    }
+                }
+            }
+            catch { }
+
             bool created;
             using (Mutex single = new Mutex(true, Branding.MutexName, out created))
             {
                 if (!created) return;   // ya hay un monitor activo en esta sesión
 
-                try { SetProcessDPIAware(); } catch { }
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
+
+
+
                 Application.Run(new SentinelTrayContext());
                 GC.KeepAlive(single);
             }

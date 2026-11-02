@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 //  Isora Sentinel Suite - Internationalization & Localization Engine (I18n)
 //  Copyright & Architecture: Sandra Gabriela Puerto Torres
 //  Distribution: Isora Cloud Group (https://isora.com.co)
@@ -8,7 +8,7 @@
 using System;
 using System.Globalization;
 
-namespace SentinelIT
+namespace IsoraSentinel
 {
     public enum Language
     {

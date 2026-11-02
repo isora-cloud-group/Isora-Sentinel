@@ -1,8 +1,8 @@
-﻿using SentinelIT;
+﻿using IsoraSentinel;
 // ============================================================================
 // Isora Sentinel Suite — Ventana de Tareas Programadas
 // Copyright (c) 2026 Sandra Gabriela Puerto Torres
-// Licencia: MIT (Open Source)
+// Licencia: Apache-2.0 (Open Source)
 // ============================================================================
 
 using System;
@@ -19,7 +19,7 @@ using System.Windows.Forms;
 using System.Xml;
 using Microsoft.Win32;
 
-namespace SentinelIT.Tray
+namespace IsoraSentinel.Tray
 {
     // =========================================================================
     //  TEMA DE LA VENTANA (cuerpo claro + cabecera oscura de marca)
@@ -56,6 +56,7 @@ namespace SentinelIT.Tray
     {
         public bool Exists = false;
         public bool Enabled = false;
+        public bool AccessDenied = false;
         public string Freq = null;    // Diario | Semanal | Mensual | Anual
         public string Time = null;    // HH:mm
         public int Day = -1;          // índice de día (semana: 0=Lunes; mes: 0=día 1)
@@ -420,6 +421,7 @@ namespace SentinelIT.Tray
 
         private float dpi = 1f;
         private bool loading = true;
+        private bool accessDenied = false;
         private bool suppress = false;
         private string baseline = "off";
         private string dayMode = "";
@@ -430,6 +432,9 @@ namespace SentinelIT.Tray
         private CfgLabel desc;
         private CfgLabel note;
         private StatusBadge badge;
+        private Button btnCancel;
+        private int activePid = 0;
+        private Action<string, int, string> cancelCallback;
         private FlowLayoutPanel schedule;
         private FlowLayoutPanel grpDate;
         private Label lblParam;
@@ -460,12 +465,13 @@ namespace SentinelIT.Tray
         public bool Dirty { get { return Snapshot() != baseline; } }
 
         public TaskConfigCard(string tName, string sName, string titleText, string cId, string descText,
-            string defaultFreq, int defaultDay, int defaultMonth, string defaultTime, float scale)
+            string defaultFreq, int defaultDay, int defaultMonth, string defaultTime, float scale, Action<string, int, string> onCancel)
         {
             TaskName = tName;
             ScriptName = sName;
             ControlId = cId;
             dpi = scale;
+            cancelCallback = onCancel;
 
             DoubleBuffered = true;
             ResizeRedraw = true;
@@ -553,6 +559,26 @@ namespace SentinelIT.Tray
             Controls.Add(desc);
             Controls.Add(schedule);
             Controls.Add(note);
+
+            btnCancel = new Button();
+            btnCancel.Text = "Cancelar ejecución";
+            btnCancel.UseMnemonic = false;
+            btnCancel.Font = ConfigTheme.F(8F, FontStyle.Bold);
+            btnCancel.ForeColor = Color.FromArgb(185, 28, 28);
+            btnCancel.BackColor = Color.FromArgb(254, 242, 242);
+            btnCancel.FlatStyle = FlatStyle.Flat;
+            btnCancel.FlatAppearance.BorderColor = Color.FromArgb(252, 165, 165);
+            btnCancel.FlatAppearance.BorderSize = 1;
+            btnCancel.Cursor = Cursors.Hand;
+            btnCancel.Visible = false;
+            btnCancel.Click += delegate
+            {
+                if (activePid > 0 && cancelCallback != null)
+                {
+                    cancelCallback(TaskName, activePid, title.Text);
+                }
+            };
+            Controls.Add(btnCancel);
 
             if (TaskName == "Defender_Scan")
             {
@@ -764,9 +790,38 @@ namespace SentinelIT.Tray
             Reflow();
         }
 
+        private bool isRunningNow = false;
+
+        public void UpdateRuntimeState(TaskProgressInfo progress)
+        {
+            if (loading) return;
+            if (progress != null && progress.IsActive())
+            {
+                isRunningNow = true;
+                activePid = progress.Pid;
+                int p = Math.Max(0, Math.Min(100, progress.Percent));
+                badge.Set("En ejecución (" + p + "%)", BadgeKind.Warning);
+                string bar = progress.GetProgressBar(8);
+                string stat = !string.IsNullOrEmpty(progress.Status) ? progress.Status : progress.Activity;
+                note.Text = "⚡ " + stat + "  " + bar;
+                note.Visible = true;
+                if (btnCancel != null) btnCancel.Visible = true;
+                Invalidate();
+            }
+            else if (isRunningNow)
+            {
+                isRunningNow = false;
+                activePid = 0;
+                if (btnCancel != null) btnCancel.Visible = false;
+                UpdateVisual();
+            }
+        }
+
         private void UpdateBadge()
         {
+            if (isRunningNow) return;
             if (loading) badge.Set("Consultando…", BadgeKind.Neutral);
+            else if (accessDenied) badge.Set("Requiere Administrador", BadgeKind.Warning);
             else if (Dirty) badge.Set("Sin guardar", BadgeKind.Warning);
             else if (toggle.Checked) badge.Set("Activa", BadgeKind.Success);
             else if (InitialExists) badge.Set("Desactivada", BadgeKind.Neutral);
@@ -791,6 +846,7 @@ namespace SentinelIT.Tray
             suppress = true;
             loading = false;
             toggle.Enabled = true;
+            accessDenied = false;
             InitialExists = true;
 
             if (!string.IsNullOrEmpty(st.Freq))
@@ -835,11 +891,29 @@ namespace SentinelIT.Tray
             if (Changed != null) Changed(this, EventArgs.Empty);
         }
 
+        public void SetAccessDenied()
+        {
+            suppress = true;
+            loading = false;
+            accessDenied = true;
+            toggle.Enabled = false;
+            InitialExists = false;
+            toggle.Checked = false;
+            suppress = false;
+
+            baseline = Snapshot();
+            note.Text = "⚠️ Permisos insuficientes para consultar el estado. Abra la ventana como Administrador.";
+            note.Visible = true;
+            UpdateVisual();
+            if (Changed != null) Changed(this, EventArgs.Empty);
+        }
+
         public void SetNotScheduled()
         {
             suppress = true;
             loading = false;
             toggle.Enabled = true;
+            accessDenied = false;
             InitialExists = false;
             toggle.Checked = false;
             suppress = false;
@@ -888,12 +962,16 @@ namespace SentinelIT.Tray
             if (toggle.Checked)
             {
                 string extraParam = "";
+                if (TaskName == "Cleanup_Screenshots" || TaskName == "Cleanup_Temp_Global" || TaskName == "Archive_Downloads")
+                {
+                    extraParam += " -Apply";
+                }
                 if (TaskName == "Archive_Downloads" && txtCustomPath != null)
                 {
                     string p = txtCustomPath.Text.Trim();
                     if (!string.IsNullOrEmpty(p))
                     {
-                        extraParam = " -CustomArchiveDir \\\"" + p.Replace("\"", "") + "\\\"";
+                        extraParam += " -CustomArchiveDir \\\"" + p.Replace("\"", "") + "\\\"";
                     }
                 }
                 else if (TaskName == "Defender_Scan" && cmbMode != null)
@@ -918,7 +996,7 @@ namespace SentinelIT.Tray
                 return "";
             }
             return "$p = Start-Process -FilePath 'schtasks.exe' -ArgumentList '" + args.Replace("'", "''") +
-                   "' -Wait -PassThru; if ($p.ExitCode -ne 0) { $errs++ }; ";
+                   "' -WindowStyle Hidden -Wait -PassThru; if ($p.ExitCode -ne 0) { $errs++ }; ";
         }
 
         // ---------------- Layout responsive ----------------
@@ -952,6 +1030,11 @@ namespace SentinelIT.Tray
                 title.SetBounds(textX, yTitle, titleW, th);
                 toggle.Location = new Point(p, yTitle + (th - toggle.Height) / 2);
                 badge.SetBounds(w - p - badgeW, yEyebrow, badgeW, badgeH);
+                if (btnCancel != null && isRunningNow)
+                {
+                    int btnW = Sz(130), btnH = Sz(24);
+                    btnCancel.SetBounds(w - p - btnW, yEyebrow + badgeH + Sz(3), btnW, btnH);
+                }
                 desc.SetBounds(textX, yDesc, fullW, dh);
                 if (schedule.Visible) schedule.SetBounds(textX, yBottom, fullW, bh);
                 else note.SetBounds(textX, yBottom, fullW, bh);
@@ -1015,6 +1098,7 @@ namespace SentinelIT.Tray
         private ToggleSwitch toggleAutoStart;
         private bool autoStartBaseline;
         private bool applying = false;
+        private System.Windows.Forms.Timer pollTimer;
 
         private Button btnApply;
         private Button btnClose;
@@ -1045,7 +1129,58 @@ namespace SentinelIT.Tray
             ClientSize = new Size(w, h);
             MinimumSize = new Size(Math.Min(Sz(520), wa.Width), Math.Min(Sz(460), wa.Height));
 
+            if (!IsAdministrator())
+            {
+                try
+                {
+                    ProcessStartInfo psiElevate = new ProcessStartInfo();
+                    psiElevate.FileName = Application.ExecutablePath;
+                    psiElevate.Arguments = "--config";
+                    psiElevate.Verb = "runas";
+                    psiElevate.UseShellExecute = true;
+                    Process.Start(psiElevate);
+                }
+                catch { }
+                Load += delegate { Close(); };
+                return;
+            }
+
+            EnsureTaskFolderReadAcl();
             BuildUI();
+
+            pollTimer = new System.Windows.Forms.Timer();
+            pollTimer.Interval = 800;
+            pollTimer.Tick += delegate { PollRunningTasks(); };
+            pollTimer.Start();
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            if (pollTimer != null) { pollTimer.Stop(); pollTimer.Dispose(); pollTimer = null; }
+            base.OnFormClosed(e);
+        }
+
+        private void PollRunningTasks()
+        {
+            if (IsDisposed || cards == null) return;
+            List<TaskProgressInfo> active = TaskProgressInfo.FindAllActiveProgress(installDir);
+            foreach (TaskConfigCard card in cards)
+            {
+                TaskProgressInfo matching = null;
+                if (active != null)
+                {
+                    foreach (TaskProgressInfo inf in active)
+                    {
+                        if (TaskProgressInfo.MatchesTask(inf.Engine, card.TaskName) ||
+                            TaskProgressInfo.MatchesTask(inf.Engine, card.ScriptName))
+                        {
+                            matching = inf;
+                            break;
+                        }
+                    }
+                }
+                card.UpdateRuntimeState(matching);
+            }
         }
 
         // ---------------- Construcción de la interfaz ----------------
@@ -1267,10 +1402,34 @@ namespace SentinelIT.Tray
         private void AddCard(CfgStack stack, string tName, string sName, string title, string cId, string desc,
             string defFreq, int defDay, int defMonth, string defTime)
         {
-            TaskConfigCard card = new TaskConfigCard(tName, sName, title, cId, desc, defFreq, defDay, defMonth, defTime, dpi);
+            TaskConfigCard card = new TaskConfigCard(tName, sName, title, cId, desc, defFreq, defDay, defMonth, defTime, dpi,
+                delegate(string tN, int pid, string tTitle) { HandleCancelTask(tN, pid, tTitle); });
             card.Changed += delegate { UpdatePending(); };
             cards.Add(card);
             stack.Controls.Add(card);
+        }
+
+        private void HandleCancelTask(string taskName, int pid, string titleText)
+        {
+            DialogResult dr = MessageBox.Show(this,
+                "¿Desea cancelar y finalizar de inmediato la ejecución activa de \"" + titleText + "\" (PID: " + pid + ")?\n\n" +
+                "Esta operación requiere confirmación de permisos de administrador (UAC) para finalizar el árbol de procesos del sistema de forma segura.",
+                "Isora Sentinel · Cancelar Tarea en Ejecución",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (dr != DialogResult.Yes) return;
+
+            string cmd = "try { & taskkill.exe /PID " + pid + " /T /F } catch { }; " +
+                         "if ('" + taskName + "' -match 'Defender') { try { & taskkill.exe /IM MpCmdRun.exe /F } catch { } }; " +
+                         "if ('" + taskName + "' -match 'Integrity|DISM') { try { & taskkill.exe /IM dism.exe /F } catch { } }; " +
+                         "$progDirs = @((Join-Path $env:ProgramData 'Isora-Sentinel\\status'), (Join-Path $env:LOCALAPPDATA 'Isora-Sentinel\\status'), (Join-Path ([System.IO.Path]::GetTempPath()) 'Isora-Sentinel\\status')); " +
+                         "foreach ($d in $progDirs) { if (Test-Path $d) { Get-ChildItem -Path $d -Filter '*" + taskName + "*.progress.json' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue } };";
+
+            runPsAction(cmd, true, delegate(int code)
+            {
+                PollRunningTasks();
+            });
         }
 
         // ---------------- Estado pendiente ----------------
@@ -1348,6 +1507,7 @@ namespace SentinelIT.Tray
                         {
                             TaskStateInfo st;
                             if (states.TryGetValue(c.TaskName, out st) && st.Exists) c.ApplyState(st);
+                            else if (st != null && st.AccessDenied) c.SetAccessDenied();
                             else c.SetNotScheduled();
                         }
                         UpdatePending();
@@ -1360,32 +1520,52 @@ namespace SentinelIT.Tray
         private static TaskStateInfo QueryTask(string taskName)
         {
             TaskStateInfo info = new TaskStateInfo();
-            try
+            string[] candidatePaths = new string[] {
+                "\\Isora Sentinel\\" + taskName,
+                "Isora Sentinel\\" + taskName,
+                "\\Isora-Sentinel\\" + taskName,
+                "Isora-Sentinel\\" + taskName,
+
+
+                "\\" + taskName,
+                taskName
+            };
+
+            foreach (string queryPath in candidatePaths)
             {
-                ProcessStartInfo psi = new ProcessStartInfo("schtasks.exe",
-                    "/Query /TN \"Isora Sentinel\\" + taskName + "\" /XML");
-                psi.CreateNoWindow = true;
-                psi.UseShellExecute = false;
-                psi.RedirectStandardOutput = true;
-
-                using (Process p = Process.Start(psi))
+                try
                 {
-                    string xml = p.StandardOutput.ReadToEnd();
-                    p.WaitForExit();
-                    if (p.ExitCode != 0) return info;
+                    ProcessStartInfo psi = new ProcessStartInfo("schtasks.exe",
+                        "/Query /TN \"" + queryPath + "\" /XML");
+                    psi.CreateNoWindow = true;
+                    psi.UseShellExecute = false;
+                    psi.RedirectStandardOutput = true;
+                    psi.RedirectStandardError = true;
+                    psi.StandardErrorEncoding = Encoding.UTF8;
+                    psi.StandardOutputEncoding = Encoding.UTF8;
 
-                    info.Exists = true;
-                    info.Enabled = true;
+                    using (Process p = Process.Start(psi))
+                    {
+                        string xml = p.StandardOutput.ReadToEnd();
+                        string err = p.StandardError.ReadToEnd();
+                        p.WaitForExit();
+                        if (p.ExitCode != 0 && !string.IsNullOrEmpty(err) && (err.IndexOf("denied", StringComparison.OrdinalIgnoreCase) >= 0 || err.IndexOf("denegado", StringComparison.OrdinalIgnoreCase) >= 0 || err.IndexOf("acceso", StringComparison.OrdinalIgnoreCase) >= 0)) info.AccessDenied = true;
+                        if (p.ExitCode == 0 && !string.IsNullOrEmpty(xml))
+                        {
+                            info.Exists = true;
+                            info.Enabled = true;
 
-                    // schtasks puede emitir UTF-16 o la página OEM: se limpian NULs y basura inicial.
-                    xml = (xml ?? "").Replace("\0", "");
-                    int lt = xml.IndexOf('<');
-                    if (lt > 0) xml = xml.Substring(lt);
+                            xml = xml.Replace("\0", "");
+                            int lt = xml.IndexOf('<');
+                            if (lt > 0) xml = xml.Substring(lt);
 
-                    try { ParseTaskXml(xml, info); } catch { }
+                            try { ParseTaskXml(xml, info); } catch { }
+                            return info;
+                        }
+                    }
                 }
+                catch { }
             }
-            catch { }
             return info;
         }
 
@@ -1465,9 +1645,25 @@ namespace SentinelIT.Tray
         // ---------------- Guardado ----------------
         private string ResolveEngine(string script)
         {
-            string p = Path.Combine(installDir, @"engines\" + script);
-            if (!File.Exists(p)) p = Path.Combine(installDir, @"src\engines\" + script);
-            return p;
+            string[] baseDirs = new string[] {
+                installDir,
+                @"C:\Program Files\Isora-Sentinel",
+                @"C:\Program Files\Isora Sentinel",
+                AppDomain.CurrentDomain.BaseDirectory,
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @".."),
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\src")
+            };
+            foreach (string dir in baseDirs)
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                string p1 = Path.Combine(dir, @"engines\" + script);
+                if (File.Exists(p1)) return p1;
+                string p2 = Path.Combine(dir, @"src\engines\" + script);
+                if (File.Exists(p2)) return p2;
+                string p3 = Path.Combine(dir, script);
+                if (File.Exists(p3)) return p3;
+            }
+            return Path.Combine(installDir ?? @"C:\Program Files\Isora-Sentinel", @"engines\" + script);
         }
 
         private void ApplyChanges()
@@ -1492,7 +1688,7 @@ namespace SentinelIT.Tray
                 string cmd = c.BuildCommand(script);
                 if (cmd.Length > 0) { sb.Append(cmd); dirtyTasks++; }
             }
-            sb.Append("exit $errs");
+            sb.Append("& icacls.exe \\\"$env:windir\\System32\\Tasks\\Isora Sentinel\\\" /grant \\\"*S-1-5-32-545:(OI)(CI)RX\\\" /Q 2>`$null; exit $errs");
 
             if (missing.Count > 0)
             {
@@ -1541,15 +1737,24 @@ namespace SentinelIT.Tray
             });
         }
 
-        // ---------------- Inicio automático (HKCU, usuario actual) ----------------
+        // ---------------- Inicio automático (HKCU / HKLM) ----------------
         private bool IsAutoStartEnabled()
         {
             try
             {
                 using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
-                    return k != null && k.GetValue("SentinelIT_Tray") != null;
+                {
+                    if (k != null && k.GetValue("IsoraSentinel_Tray") != null)
+                        return true;
+                }
+                using (RegistryKey k = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
+                {
+                    if (k != null && k.GetValue("IsoraSentinel_Tray") != null)
+                        return true;
+                }
             }
-            catch { return false; }
+            catch { }
+            return false;
         }
 
         private bool SetAutoStart(bool enable)
@@ -1559,8 +1764,8 @@ namespace SentinelIT.Tray
                 using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
                 {
                     if (k == null) throw new InvalidOperationException("Clave Run no disponible.");
-                    if (enable) k.SetValue("SentinelIT_Tray", "\"" + Application.ExecutablePath + "\"");
-                    else k.DeleteValue("SentinelIT_Tray", false);
+                    if (enable) k.SetValue("IsoraSentinel_Tray", "\"" + Application.ExecutablePath + "\"");
+                    else k.DeleteValue("IsoraSentinel_Tray", false);
                 }
                 return true;
             }
@@ -1599,6 +1804,27 @@ namespace SentinelIT.Tray
             }
             catch { }
             return null;
+        }
+
+        private static void EnsureTaskFolderReadAcl()
+        {
+            try
+            {
+                string windir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                string taskDir = Path.Combine(windir, @"System32\Tasks\Isora Sentinel");
+                if (Directory.Exists(taskDir))
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo("icacls.exe",
+                        "\"" + taskDir + "\" /grant *S-1-5-32-545:(OI)(CI)RX /Q");
+                    psi.CreateNoWindow = true;
+                    psi.UseShellExecute = false;
+                    using (Process p = Process.Start(psi))
+                    {
+                        if (p != null) p.WaitForExit(2000);
+                    }
+                }
+            }
+            catch { }
         }
 
         private static bool IsAdministrator()

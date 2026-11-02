@@ -19,8 +19,9 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_BitLocker_Audit"
+Set-SentinelProgress -Activity "Auditoría de BitLocker" -Percent 10 -Status "Detectando volúmenes de disco y controladores..."
 try { 
-    Assert-SentinelIntegrity 
+    $null = Assert-SentinelIntegrity 
 } catch { 
     Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
     throw 
@@ -52,11 +53,24 @@ try {
                 $volumes = $volumes | Where-Object { $_.MountPoint -eq $TargetMountPoint }
             }
 
+            $vTotal = [math]::Max(1, @($volumes).Count)
+            $vIdx = 0
             foreach ($vol in $volumes) {
+                $vIdx++
+                $vPct = 25 + [int](($vIdx / $vTotal) * 65)
+                Set-SentinelProgress -Activity "Auditoría de BitLocker" -Percent $vPct -Status "Verificando cifrado de $($vol.MountPoint)..."
                 $volumesAudited++
                 $isProtected = ($vol.ProtectionStatus -eq "On")
                 $isFullyEncrypted = ($vol.VolumeStatus -eq "FullyEncrypted")
-                $protectorTypes = ($vol.KeyProtector | ForEach-Object { $_.KeyProtectorType }) -join ";"
+                                $protectorList = @()
+                if ($vol.KeyProtector) {
+                    foreach ($kp in $vol.KeyProtector) {
+                        if ($kp.KeyProtectorType) {
+                            $protectorList += [string]$kp.KeyProtectorType
+                        }
+                    }
+                }
+                $protectorTypes = $protectorList -join ";" 
 
                 $meta = @{
                     MountPoint       = $vol.MountPoint
@@ -83,19 +97,30 @@ try {
     if (-not $cmdletSucceeded) {
         # Fallback to manage-bde.exe parsing (bilingual regex: English and Spanish)
         Write-AuditEntry "AUDIT: Invoking manage-bde.exe fallback..."
+        Set-SentinelProgress -Activity "Auditoría de BitLocker" -Percent 40 -Status "Ejecutando manage-bde.exe..."
         try {
             $bdeExe = Join-Path $env:SystemRoot "System32\manage-bde.exe"
             if (-not (Test-Path $bdeExe)) { $bdeExe = "manage-bde.exe" }
             $bdeOutput = & $bdeExe -status 2>&1 | Out-String
             $lines = $bdeOutput -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            $currentVol = $null
+            $volProtectionMap = @{}
             foreach ($line in $lines) {
                 Write-AuditEntry $line.Trim() -Level "INFO"
                 if ($line -match "(?:Volume|Volumen)\s+([A-Z]:)") { 
-                    $volumesAudited++ 
+                    $currentVol = $matches[1]
+                    if (-not $volProtectionMap.ContainsKey($currentVol)) {
+                        $volProtectionMap[$currentVol] = $true
+                    }
                 }
-                if ($line -match "Protection\s*Off|Protecci[oó]n\s*(?:desactivada|deshabilitada)|Conversion Status:\s*Fully Decrypted|Estado de conversi[oó]n:\s*Totalmente descifrado|Percentage Encrypted:\s*0|Porcentaje cifrado:\s*0") {
-                    $unprotectedCount++
+                if ($currentVol -and $line -match "Protection\s*Off|Protecci[oó]n\s*(?:desactivada|deshabilitada)|Conversion Status:\s*Fully Decrypted|Estado de conversi[oó]n:\s*Totalmente descifrado|Percentage Encrypted:\s*0(?:\.0)?%?|Porcentaje cifrado:\s*0(?:\.0)?%?") {
+                    $volProtectionMap[$currentVol] = $false
                 }
+            }
+            $volumesAudited = $volProtectionMap.Count
+            $unprotectedCount = 0
+            foreach ($isProt in $volProtectionMap.Values) {
+                if (-not $isProt) { $unprotectedCount++ }
             }
         } catch {
             Write-AuditEntry "AUDIT NOTICE: BitLocker management utilities are not available or not supported on this Windows edition." -Level "WARN" -Metadata @{ Error = $_.Exception.Message }
@@ -113,3 +138,5 @@ try {
 }
 
 Write-AuditEntry "=========================================================="
+
+Set-SentinelProgress -Activity "Auditoría de BitLocker" -Percent 100 -Status "Auditoría de cifrado concluida." -Completed

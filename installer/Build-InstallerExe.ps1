@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Builds the standalone GUI Installer executable (Isora-Sentinel-Setup.exe) for Isora Sentinel.
 .DESCRIPTION
@@ -59,6 +59,7 @@ New-Item -ItemType Directory -Path $TempBuildDir -Force | Out-Null
 $TraySource = Join-Path $ScriptDir "src\SentinelTray.cs"
 $ConfigFormSource = Join-Path $ScriptDir "src\TaskConfigForm.cs"
 $LocSource = Join-Path $ScriptDir "src\Localization.cs"
+$TrayManifest = Join-Path $ScriptDir "src\tray.manifest"
 $TrayExe = Join-Path $TempBuildDir "Isora-Sentinel-Tray.exe"
 
 $trayArgs = @(
@@ -66,7 +67,8 @@ $trayArgs = @(
     "/target:winexe",
     "/optimize+",
     "/platform:anycpu",
-    "/win32manifest:$AppManifest",
+    "/codepage:65001",
+    "/win32manifest:$TrayManifest",
     "/reference:System.dll",
     "/reference:System.Windows.Forms.dll",
     "/reference:System.Drawing.dll",
@@ -170,6 +172,17 @@ try {
         })
     }
 
+    # Add NOTICE
+    $noticeFile = Join-Path $ProjectRoot "NOTICE"
+    if (Test-Path $noticeFile) {
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $noticeFile, "NOTICE") | Out-Null
+        $bundledFiles.Add([PSCustomObject]@{
+            Path = "NOTICE"
+            Size = (Get-Item $noticeFile).Length
+            SHA256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $noticeFile).Hash
+        })
+    }
+
     # Add integrity.manifest.json
     $manifestFile = Join-Path $ProjectRoot "integrity.manifest.json"
     if (Test-Path $manifestFile) {
@@ -230,6 +243,7 @@ $cscArgs = @(
     "/optimize+",
     "/debug-",
     "/platform:anycpu",
+    "/codepage:65001",
     "/win32manifest:$AppManifest",
     "/reference:System.dll",
     "/reference:System.Windows.Forms.dll",
@@ -298,7 +312,7 @@ if ($proc.ExitCode -eq 0 -and (Test-Path $OutputExe)) {
     # 6. Generate Institutional Provenance Receipt (BUILD_PROVENANCE.json)
     $provenance = [ordered]@{
         artifact_name = [System.IO.Path]::GetFileName($OutputExe)
-        version = "2.3.0"
+                version       = "2.4.7" 
         timestamp_utc = (Get-Date).ToUniversalTime().ToString("o")
         architect = "Sandra Gabriela Puerto Torres"
         commercial_brand = "Isora Cloud Group"

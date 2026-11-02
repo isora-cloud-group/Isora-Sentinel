@@ -4,7 +4,7 @@
 .DESCRIPTION
     Validates audit trail integrity, dual-format forensic logging (Text & JSON),
     anti-log-injection sanitization, disk quota enforcement, and SIEM event serialization
-    aligned with ISO/IEC 27001:2022 Control A.8.15.
+    mapped to controls in ISO/IEC 27001:2022 Control A.8.15.
 #>
 
 $script:ModulePath = Join-Path $PSScriptRoot "..\src\lib\Sentinel-Logger.psm1"
@@ -115,6 +115,20 @@ Describe "Sentinel-Logger Module Tests" {
             $parsed.Timestamp | Should -Not -BeNullOrEmpty
             $parsed.Metadata.HostRole | Should -Be "DC"
         }
+
+        It "Emits valid RFC 8259 JSON with properly escaped backslashes when identity or message contains a backslash" {
+            Initialize-SentinelLog -EngineName "JsonEscapeTestEngine"
+            Write-AuditEntry -Message "Escaping test with backslash in domain\user" -Level "INFO" -Metadata @{ TestIdentity = "NT AUTHORITY\SYSTEM" }
+            (Test-Path $global:CurrentLogFile) | Should -Be $true
+
+            $rawLine = Get-Content -Path $global:CurrentLogFile | Select-Object -Last 1
+            $rawLine | Should -Not -BeNullOrEmpty
+
+            # Validate that ConvertFrom-Json parses without error
+            $parsed = $rawLine | ConvertFrom-Json
+            $parsed | Should -Not -BeNullOrEmpty
+            $parsed.Metadata.TestIdentity | Should -Be "NT AUTHORITY\SYSTEM"
+        }
     }
 
     Context "Log Retention and Quota Pruning" {
@@ -151,6 +165,43 @@ Describe "Sentinel-Logger Module Tests" {
             Clear-OldSentinelLogs -LogDir $quotaDir -RetentionDays 90 -MaxTotalSizeMB 2
             (Test-Path $oldFile) | Should -Be $false
             (Test-Path $newFile) | Should -Be $true
+        }
+    }
+
+    Context "Process Progress Extraction and Reporting" {
+        It "Set-SentinelProgress writes valid progress JSON and clamps percentages between 0 and 100" {
+            Initialize-SentinelLog -EngineName "ProgressUnitTestEngine"
+            
+            # Test percentage clamping
+            Set-SentinelProgress -Activity "Testing Progress" -Percent -15 -Status "Negative clamping test"
+            $p = Get-SentinelProgress -EngineName "ProgressUnitTestEngine"
+            $p | Should -Not -BeNullOrEmpty
+            $p.percent | Should -Be 0
+
+            Set-SentinelProgress -Activity "Testing Progress" -Percent 150 -Status "Over-100 clamping test"
+            $p = Get-SentinelProgress -EngineName "ProgressUnitTestEngine"
+            $p.percent | Should -Be 100
+
+            Set-SentinelProgress -Activity "Testing Progress" -Percent 65 -Status "Valid progress test"
+            $p = Get-SentinelProgress -EngineName "ProgressUnitTestEngine"
+            $p.percent | Should -Be 65
+            $p.activity | Should -Be "Testing Progress"
+            $p.status | Should -Be "Valid progress test"
+            $p.pid | Should -Be $PID
+            $p.completed | Should -Be $false
+        }
+
+        It "Set-SentinelProgress with -Completed marks task as finished at 100%" {
+            Initialize-SentinelLog -EngineName "ProgressCompleteEngine"
+            Set-SentinelProgress -Activity "Finishing Task" -Percent 80 -Status "Almost done"
+            Set-SentinelProgress -Activity "Finishing Task" -Percent 100 -Status "Task Complete" -Completed
+
+            $p = Get-SentinelProgress -EngineName "ProgressCompleteEngine"
+            $p.percent | Should -Be 100
+            $p.completed | Should -Be $true
+
+            Clear-SentinelProgress -EngineName "ProgressCompleteEngine"
+            (Get-SentinelProgress -EngineName "ProgressCompleteEngine") | Should -BeNullOrEmpty
         }
     }
 }

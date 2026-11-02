@@ -19,14 +19,15 @@ $TargetFiles = @(
     "src/engines/Invoke-DefenderScan.ps1",
     "src/engines/Invoke-EventAudit.ps1",
     "src/engines/Invoke-IntegrityCheck.ps1",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
 )
 
 $Hashes = [ordered]@{}
 foreach ($relPath in $TargetFiles) {
     $fullPath = Join-Path $ProjectRoot ($relPath -replace '/', '\')
     if (Test-Path -LiteralPath $fullPath) {
-        $key = if ($relPath -eq "LICENSE") { "LICENSE" } else { $relPath -replace '^src/', '' }
+        $key = if ($relPath -in @("LICENSE", "NOTICE")) { $relPath } else { $relPath -replace '^src/', '' }
         $keyNormalized = $key -replace '/', '\'
         $hashVal = (Get-FileHash -Algorithm SHA256 -LiteralPath $fullPath).Hash.ToLowerInvariant()
         $Hashes[$keyNormalized] = $hashVal
@@ -36,7 +37,7 @@ foreach ($relPath in $TargetFiles) {
 }
 
 $ManifestObj = [ordered]@{
-    version      = "2.3.0"
+        version       = "2.4.7" 
     algorithm    = "SHA256"
     author       = "Sandra Gabriela Puerto Torres"
     brand        = "Isora Cloud Group"

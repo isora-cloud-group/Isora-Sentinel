@@ -118,8 +118,12 @@ function Assert-SentinelIntegrity {
 
             if (-not (Test-Path -LiteralPath $targetPath)) {
                 $devPath = Join-Path $baseDir ("src\" + $relPath)
+                $parentPath = Join-Path (Split-Path $baseDir -Parent) $relPath
+
                 if (Test-Path -LiteralPath $devPath) {
                     $targetPath = $devPath
+                } elseif (Test-Path -LiteralPath $parentPath) {
+                    $targetPath = $parentPath
                 } else {
                     throw "Integrity Violation: File missing from Isora Sentinel installation: $relPath"
                 }

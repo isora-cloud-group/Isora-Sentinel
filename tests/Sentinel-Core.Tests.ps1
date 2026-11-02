@@ -4,7 +4,7 @@
 .DESCRIPTION
     Verifies administrative privilege assertion (Assert-IsAdmin), Microsoft Defender
     executable path resolution (Get-DefenderPlatformPath), and cryptographic manifest
-    integrity gating (Assert-SentinelIntegrity) aligned with ISO/IEC 27001:2022.
+    integrity gating (Assert-SentinelIntegrity) mapped to controls in ISO/IEC 27001:2022.
 #>
 
 $ModulePath = Join-Path $PSScriptRoot "..\src\lib\Sentinel-Core.psm1"

@@ -3,9 +3,9 @@
 **Repository:** `Isora Sentinel`  
 **Security Operations:** [security@isora.com.co](mailto:security@isora.com.co)  
 **General Contact:** [contact@isora.com.co](mailto:contact@isora.com.co)  
-**Revision:** 2.3.1  
-**Status:** Production / Audited Enterprise Grade A  
-**Sole Copyright Holder & Architecture:** Sandra Gabriela Puerto Torres  
+**Revision:** 2.4.7  
+**Status:** Production / Community & Open Source Release  
+**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres  
 **Commercial Brand & Distribution:** Isora Cloud Group (ICG)  
 
 ---
@@ -65,7 +65,7 @@ Security disclosures are handled under the following service level objectives:
 1. **Intake:** Receipt confirmed within the 48-hour SLA window.
 2. **Triage:** Reproduction and severity scoring under CVSS v3.1 standards.
 3. **Remediation:** Engineering of remediation validated across isolated Windows Server and Windows 10/11 environments.
-4. **Release:** Publishing of new signed release and updated cryptographic provenance.
+4. **Release:** Publishing of new release and updated cryptographic provenance.
 5. **Advisory:** Publication of security advisory detailing CVE/vulnerability scope with attribution to the researcher (unless anonymity requested).
 
 ---
@@ -103,11 +103,11 @@ Security research conducted in good faith against Isora Sentinel and its distrib
 
 ---
 
-## 7. Threat Model & Institutional Hardening Architecture
+## 7. Threat Model & Security Architecture
 
-Because Isora Sentinel executes maintenance routines under high operating system privileges (`NT AUTHORITY\SYSTEM` and elevated Administrator), the suite enforces rigorous defensive mechanisms aligned with Tier-1 banking and critical infrastructure requirements:
+Because Isora Sentinel executes maintenance routines under high operating system privileges (`NT AUTHORITY\SYSTEM` and elevated Administrator), the suite enforces defensive mechanisms designed to maintain endpoint integrity:
 
-1. **NTFS ACL Hardening (LPE & Tampering Prevention):**
+1. **NTFS ACL Lockdown (LPE & Tampering Defense):**
    The installation directory (`C:\Program Files\Isora-Sentinel\`) and log directory (`C:\Program Files\Isora-Sentinel\logs\`) enforce strict NTFS Access Control Lists:
    * `BUILTIN\Administrators`: Full Control (`F`)
    * `NT AUTHORITY\SYSTEM`: Full Control (`F`)
@@ -117,11 +117,12 @@ Because Isora Sentinel executes maintenance routines under high operating system
 2. **Real-Time TOCTOU & Junction Elimination:**
    During cache sanitization and screenshot purging, file paths are normalized and verified strictly within parent boundaries. Real-time Win32 attributes (`[System.IO.File]::GetAttributes()`) are re-queried immediately prior to any file deletion or move. Any reparse point (NTFS junction or symbolic link) introduced between enumeration and action is rejected. Individual file deletions strictly disable recursion (`-Recurse:$false`) to eliminate cascading deletions through user junctions.
 
-3. **Strict Fail-Closed Integrity Enforcement:**
-   Every engine verifies `Assert-SentinelIntegrity`. When running under `NT AUTHORITY\SYSTEM` or elevated administrator contexts, any modified, corrupted, or missing file causes an immediate fail-closed termination (`throw`) and logs a high-priority forensic alert.
+3. **Tamper-Evident Integrity Enforcement:**
+   Every engine verifies `Assert-SentinelIntegrity`. When running under `NT AUTHORITY\SYSTEM` or elevated administrator contexts, any modified, corrupted, or missing file causes an immediate fail-closed termination (`throw`) and logs a high-priority security alert.  
+   *Limitation Note:* The manifest is not signed, so a local administrator can alter both scripts and manifest; the check detects accidental corruption or unsophisticated modification.
 
-4. **Zero-Maintenance Disk Quota Protection (6-Month Unattended Stability):**
-   To ensure 100% endpoint stability when running unattended over multi-month intervals without engineer intervention:
+4. **Zero-Maintenance Disk Quota Protection:**
+   To maintain endpoint stability when running unattended:
    * **Automated Log Pruning:** Logs older than 90 days are pruned automatically.
    * **Log Directory Quota Cap:** `Clear-OldSentinelLogs` enforces a maximum total size quota (default 250 MB). If disk consumption exceeds this threshold, the oldest logs are automatically pruned until total size is within the limit, preventing disk exhaustion denial-of-service.
    * **SIEM Log Injection Defense:** All audit entries and metadata fields are sanitized to remove carriage returns and line feeds, ensuring single-line RFC 8259 NDJSON and text log integrity.
@@ -129,17 +130,17 @@ Because Isora Sentinel executes maintenance routines under high operating system
 5. **Task Scheduler Execution Limits & Laptop Resilience:**
    Scheduled tasks registered under `NT AUTHORITY\SYSTEM` are configured with:
    * `ExecutionTimeLimit = 2 Hours`: Automatically terminates any hung or deadlocked processes.
-   * `StartWhenAvailable = True`: Guarantees missed tasks execute immediately when endpoints power on or resume from sleep.
+   * `StartWhenAvailable = True`: Instructs Windows Task Scheduler to run missed tasks when endpoints power on or resume from sleep.
    * `MultipleInstancesPolicy = IgnoreNew`: Prevents process stacking or race conditions.
 
-6. **Bilingual Forensic Parsing (Latin American Enterprise Compatibility):**
-   Engines parsing native Windows utilities (such as `manage-bde.exe` for BitLocker disk encryption) incorporate bilingual regex evaluators (English and Spanish) to ensure accurate compliance reporting without false-negative evasion on systems deployed in regions such as Colombia (`es-CO`).
+6. **Bilingual Evaluation Support:**
+   Engines parsing native Windows utilities (such as `manage-bde.exe` for BitLocker disk encryption) incorporate bilingual regex evaluators (English and Spanish) to ensure accurate reporting across regions such as Colombia (`es-CO`).
 
 ---
 
-## 8. Transparent Auditing & Verification for Security Teams
+## 8. Transparent Auditing & Verification
 
-To assist enterprise SOC teams, red/blue teams, and institutional auditing firms (e.g., Kaspersky, central banks, lead ISO 27001 auditors), the distribution executable `Isora-Sentinel-Setup.exe` provides non-intrusive inspection switches:
+To assist system administrators, security teams, and auditors, the distribution executable `Isora-Sentinel-Setup.exe` provides non-intrusive inspection switches:
 
 ### 8.1 In-Memory SHA-256 Digest Audit
 Inspect and verify all embedded scripts against `integrity.manifest.json` without launching the GUI or modifying the system:
@@ -157,7 +158,7 @@ Extract the complete embedded package files into an isolated directory for stati
 ### 8.3 Offline Inspector Script
 Auditors can also inspect the binary using the provided PowerShell verification harness:
 ```powershell
-powershell -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.ps1 -InstallerPath installer\Isora-Sentinel-Setup.exe
+powershell.exe -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.ps1 -InstallerPath installer\Isora-Sentinel-Setup.exe
 ```
 
 ---
@@ -169,6 +170,6 @@ powershell -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.ps1 -
 | Repository | `Isora Sentinel` |
 | Security Contact | security@isora.com.co |
 | General Contact | contact@isora.com.co |
-| Revision | 2.3.1 |
-| Status | Production / Audited Enterprise Grade A |
+| Revision | 2.4.7 |
+| Status | Production / Community & Open Source Release |
 | Classification | Public Security Policy |

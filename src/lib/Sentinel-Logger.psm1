@@ -32,7 +32,7 @@ function Clear-OldSentinelLogs {
             if (-not $logDirItem -or ($logDirItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
                 return
             }
-            $normalizedLogDir = [System.IO.Path]::GetFullPath($LogDir).TrimEnd('\', '/')
+            $normalizedLogDir = [System.IO.Path]::GetFullPath($LogDir).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
 
             # 1. Prune files older than retention days
             $cutoff = (Get-Date).AddDays(-$RetentionDays)
@@ -75,6 +75,7 @@ function Initialize-SentinelLog {
         [Parameter(Mandatory=$false)][string]$LogDir = $global:SentinelLogDir,
         [Parameter(Mandatory=$false)][int]$RetentionDays = 90
     )
+    $global:SentinelCurrentEngine = $EngineName
     $effectiveLogDir = if ($LogDir) { $LogDir } else { $global:SentinelLogDir }
     $LogPath = Join-Path $effectiveLogDir $EngineName
 
@@ -152,4 +153,115 @@ function Write-AuditEntry {
     } catch { }
 }
 
-Export-ModuleMember -Function Initialize-SentinelLog, Write-AuditEntry, Clear-OldSentinelLogs
+
+$global:SentinelProgressDir = $null
+$global:SentinelCurrentEngine = $null
+
+function Get-SentinelProgressDir {
+    if ($global:SentinelProgressDir -and (Test-Path -LiteralPath $global:SentinelProgressDir)) {
+        return $global:SentinelProgressDir
+    }
+    $candidates = @()
+    if ($env:ProgramData) { $candidates += (Join-Path $env:ProgramData "Isora-Sentinel\status") }
+    if ($global:SentinelLogDir) { $candidates += (Join-Path $global:SentinelLogDir ".status") }
+    if ($env:LOCALAPPDATA) { $candidates += (Join-Path $env:LOCALAPPDATA "Isora-Sentinel\status") }
+    $candidates += (Join-Path ([System.IO.Path]::GetTempPath()) "Isora-Sentinel\status")
+
+    foreach ($dir in $candidates) {
+        try {
+            if (-not (Test-Path -LiteralPath $dir)) {
+                $null = New-Item -ItemType Directory -Path $dir -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path -LiteralPath $dir) {
+                $probe = Join-Path $dir (".probe_" + [Guid]::NewGuid().ToString("N"))
+                [System.IO.File]::WriteAllText($probe, "ok", $global:SentinelUtf8NoBom)
+                if (Test-Path -LiteralPath $probe) {
+                    Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
+                    $global:SentinelProgressDir = $dir
+                    return $dir
+                }
+            }
+        } catch { }
+    }
+    $global:SentinelProgressDir = [System.IO.Path]::GetTempPath()
+    return $global:SentinelProgressDir
+}
+
+function Set-SentinelProgress {
+    param(
+        [Parameter(Mandatory=$true)][string]$Activity,
+        [Parameter(Mandatory=$true)][int]$Percent,
+        [Parameter(Mandatory=$false)][string]$Status = "",
+        [Parameter(Mandatory=$false)][string]$EngineName = $global:SentinelCurrentEngine,
+        [Parameter(Mandatory=$false)][switch]$Completed
+    )
+
+    $clamped = [math]::Max(0, [math]::Min(100, $Percent))
+    if ($Completed) { $clamped = 100 }
+
+    # Native PowerShell Write-Progress for host listeners
+    try {
+        $statMsg = if ($Status) { "$Status ($clamped%)" } else { "Progreso: $clamped%" }
+        Write-Progress -Activity $Activity -Status $statMsg -PercentComplete $clamped -Completed:$Completed
+    } catch { }
+
+    # Emits live status file for external process monitors (Tray Monitor, Task Manager, SIEM)
+    try {
+        $pDir = Get-SentinelProgressDir
+        $eName = if ($EngineName) { $EngineName } else { "ISO_Engine" }
+        $safeFileName = ($eName -replace '[^a-zA-Z0-9_\-]', '_') + ".progress.json"
+        $statusFile = Join-Path $pDir $safeFileName
+
+        $obj = [ordered]@{
+            engine     = $eName
+            activity   = $Activity
+            status     = $Status
+            percent    = $clamped
+            pid        = $PID
+            updated_at = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ")
+            completed  = [bool]$Completed
+        }
+
+        $json = ($obj | ConvertTo-Json -Compress)
+        $tmp = "$statusFile.tmp.$PID"
+        [System.IO.File]::WriteAllText($tmp, $json, $global:SentinelUtf8NoBom)
+        if (Test-Path -LiteralPath $statusFile) {
+            Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
+        }
+        Move-Item -LiteralPath $tmp -Destination $statusFile -Force -ErrorAction SilentlyContinue
+    } catch { }
+}
+
+function Get-SentinelProgress {
+    param(
+        [Parameter(Mandatory=$false)][string]$EngineName = $global:SentinelCurrentEngine
+    )
+    try {
+        $pDir = Get-SentinelProgressDir
+        $eName = if ($EngineName) { $EngineName } else { "ISO_Engine" }
+        $safeFileName = ($eName -replace '[^a-zA-Z0-9_\-]', '_') + ".progress.json"
+        $statusFile = Join-Path $pDir $safeFileName
+        if (Test-Path -LiteralPath $statusFile) {
+            $raw = [System.IO.File]::ReadAllText($statusFile, [System.Text.Encoding]::UTF8)
+            return ($raw | ConvertFrom-Json)
+        }
+    } catch { }
+    return $null
+}
+
+function Clear-SentinelProgress {
+    param(
+        [Parameter(Mandatory=$false)][string]$EngineName = $global:SentinelCurrentEngine
+    )
+    try {
+        $pDir = Get-SentinelProgressDir
+        $eName = if ($EngineName) { $EngineName } else { "ISO_Engine" }
+        $safeFileName = ($eName -replace '[^a-zA-Z0-9_\-]', '_') + ".progress.json"
+        $statusFile = Join-Path $pDir $safeFileName
+        if (Test-Path -LiteralPath $statusFile) {
+            Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
+        }
+    } catch { }
+}
+
+Export-ModuleMember -Function Initialize-SentinelLog, Write-AuditEntry, Clear-OldSentinelLogs, Set-SentinelProgress, Get-SentinelProgress, Clear-SentinelProgress, Get-SentinelProgressDir

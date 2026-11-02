@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Asset Sanitization Engine - ISO/IEC 27001:2022 Control A.8.1
 .DESCRIPTION
@@ -9,6 +9,7 @@
 #>
 [CmdletBinding()]
 param(
+    [switch]$Apply,
     [switch]$AuditOnly
 )
 
@@ -18,17 +19,23 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Cleanup_Screenshots"
+Set-SentinelProgress -Activity "Limpieza de capturas de pantalla" -Percent 5 -Status "Iniciando motor y validando integridad..."
 try { 
-    Assert-SentinelIntegrity 
+    $null = Assert-SentinelIntegrity 
 } catch { 
     Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
     throw 
 }
 
+# Safe by default: Audit-only mode unless -Apply is explicitly specified.
+$AuditMode = (-not $Apply) -or $AuditOnly
+
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Cleanup_Screenshots] - SECURITY AUDIT START"
-if ($AuditOnly) {
-    Write-AuditEntry "   MODE: Audit-Only (Dry-Run / No files will be deleted)" -Level "WARN"
+if ($AuditMode) {
+    Write-AuditEntry "   MODE: Audit-Only (Dry-Run / Safe default / No files will be deleted)" -Level "WARN"
+} else {
+    Write-AuditEntry "   MODE: Apply (Active sanitization enabled via -Apply)" -Level "INFO"
 }
 Write-AuditEntry "=========================================================="
 
@@ -65,12 +72,17 @@ try {
             $Profiles += [PSCustomObject]@{ Name = $profileMap[$pKey]; FullName = $pKey }
         }
         Write-AuditEntry "DISCOVERY: Administrator/SYSTEM session - Scanning all profile objects." -Metadata @{ ProfileCount = $Profiles.Count }
+        Set-SentinelProgress -Activity "Limpieza de capturas de pantalla" -Percent 20 -Status "Analizando $($Profiles.Count) perfiles de usuario..."
     } else {
         $Profiles = @( [PSCustomObject]@{ Name = $env:USERNAME; FullName = $env:USERPROFILE } )
         Write-AuditEntry "SCOPE: Standard user session - Sanitization scoped to current user profile." -Metadata @{ User = $env:USERNAME }
     }
 
+    $profileIndex = 0
     foreach ($Profile in $Profiles) {
+        $profileIndex++
+        $pProgress = 25 + [int](($profileIndex / [math]::Max(1, $Profiles.Count)) * 65)
+        Set-SentinelProgress -Activity "Limpieza de capturas de pantalla" -Percent $pProgress -Status "Escaneando usuario $($Profile.Name) ($profileIndex de $($Profiles.Count))..."
         $UserName = $Profile.Name
         if ($UserName -match "^(All Users|Default|Default User|LocalService|NetworkService|Public)$") { continue }
         $ProfilePath = $Profile.FullName
@@ -78,7 +90,7 @@ try {
         $Vectors = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
         # 1. Authoritative Registry Discovery (User Shell Folders & Shell Folders)
-        $pKey = $ProfileList | Where-Object { $_.ProfileImagePath -eq $ProfilePath } | Select-Object -First 1
+        $pKey = @($ProfileList) | Where-Object { $_.ProfileImagePath -eq $ProfilePath } | Select-Object -First 1
         $sid = if ($pKey) { $pKey.PSChildName } else { $null }
 
         $regHives = @()
@@ -184,7 +196,7 @@ try {
                     $Assets = Get-ChildItem -LiteralPath $PathItem -File -Force -ErrorAction SilentlyContinue
                     if ($Assets -and $Assets.Count -gt 0) {
                         $TotalIdentified += $Assets.Count
-                        if ($AuditOnly) {
+                        if ($AuditMode) {
                             Write-AuditEntry "AUDIT: Found screenshot assets (Dry-Run)." -Level "INFO" -Metadata @{ User = $UserName; Path = $PathItem; Count = $Assets.Count }
                         } else {
                             $vectorPurged = 0
@@ -223,9 +235,10 @@ try {
         }
     }
 
-    $SummaryLevel = if ($AuditOnly -and $TotalIdentified -gt 0) { "WARN" } else { "SUCCESS" }
+    $SummaryLevel = if ($AuditMode -and $TotalIdentified -gt 0) { "WARN" } else { "SUCCESS" }
     Write-AuditEntry "RESULT: Asset sanitization cycle completed." -Level $SummaryLevel -Metadata @{ 
-        AuditOnly       = [string]$AuditOnly; 
+        AuditOnly       = [string]$AuditMode; 
+        Apply           = [string](-not $AuditMode);
         TotalIdentified = $TotalIdentified; 
         TotalPurged     = $TotalPurged 
     }
@@ -234,3 +247,5 @@ try {
 }
 
 Write-AuditEntry "=========================================================="
+
+Set-SentinelProgress -Activity "Limpieza de capturas de pantalla" -Percent 100 -Status "Limpieza finalizada ($TotalPurged eliminadas, $TotalIdentified detectadas)." -Completed

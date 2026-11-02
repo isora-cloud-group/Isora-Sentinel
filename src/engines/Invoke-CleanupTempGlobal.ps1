@@ -9,6 +9,7 @@
 #>
 [CmdletBinding()]
 param(
+    [switch]$Apply,
     [switch]$AuditOnly,
     [int]$DaysOld = 0
 )
@@ -19,17 +20,23 @@ Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Logger.psm1")
 Import-Module (Join-Path $ScriptDir "..\lib\Sentinel-Core.psm1")
 
 Initialize-SentinelLog -EngineName "ISO_Cleanup_Temp_Global"
+Set-SentinelProgress -Activity "Limpieza de archivos temporales" -Percent 5 -Status "Iniciando motor de optimización..."
 try { 
-    Assert-SentinelIntegrity 
+    $null = Assert-SentinelIntegrity 
 } catch { 
     Write-AuditEntry "INTEGRITY CRITICAL (HALTED): $($_.Exception.Message)" -Level "ERROR" -Metadata @{ SecurityViolation = "TamperDetected"; Aborted = "True" }
     throw 
 }
 
+# Safe by default: Audit-only mode unless -Apply is explicitly specified.
+$script:AuditMode = (-not $Apply) -or $AuditOnly
+
 Write-AuditEntry "=========================================================="
 Write-AuditEntry "   [ISO_Cleanup_Temp_Global] - CAPACITY RECLAMATION START"
-if ($AuditOnly) {
-    Write-AuditEntry "   MODE: Audit-Only (Dry-Run / No files will be deleted)" -Level "WARN"
+if ($script:AuditMode) {
+    Write-AuditEntry "   MODE: Audit-Only (Dry-Run / Safe default / No files will be deleted)" -Level "WARN"
+} else {
+    Write-AuditEntry "   MODE: Apply (Active deletion enabled via -Apply)" -Level "INFO"
 }
 Write-AuditEntry "=========================================================="
 
@@ -55,7 +62,7 @@ function Clean-Directory {
         $Count = 0
         $script:TotalIdentified += $Items.Count
 
-        if ($AuditOnly) {
+        if ($script:AuditMode) {
             Write-AuditEntry "AUDIT: Identified items in directory (Dry-Run)." -Level "INFO" -Metadata @{ Path = $Path; Count = $Items.Count }
             return
         }
@@ -116,7 +123,9 @@ try {
         $sysRoot = if ($env:SystemRoot) { $env:SystemRoot } else { "C:\WINDOWS" }
         $progData = if ($env:ProgramData) { $env:ProgramData } else { "C:\ProgramData" }
 
+        Set-SentinelProgress -Activity "Limpieza de archivos temporales" -Percent 20 -Status "Limpiando archivos temporales del sistema..."
         Clean-Directory (Join-Path $sysRoot "Temp")
+        Set-SentinelProgress -Activity "Limpieza de archivos temporales" -Percent 35 -Status "Limpiando caché de Windows Update y reportes WER..."
         Clean-Directory (Join-Path $sysRoot "SoftwareDistribution\Download")
         Clean-Directory (Join-Path $progData "Microsoft\Windows\WER\ReportQueue")
         Clean-Directory (Join-Path $progData "Microsoft\Windows\WER\Temp")
@@ -149,23 +158,40 @@ try {
             }
         }
 
+        $pTotal = [math]::Max(1, $profilePaths.Count)
+        $pIdx = 0
         foreach ($pPath in $profilePaths) {
+            $pIdx++
+            $pctProf = 50 + [int](($pIdx / $pTotal) * 45)
+            $leafName = Split-Path $pPath -Leaf
+            Set-SentinelProgress -Activity "Limpieza de archivos temporales" -Percent $pctProf -Status "Limpiando perfiles de usuario ($leafName)..."
             Clean-Directory (Join-Path $pPath "AppData\Local\Temp")
             Clean-Directory (Join-Path $pPath "AppData\Local\CrashDumps")
         }
     } else {
         Write-AuditEntry "SCOPE: Standard user session - Sanitization scoped to current user temp and cache." -Metadata @{ User = $env:USERNAME }
+        Set-SentinelProgress -Activity "Limpieza de archivos temporales" -Percent 30 -Status "Limpiando temporales del usuario..."
+        $userDirs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         $userTemp = [System.IO.Path]::GetTempPath()
-        Clean-Directory $userTemp
+        if ($userTemp) { [void]$userDirs.Add(([System.IO.Path]::GetFullPath($userTemp).TrimEnd('\', '/'))) }
         if ($env:LOCALAPPDATA) {
-            Clean-Directory (Join-Path $env:LOCALAPPDATA "Temp")
-            Clean-Directory (Join-Path $env:LOCALAPPDATA "CrashDumps")
+            [void]$userDirs.Add(([System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "Temp")).TrimEnd('\', '/')))
+            [void]$userDirs.Add(([System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "CrashDumps")).TrimEnd('\', '/')))
+        }
+        $uTotal = [math]::Max(1, $userDirs.Count)
+        $uIdx = 0
+        foreach ($uDir in $userDirs) {
+            $uIdx++
+            $pctU = 40 + [int](($uIdx / $uTotal) * 50)
+            Set-SentinelProgress -Activity "Limpieza de archivos temporales" -Percent $pctU -Status "Limpiando: $uDir..."
+            Clean-Directory $uDir
         }
     }
     
-    $SummaryLevel = if ($AuditOnly -and $TotalIdentified -gt 0) { "WARN" } else { "SUCCESS" }
+    $SummaryLevel = if ($script:AuditMode -and $TotalIdentified -gt 0) { "WARN" } else { "SUCCESS" }
     Write-AuditEntry "RESULT: Global Temp Reclamation completed." -Level $SummaryLevel -Metadata @{ 
-        AuditOnly       = [string]$AuditOnly; 
+        AuditOnly       = [string]$script:AuditMode; 
+        Apply           = [string](-not $script:AuditMode);
         TotalIdentified = $TotalIdentified; 
         TotalCleaned    = $TotalCleaned 
     }
@@ -174,3 +200,5 @@ try {
 }
 
 Write-AuditEntry "=========================================================="
+
+Set-SentinelProgress -Activity "Limpieza de archivos temporales" -Percent 100 -Status "Limpieza completada ($TotalCleaned archivos liberados)." -Completed

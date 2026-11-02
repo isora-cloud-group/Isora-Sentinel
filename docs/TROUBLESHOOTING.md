@@ -1,8 +1,8 @@
 # Diagnostic & Troubleshooting Guide — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
-**Sole Copyright Holder & Architect:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Software Version:** 2.3.0  
+**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
+**Software Version:** 2.4.7  
 
 This guide provides technical root-cause analysis and operational remediation steps for common error scenarios, return codes, and system integration points across **Isora Sentinel**.
 
@@ -18,6 +18,10 @@ This guide provides technical root-cause analysis and operational remediation st
 6. [Microsoft Defender Exit Codes (Invoke-DefenderScan)](#6-microsoft-defender-exit-codes-invoke-defenderscan)
 7. [PowerShell Execution Policy Restrictions](#7-powershell-execution-policy-restrictions)
 8. [Historical: RemainingScripts Parameter Binding Error](#8-historical-remainingscripts-parameter-binding-error)
+9. [System Tray Monitor Fails to Start Automatically on Windows Reboot](#9-system-tray-monitor-fails-to-start-automatically-on-windows-reboot)
+10. [Application Missing from Windows Start Menu & Search Bar](#10-application-missing-from-windows-start-menu--search-bar)
+11. [Scheduled Task Routines Show 'No programada' or Fail to Save](#11-scheduled-task-routines-show-no-programada-or-fail-to-save)
+12. [Multiple Shield Icons / Superseded Legacy Version (v2.2.0) Active in System Tray](#12-multiple-shield-icons--superseded-legacy-version-v220-active-in-system-tray)
 
 ---
 
@@ -158,3 +162,68 @@ if ($SafeMetadata.Count -gt 0) {
 }
 ```
 All current deployments running v2.2.0+ are completely immune to this issue.
+
+
+---
+
+## 9. System Tray Monitor Fails to Start Automatically on Windows Reboot
+
+### Symptom
+After restarting or logging into Windows, the system tray shield icon does not load automatically, even though "Iniciar con Windows" was checked in the tray settings.
+
+### Technical Root Cause
+1. **Manifest Elevation Conflict:** When an application is compiled with `<requestedExecutionLevel level="requireAdministrator" />`, the Windows user Shell (`explorer.exe`) blocks it from launching via `HKCU\...\Run` or `HKLM\...\Run` at user logon. Windows does not allow unprompted UAC elevation during the standard user logon sequence.
+2. **Missing Redundant Startup Shortcut:** Relying solely on registry `Run` keys can fail if Group Policies or third-party startup optimizers disable registry autostart entries.
+
+### Remediation (Implemented in v2.4.3)
+- `Isora-Sentinel-Tray.exe` is compiled with a dedicated `tray.manifest` specifying `requestedExecutionLevel level="asInvoker"`. This allows `explorer.exe` to start the monitor cleanly as a standard-user process at logon. When the user requests an administrative action (e.g. running a scan or saving task schedules), the monitor requests elevation on-demand.
+- The installer automatically registers an `.lnk` shortcut in the system-wide Startup folder:
+  `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\Isora Sentinel.lnk`
+- Both `HKLM` and `HKCU` autostart keys are maintained and validated.
+
+---
+
+## 10. Application Missing from Windows Start Menu & Search Bar
+
+### Symptom
+Isora Sentinel is visible in Windows Settings under "Installed Apps" / "Programs & Features", but typing "Isora Sentinel" into the Windows Search Bar or scrolling through the Start Menu yields no results.
+
+### Technical Root Cause
+The Windows Search indexer monitors `CommonPrograms` (`%ProgramData%\Microsoft\Windows\Start Menu\Programs`) and user `Programs` directories for `.lnk` shortcuts. Registering an application only in `Uninstall` registry keys provides Control Panel visibility but does not create an indexable shortcut in the Windows Shell shell hierarchy.
+
+### Remediation (Implemented in v2.4.3)
+The installer (`SentinelSetup.cs` and `Install-Sentinel.ps1`) automatically provisions a Start Menu entry:
+- Directory: `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Isora Sentinel`
+- Shortcut: `Isora Sentinel.lnk` pointing to `C:\Program Files\Isora-Sentinel\Isora-Sentinel-Tray.exe` with `app.ico` as its icon resource.
+- On uninstall, the shortcut directory is cleanly removed.
+
+---
+
+## 11. Scheduled Task Routines Show 'No programada' or Fail to Save
+
+### Symptom
+In `TaskConfigForm.cs`, all routines show "• No programada" (0 of 6 active) despite tasks existing in Task Scheduler (`taskschd.msc`), and clicking "Guardar cambios" fails to register modifications.
+
+### Technical Root Cause
+1. **Folder Namespace Discrepancy:** Previous installer versions registered tasks under varying path folders: `Isora-Sentinel\<Task>` (hyphenated) or root `<Task>`, whereas the GUI queried `Isora Sentinel\<Task>` (space).
+2. **UAC Secure Desktop Suppression:** When clicking "Guardar cambios", the C# form launched PowerShell with `ProcessWindowStyle.Hidden` alongside `Verb = "runas"`. As noted in Section 3, Windows 10/11 suppresses the interactive UAC consent prompt if the initiating window is hidden, silently terminating the elevation request.
+
+### Remediation (Implemented in v2.4.3)
+- Multi-namespace task query in `TaskConfigForm.cs` queries `Isora Sentinel`, `Isora-Sentinel`, and root task locations, correctly discovering registered tasks regardless of legacy folder naming.
+- `RunPowerShell` enforces `ProcessWindowStyle.Normal` when `elevate = true`, ensuring the UAC Secure Desktop prompt (`consent.exe`) appears reliably.
+
+---
+
+## 12. Multiple Shield Icons / Superseded Legacy Version (v2.2.0) Active in System Tray
+
+### Symptom
+Two shield icons appear in the notification area. Clicking one opens an older build, while clicking the other opens `Isora Sentinel Suite`.
+
+### Technical Root Cause
+1. **Restricted Process Discovery:** In earlier releases, `SentinelSetup.cs` only searched for standard processes named `Isora-Sentinel-Tray`. Superseded instances were left untouched.
+2. **Orphaned User Profile Run Keys:** A legacy entry in `HKCU\...\Run` pointed to an old development or installation path. Because the installer executed with elevated administrator credentials, it modified only the elevated user hive or `HKLM`, leaving the interactive user's profile launching the legacy binary on boot.
+
+### Remediation (Implemented in v2.4.3)
+- `TerminateExistingProcesses` scans all known process names (`Isora-Sentinel-Tray`, `IsoraSentinel-Tray`, `IsoraSentinelTray`, `SentinelTray`), system process paths, and terminates them prior to file extraction.
+- `CleanOrphanedAutoStartEntries` sweeps `HKCU`, `HKLM`, and all mounted user profile hives in `HKEY_USERS`, purging invalid, unexpanded, or legacy paths.
+- `Isora-Sentinel-Tray.exe` terminates any legacy instances upon startup before taking ownership of its single-instance mutex.
