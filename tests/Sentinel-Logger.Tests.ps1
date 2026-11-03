@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Enterprise unit tests for Sentinel-Logger module.
 .DESCRIPTION

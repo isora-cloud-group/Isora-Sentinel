@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Security Inspection and Integrity Verification Utility for Isora-Sentinel-Setup.exe.
 .DESCRIPTION

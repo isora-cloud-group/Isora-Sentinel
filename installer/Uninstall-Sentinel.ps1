@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Uninstaller for Isora Sentinel Suite (Bilingual English / Spanish)
 .DESCRIPTION
@@ -16,7 +16,7 @@ function Msg([string]$es, [string]$en) { if ($isEn) { return $en } else { return
 
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Isora Sentinel Suite Uninstaller" -ForegroundColor Cyan
-Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor Gray
+Write-Host " Copyright: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor Gray
 Write-Host " Operaciones de Seguridad: security@isora.com.co" -ForegroundColor DarkGray
 Write-Host " GitHub: https://github.com/sandra-puerto | LinkedIn: https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
@@ -142,6 +142,6 @@ try {
 Write-Host (Msg "`n[SUCCESS] Isora Sentinel ha sido desinstalado correctamente." "`n[SUCCESS] Isora Sentinel has been successfully uninstalled.") -ForegroundColor Cyan
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Isora Sentinel Suite" -ForegroundColor Cyan
-Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor White
+Write-Host " Copyright: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor White
 Write-Host " Operaciones de Seguridad: security@isora.com.co" -ForegroundColor Gray
 Write-Host " https://github.com/sandra-puerto | https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray

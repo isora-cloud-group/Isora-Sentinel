@@ -1,13 +1,13 @@
 ﻿{
     "artifact_name":  "Isora-Sentinel-Setup.exe",
-    "version":  "2.4.7",
-    "timestamp_utc":  "2026-11-02T04:07:54.0501532Z",
-    "architect":  "Sandra Gabriela Puerto Torres",
+    "version":  "2.5.0",
+    "timestamp_utc":  "2026-11-02T23:59:56.4961333Z",
+    "author":  "Sandra Gabriela Puerto Torres",
     "commercial_brand":  "Isora Cloud Group",
     "compiler":  "Microsoft .NET Framework csc.exe v4.0.30319",
     "compiler_flags":  "/target:winexe /optimize+ /platform:anycpu",
-    "sha256":  "5A2F5268212907F7282EAF1D1463EADD059CD8B006FC59E6952D1E93D092AEB3",
-    "size_bytes":  572496,
+    "sha256":  "55E2E164882EEEE41FAFCAA0682F08D4F1A5EC940715B4F6E780ACD9EE6BCB84",
+    "size_bytes":  604240,
     "signed":  true,
     "signer":  "CN=Sandra Gabriela Puerto Torres (Isora Cloud Group)",
     "signer_thumbprint":  "76902C77B35AA818C55514C67AC04FAE65AE2285",
@@ -15,53 +15,53 @@
     "bundled_files":  [
                           {
                               "Path":  "src\\engines\\Invoke-ArchiveDownloads.ps1",
-                              "Size":  15676,
-                              "SHA256":  "987942DB3D4A4C0AB013C19C82DEB8A07828F03AABC290F5F437D187EBC05D20"
+                              "Size":  16185,
+                              "SHA256":  "9DC8F63C6BB1C74212715F53ABD98B9B3B5533B62FBE9D95FF6EC6CA3E3D8B91"
                           },
                           {
                               "Path":  "src\\engines\\Invoke-BitLockerAudit.ps1",
-                              "Size":  7049,
-                              "SHA256":  "D159915020639DEE3B20B22D3B65DFEFE4AAAA6DD47710E7E7E1BEC5EF96D6FD"
+                              "Size":  7052,
+                              "SHA256":  "A69536F239A5A1D62D445C1CB20A7E75B13A0137C70927CAFABCF538B256CEA3"
                           },
                           {
                               "Path":  "src\\engines\\Invoke-CleanupScreenshots.ps1",
-                              "Size":  13382,
-                              "SHA256":  "DCA8E5D3533365C3BCC3CB41BCB07B1AF3CC3F4AAB64757CDF55C65284898D8A"
+                              "Size":  13934,
+                              "SHA256":  "0404E35D72A1D6DACE7B20D89C1649101CCFBC98D63B277688F69A77A0011C62"
                           },
                           {
                               "Path":  "src\\engines\\Invoke-CleanupTempGlobal.ps1",
-                              "Size":  10012,
-                              "SHA256":  "B6CF35E33696E24A603C8C245EA4C58F2EBA8D519D487A70AD5D281198F7B26F"
+                              "Size":  10377,
+                              "SHA256":  "C7C01D687B14E13C613A1CDA15446706A01E582A560F1DB09338B5B37C3EC0EC"
                           },
                           {
                               "Path":  "src\\engines\\Invoke-DefenderScan.ps1",
-                              "Size":  9466,
-                              "SHA256":  "C2317DCD25881B484BCE6C76D905FC035A71686EF47417AF91BC2BD4A4BE6771"
+                              "Size":  12382,
+                              "SHA256":  "D9F8CD706DE054A3F8C7DC76C83992E2C0162C76AA913F54B64E3D6E8738A85E"
                           },
                           {
                               "Path":  "src\\engines\\Invoke-EventAudit.ps1",
-                              "Size":  9751,
-                              "SHA256":  "A6022A11BCA3EA29D2CF2269F17003D690C440B818BAD7060154C626B5B5C13C"
+                              "Size":  9754,
+                              "SHA256":  "2BE7DB7C8B813A40D13933034408DFA4A3A5BF1FC1C4D3745401FEF3A66C99C2"
                           },
                           {
                               "Path":  "src\\engines\\Invoke-IntegrityCheck.ps1",
-                              "Size":  6724,
-                              "SHA256":  "ACAFFDA846E97D5891658E65BFF1471B0BBE7E6D7078C3546C8F91A3AEC15AD1"
+                              "Size":  9162,
+                              "SHA256":  "AF084F55C9E68B050593E60C6D01776CD5836D3F1C0A48D9389A4C71FAF09263"
                           },
                           {
                               "Path":  "src\\lib\\Sentinel-Core.psm1",
-                              "Size":  6173,
-                              "SHA256":  "D4CC1B1C035A43479774E6F16EFFDB3E824021FC70E049173857407E8C3088A5"
+                              "Size":  9463,
+                              "SHA256":  "A591698106B012580C365FADFF5299A38EEDA6BB24C0F5DA4279CCDD03D79B57"
                           },
                           {
                               "Path":  "src\\lib\\Sentinel-Logger.psm1",
-                              "Size":  12606,
-                              "SHA256":  "F8E1B0D7092B9CFC56F058D0D9A9392D0C73F19BAC942CAC050BAFCA8BAEF013"
+                              "Size":  14168,
+                              "SHA256":  "874A0F02B0E2DE20FBFB7722ACED57606BD2CC9238C50AF345E795656D152EFF"
                           },
                           {
                               "Path":  "Isora-Sentinel-Tray.exe",
-                              "Size":  427600,
-                              "SHA256":  "CF8889BEE0C12776C9D90D015A1F4E04133A49DFAAADEF6F0F5874C1D0F297BD"
+                              "Size":  441936,
+                              "SHA256":  "3782271858E4D51EAA9CECEE77ED8D68DD4E718E3256BC5CCC68F906071DD847"
                           },
                           {
                               "Path":  "app.ico",
@@ -80,18 +80,18 @@
                           },
                           {
                               "Path":  "NOTICE",
-                              "Size":  207,
-                              "SHA256":  "B93D0A3065CDDA4B876C9EC17078BA6B0B0A0A3CA89D9AD739BC23A95B6B8543"
+                              "Size":  376,
+                              "SHA256":  "EFC832C7B07DDFFEF2A5D2087B7F87C901819E19D5A5C6A225D610CEAA44FBA5"
                           },
                           {
                               "Path":  "integrity.manifest.json",
                               "Size":  1542,
-                              "SHA256":  "B6C7388C39CC0375F85C6310694D760083426AFA695FC323E1FCB9A91DCBE685"
+                              "SHA256":  "3796055F5C7F4F100FBA7669B0570C4AA8CB8A606C78A3E8F974FAC3EC693A41"
                           },
                           {
                               "Path":  "Uninstall-Sentinel.ps1",
-                              "Size":  8285,
-                              "SHA256":  "1CC59963D28D6D1AD0658E297CE689E4BF6B3D546C967F30EA0EF7F2DB651F3F"
+                              "Size":  8258,
+                              "SHA256":  "FB659A4AA25748E9E65C8409B397D1C46F726CE8C17A5EA4FC49FC890CE1DE91"
                           }
                       ]
 }

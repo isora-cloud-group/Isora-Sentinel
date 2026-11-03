@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Endpoint Security Engine - ISO/IEC 27001:2022 Control A.8.7
 .DESCRIPTION
@@ -88,18 +88,22 @@ try {
 
     # 2. Antimalware Scan Execution
     # Ensure no orphaned or stuck MpCmdRun instance is locking the engine
+    $hadStuckScan = $false
     try {
         Get-Process -Name "MpCmdRun" -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $PID } | ForEach-Object {
+            $hadStuckScan = $true
             Write-AuditEntry "ENGINE: Found existing MpCmdRun instance (PID: $($_.Id)). Clearing scan lock..." -Level "WARN"
             try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch { }
         }
     } catch { }
 
-    # If the Defender service still holds an internal scan lock, request cancellation of stuck jobs
-    try {
-        & $DefenderPath -Scan -Cancel 2>&1 | Out-Null
-        Start-Sleep -Milliseconds 600
-    } catch { }
+    # Only request service-level scan cancellation if a stuck MpCmdRun instance was actually present
+    if ($hadStuckScan) {
+        try {
+            & $DefenderPath -Scan -Cancel 2>&1 | Out-Null
+            Start-Sleep -Seconds 2
+        } catch { }
+    }
 
     Write-AuditEntry "SCAN: Invoking Defender $ScanTypeName..." -Metadata @{ ScanType = $ScanType }
     Set-SentinelProgress -Activity "Análisis Defender ($ScanTypeName)" -Percent 35 -Status "Iniciando $ScanTypeName..."
@@ -115,53 +119,104 @@ try {
     $proc.StartInfo = $psi
     $scanOutputList = New-Object System.Collections.Generic.List[string]
 
-    $proc.add_OutputDataReceived({
-        param($s, $e)
-        if ($e.Data) {
-            $scanOutputList.Add($e.Data)
-            if ($e.Data -match '(\d+(?:\.\d+)?)\s*%') {
-                $extPct = [double]$matches[1]
-                $clamped = [int][math]::Min(95, [math]::Max(35, (35 + ($extPct * 0.6))))
-                Set-SentinelProgress -Activity "Análisis Defender ($ScanTypeName)" -Percent $clamped -Status "Escaneando archivos: $([math]::Round($extPct, 1))%"
-            }
-        }
-    })
-    $proc.add_ErrorDataReceived({
-        param($s, $e)
-        if ($e.Data) { $scanOutputList.Add($e.Data) }
-    })
-
     [void]$proc.Start()
-    $proc.BeginOutputReadLine()
-    $proc.BeginErrorReadLine()
+    $outTask = $proc.StandardOutput.ReadLineAsync()
+    $errTask = $proc.StandardError.ReadLineAsync()
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $estSec = if ($ScanType -eq "1") { 300 } else { 3600 }
-    while (-not $proc.WaitForExit(1000)) {
-        $elapsed = $sw.Elapsed.TotalSeconds
-        $ratio = [math]::Min(0.95, 0.35 + (0.60 * (1.0 - [math]::Exp(-$elapsed / ([math]::Max(10, $estSec * 0.5))))))
-        $dynPct = [int]($ratio * 100)
-        $timeStr = $sw.Elapsed.ToString("mm\:ss")
-        Set-SentinelProgress -Activity "Análisis Defender ($ScanTypeName)" -Percent $dynPct -Status "Escaneando archivos ($dynPct% · $timeStr)..."
-    }
-    $scanExitCode = $proc.ExitCode
-    $ScanProcess = ($scanOutputList -join "`r`n")
+    $reportedPct = -1.0
 
-    if ($ScanProcess) {
-        $lines = $ScanProcess -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        foreach ($line in $lines) {
-            if ($line -match "Error|Fail|threat|Threat") {
-                Write-AuditEntry $line.Trim() -Level "WARN"
+    while (-not $proc.WaitForExit(1000)) {
+        while ($null -ne $outTask -and $outTask.IsCompleted) {
+            if (-not $outTask.IsFaulted -and -not $outTask.IsCanceled) {
+                $line = $outTask.Result
+                if ($null -ne $line) {
+                    if (-not [string]::IsNullOrWhiteSpace($line)) {
+                        $trimmed = $line.Trim()
+                        $scanOutputList.Add($trimmed)
+                        $lvl = if ($trimmed -match "Error|Fail|threat|Threat") { "WARN" } else { "INFO" }
+                        Write-AuditEntry $trimmed -Level $lvl
+                        if ($trimmed -match '(\d+(?:\.\d+)?)\s*%') {
+                            $reportedPct = [double]$matches[1]
+                        }
+                    }
+                    $outTask = $proc.StandardOutput.ReadLineAsync()
+                } else {
+                    $outTask = $null
+                }
             } else {
-                Write-AuditEntry $line.Trim() -Level "INFO"
+                $outTask = $null
             }
+        }
+
+        while ($null -ne $errTask -and $errTask.IsCompleted) {
+            if (-not $errTask.IsFaulted -and -not $errTask.IsCanceled) {
+                $errLine = $errTask.Result
+                if ($null -ne $errLine) {
+                    if (-not [string]::IsNullOrWhiteSpace($errLine)) {
+                        $trimmedErr = $errLine.Trim()
+                        $scanOutputList.Add($trimmedErr)
+                        Write-AuditEntry $trimmedErr -Level "WARN"
+                    }
+                    $errTask = $proc.StandardError.ReadLineAsync()
+                } else {
+                    $errTask = $null
+                }
+            } else {
+                $errTask = $null
+            }
+        }
+
+        $elapsed = $sw.Elapsed.TotalSeconds
+        $timeStr = $sw.Elapsed.ToString("mm\:ss")
+        if ($reportedPct -ge 0) {
+            $dynPct = [int][math]::Min(95, [math]::Max(35, (35 + ($reportedPct * 0.6))))
+            Set-SentinelProgress -Activity "Análisis Defender ($ScanTypeName)" -Percent $dynPct -Status "Escaneando archivos ($([math]::Round($reportedPct, 1))% · $timeStr)..."
+        } else {
+            $ratio = [math]::Min(0.95, 0.35 + (0.60 * (1.0 - [math]::Exp(-$elapsed / ([math]::Max(10, $estSec * 0.5))))))
+            $dynPct = [int]($ratio * 100)
+            Set-SentinelProgress -Activity "Análisis Defender ($ScanTypeName)" -Percent $dynPct -Status "Escaneando archivos ($dynPct% · $timeStr)..."
         }
     }
 
+    # Drain any remaining buffered lines after process exit
+    try {
+        if ($null -ne $outTask -and $outTask.Wait(500) -and $null -ne $outTask.Result) {
+            $remLine = $outTask.Result.Trim()
+            if ($remLine) {
+                $scanOutputList.Add($remLine)
+                $lvl = if ($remLine -match "Error|Fail|threat|Threat") { "WARN" } else { "INFO" }
+                Write-AuditEntry $remLine -Level $lvl
+            }
+        }
+        while (-not $proc.StandardOutput.EndOfStream) {
+            $rem = $proc.StandardOutput.ReadLine()
+            if (-not [string]::IsNullOrWhiteSpace($rem)) {
+                $trimmedRem = $rem.Trim()
+                $scanOutputList.Add($trimmedRem)
+                $lvl = if ($trimmedRem -match "Error|Fail|threat|Threat") { "WARN" } else { "INFO" }
+                Write-AuditEntry $trimmedRem -Level $lvl
+            }
+        }
+        while (-not $proc.StandardError.EndOfStream) {
+            $remErr = $proc.StandardError.ReadLine()
+            if (-not [string]::IsNullOrWhiteSpace($remErr)) {
+                $trimmedRemErr = $remErr.Trim()
+                $scanOutputList.Add($trimmedRemErr)
+                Write-AuditEntry $trimmedRemErr -Level "WARN"
+            }
+        }
+    } catch { }
+
+    $scanExitCode = $proc.ExitCode
+    $ScanProcess = ($scanOutputList -join "`r`n")
+
     # Evaluate MpCmdRun exit code:
-    # 0 = No threats detected, 2 = Threats detected OR command execution failure
+    # 0 = No threats detected, 2 = Threats detected OR command execution failure / cancellation
     $hasScanError = ($ScanProcess -match '0x[0-9a-fA-F]+' -or $ScanProcess -match '\[Failed\]' -or $ScanProcess -match 'CmdTool: Failed')
     $isAnotherScanBusy = ($ScanProcess -match '0x8050111c' -or $ScanProcess -match 'Another scan already in progress')
+    $hasThreatEvidence = ($ScanProcess -match 'threat|amenaza' -and $ScanProcess -notmatch 'found no threats|0 threats')
 
     if ($scanExitCode -eq 0) {
         Write-AuditEntry "RESULT: Antimalware scan concluded. No threats detected." -Level "SUCCESS" -Metadata @{ 
@@ -180,11 +235,17 @@ try {
             ExitCode = $scanExitCode; 
             ScanType = $ScanTypeName 
         }
-    } elseif ($scanExitCode -eq 2) {
+    } elseif ($scanExitCode -eq 2 -and $hasThreatEvidence) {
         Write-AuditEntry "RESULT: Threat detected and remediation invoked by Defender engine." -Level "ERROR" -Metadata @{ 
             ExitCode = $scanExitCode; 
             ScanType = $ScanTypeName;
             Alert    = "ActiveThreatDetected"
+        }
+    } elseif ($scanExitCode -eq 2) {
+        Write-AuditEntry "RESULT: Scan was aborted, cancelled, or rejected by Defender service without threat findings." -Level "WARN" -Metadata @{ 
+            ExitCode = $scanExitCode; 
+            ScanType = $ScanTypeName;
+            Status   = "ScanAbortedOrBusy"
         }
     } else {
         Write-AuditEntry "RESULT: Scan ended with unexpected status code." -Level "WARN" -Metadata @{ 

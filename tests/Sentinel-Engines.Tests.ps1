@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Integration and Engine Dry-Run Tests for Isora Sentinel Suite.
 .DESCRIPTION

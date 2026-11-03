@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     System Integrity Audit Engine - ISO/IEC 27001:2022 Control A.8.20
 .DESCRIPTION
@@ -68,36 +68,92 @@ try {
     $proc.StartInfo = $psi
     $dismOutputList = New-Object System.Collections.Generic.List[string]
 
-    $proc.add_OutputDataReceived({
-        param($sender, $e)
-        if ($e.Data) {
-            $line = $e.Data
-            $dismOutputList.Add($line)
-            if ($line -match '(\d+(?:\.\d+)?)\s*%') {
-                $rawPct = [double]$matches[1]
-                $clamped = [int][math]::Min(98, [math]::Max(10, $rawPct))
-                Set-SentinelProgress -Activity $actDesc -Percent $clamped -Status "DISM $($dismArg): $([math]::Round($rawPct, 1))% completado"
+    [void]$proc.Start()
+    $outTask = $proc.StandardOutput.ReadLineAsync()
+    $errTask = $proc.StandardError.ReadLineAsync()
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $reportedPct = -1.0
+
+    while (-not $proc.WaitForExit(1000)) {
+        while ($null -ne $outTask -and $outTask.IsCompleted) {
+            if (-not $outTask.IsFaulted -and -not $outTask.IsCanceled) {
+                $line = $outTask.Result
+                if ($null -ne $line) {
+                    if (-not [string]::IsNullOrWhiteSpace($line)) {
+                        $trimmed = $line.Trim()
+                        $dismOutputList.Add($trimmed)
+                        Write-AuditEntry $trimmed -Level "INFO"
+                        if ($trimmed -match '(\d+(?:\.\d+)?)\s*%') {
+                            $reportedPct = [double]$matches[1]
+                        }
+                    }
+                    $outTask = $proc.StandardOutput.ReadLineAsync()
+                } else {
+                    $outTask = $null
+                }
+            } else {
+                $outTask = $null
             }
         }
-    })
-    $proc.add_ErrorDataReceived({
-        param($sender, $e)
-        if ($e.Data) { $dismOutputList.Add($e.Data) }
-    })
 
-    [void]$proc.Start()
-    $proc.BeginOutputReadLine()
-    $proc.BeginErrorReadLine()
-    $proc.WaitForExit()
-    $dismCode = $proc.ExitCode
-    $dismResult = ($dismOutputList -join "`r`n")
+        while ($null -ne $errTask -and $errTask.IsCompleted) {
+            if (-not $errTask.IsFaulted -and -not $errTask.IsCanceled) {
+                $errLine = $errTask.Result
+                if ($null -ne $errLine) {
+                    if (-not [string]::IsNullOrWhiteSpace($errLine)) {
+                        $trimmedErr = $errLine.Trim()
+                        $dismOutputList.Add($trimmedErr)
+                        Write-AuditEntry $trimmedErr -Level "WARN"
+                    }
+                    $errTask = $proc.StandardError.ReadLineAsync()
+                } else {
+                    $errTask = $null
+                }
+            } else {
+                $errTask = $null
+            }
+        }
 
-    if ($dismResult) {
-        $lines = $dismResult -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        foreach ($line in $lines) {
-            Write-AuditEntry $line.Trim() -Level "INFO"
+        $timeStr = $sw.Elapsed.ToString("mm\:ss")
+        if ($reportedPct -ge 0) {
+            $clamped = [int][math]::Min(98, [math]::Max(15, $reportedPct))
+            Set-SentinelProgress -Activity $actDesc -Percent $clamped -Status "DISM $($dismArg): $([math]::Round($reportedPct, 1))% ($timeStr)"
+        } else {
+            $elapsed = $sw.Elapsed.TotalSeconds
+            $dynPct = [int][math]::Min(90, 15 + ($elapsed / 8))
+            Set-SentinelProgress -Activity $actDesc -Percent $dynPct -Status "Ejecutando DISM $dismArg ($timeStr)..."
         }
     }
+
+    try {
+        if ($null -ne $outTask -and $outTask.Wait(500) -and $null -ne $outTask.Result) {
+            $remLine = $outTask.Result.Trim()
+            if ($remLine) {
+                $dismOutputList.Add($remLine)
+                Write-AuditEntry $remLine -Level "INFO"
+            }
+        }
+        while (-not $proc.StandardOutput.EndOfStream) {
+            $rem = $proc.StandardOutput.ReadLine()
+            if (-not [string]::IsNullOrWhiteSpace($rem)) {
+                $trimmedRem = $rem.Trim()
+                $dismOutputList.Add($trimmedRem)
+                Write-AuditEntry $trimmedRem -Level "INFO"
+            }
+        }
+        while (-not $proc.StandardError.EndOfStream) {
+            $remErr = $proc.StandardError.ReadLine()
+            if (-not [string]::IsNullOrWhiteSpace($remErr)) {
+                $trimmedRemErr = $remErr.Trim()
+                $dismOutputList.Add($trimmedRemErr)
+                Write-AuditEntry $trimmedRemErr -Level "WARN"
+            }
+        }
+    } catch { }
+
+    $dismCode = $proc.ExitCode
+    $dismResult = ($dismOutputList -join "`r`n")
 
     # Evaluate DISM standard exit codes:
     # 0 = No corruption, 20 = Corruption detected and repairable, 740 = Elevation required, 3010 = Reboot required

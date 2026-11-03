@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Security Event & Anti-Forensics Audit Engine - ISO/IEC 27001:2022 Control A.8.15
 .DESCRIPTION

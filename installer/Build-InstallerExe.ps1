@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds the standalone GUI Installer executable (Isora-Sentinel-Setup.exe) for Isora Sentinel.
 .DESCRIPTION
@@ -19,7 +19,7 @@ $ProjectRoot = (Resolve-Path (Join-Path $ScriptDir "..")).Path
 
 Write-Host "============================================================" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Isora Sentinel GUI Installer Builder" -ForegroundColor Cyan
-Write-Host " Arquitectura & Titular: Sandra Gabriela Puerto Torres" -ForegroundColor Gray
+Write-Host " Autora & Titular: Sandra Gabriela Puerto Torres" -ForegroundColor Gray
 Write-Host "============================================================" -ForegroundColor DarkCyan
 
 # 1. Locate Microsoft .NET csc.exe compiler
@@ -31,10 +31,11 @@ if (-not (Test-Path $cscPath)) {
     throw "Compilador Microsoft .NET C# (csc.exe) no encontrado en el sistema."
 }
 
-$AsmInfo = Join-Path $ScriptDir "src\AssemblyInfo.cs"
+$AsmInfo     = Join-Path $ScriptDir "src\AssemblyInfo.cs"
+$CoreSource  = Join-Path $ScriptDir "src\SentinelCore.cs"
 $AppManifest = Join-Path $ScriptDir "src\app.manifest"
-$AppIcon = Join-Path $ScriptDir "src\app.ico"
-$AppSvg  = Join-Path $ScriptDir "src\app.svg"
+$AppIcon     = Join-Path $ScriptDir "src\app.ico"
+$AppSvg      = Join-Path $ScriptDir "src\app.svg"
 
 # Discover Authenticode Code Signing Certificate
 $codeCert = $null
@@ -52,15 +53,19 @@ if ($codeCert) {
     Write-Host "[i] No se detecto certificado Code Signing. El binario se compilara sin firma." -ForegroundColor Gray
 }
 
+# 1.5 Ensure UTF-8 BOM across all source files and regenerate SHA-256 Integrity Manifest
+$manifestScript = Join-Path $ScriptDir "Build-IntegrityManifest.ps1"
+& $manifestScript -ProjectRoot $ProjectRoot
+
 # 2. Compile System Tray Monitor to temporary staging location (to embed inside Setup)
 Write-Host "`n[*] Compilando monitor de bandeja en entorno temporal para incrustación..." -ForegroundColor Yellow
 $TempBuildDir = Join-Path $env:TEMP ("SentinelTrayBuild_" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $TempBuildDir -Force | Out-Null
-$TraySource = Join-Path $ScriptDir "src\SentinelTray.cs"
+$TraySource       = Join-Path $ScriptDir "src\SentinelTray.cs"
 $ConfigFormSource = Join-Path $ScriptDir "src\TaskConfigForm.cs"
-$LocSource = Join-Path $ScriptDir "src\Localization.cs"
-$TrayManifest = Join-Path $ScriptDir "src\tray.manifest"
-$TrayExe = Join-Path $TempBuildDir "Isora-Sentinel-Tray.exe"
+$LocSource        = Join-Path $ScriptDir "src\Localization.cs"
+$TrayManifest     = Join-Path $ScriptDir "src\tray.manifest"
+$TrayExe          = Join-Path $TempBuildDir "Isora-Sentinel-Tray.exe"
 
 $trayArgs = @(
     "/nologo",
@@ -70,10 +75,12 @@ $trayArgs = @(
     "/codepage:65001",
     "/win32manifest:$TrayManifest",
     "/reference:System.dll",
+    "/reference:System.Core.dll",
     "/reference:System.Windows.Forms.dll",
     "/reference:System.Drawing.dll",
     "/reference:System.Xml.dll",
     "/out:$TrayExe",
+    $CoreSource,
     $TraySource,
     $ConfigFormSource,
     $LocSource,
@@ -95,7 +102,7 @@ if ($codeCert) {
         $sigTray = Set-AuthenticodeSignature -FilePath $TrayExe -Certificate $codeCert -HashAlgorithm SHA256 -TimestampServer "http://timestamp.digicert.com" -ErrorAction SilentlyContinue
         if ($sigTray.Status -eq "Valid") {
             Copy-Item -Path $TrayExe -Destination (Join-Path $ScriptDir "Isora-Sentinel-Tray.exe") -Force
-        Write-Host "[SUCCESS] Isora-Sentinel-Tray.exe firmado con éxito por $($codeCert.Subject)" -ForegroundColor Green
+            Write-Host "[SUCCESS] Isora-Sentinel-Tray.exe firmado con éxito por $($codeCert.Subject)" -ForegroundColor Green
         }
     } catch {
         Write-Warning "No se pudo firmar Isora-Sentinel-Tray.exe: $($_.Exception.Message)"
@@ -229,11 +236,8 @@ if ($isLocked) {
     Write-Host "-> Redirigiendo salida a binario nuevo: $OutputExe" -ForegroundColor Cyan
 }
 
-$CsSource = Join-Path $ScriptDir "src\SentinelSetup.cs"
+$CsSource        = Join-Path $ScriptDir "src\SentinelSetup.cs"
 $UninstallSource = Join-Path $ScriptDir "src\UninstallForm.cs"
-$AsmInfo = Join-Path $ScriptDir "src\AssemblyInfo.cs"
-$AppManifest = Join-Path $ScriptDir "src\app.manifest"
-$AppIcon = Join-Path $ScriptDir "src\app.ico"
 
 Write-Host "[*] Compilando ejecutable standalone Windows GUI con csc.exe..." -ForegroundColor Yellow
 
@@ -246,12 +250,15 @@ $cscArgs = @(
     "/codepage:65001",
     "/win32manifest:$AppManifest",
     "/reference:System.dll",
+    "/reference:System.Core.dll",
     "/reference:System.Windows.Forms.dll",
     "/reference:System.Drawing.dll",
+    "/reference:System.Xml.dll",
     "/reference:System.IO.Compression.dll",
     "/reference:System.IO.Compression.FileSystem.dll",
     "/resource:$TempZip,PackageArchive",
     "/out:$OutputExe",
+    $CoreSource,
     $CsSource,
     $UninstallSource,
     $LocSource,
@@ -311,20 +318,20 @@ if ($proc.ExitCode -eq 0 -and (Test-Path $OutputExe)) {
 
     # 6. Generate Institutional Provenance Receipt (BUILD_PROVENANCE.json)
     $provenance = [ordered]@{
-        artifact_name = [System.IO.Path]::GetFileName($OutputExe)
-                version       = "2.4.7" 
-        timestamp_utc = (Get-Date).ToUniversalTime().ToString("o")
-        architect = "Sandra Gabriela Puerto Torres"
-        commercial_brand = "Isora Cloud Group"
-        compiler = "Microsoft .NET Framework csc.exe v4.0.30319"
-        compiler_flags = "/target:winexe /optimize+ /platform:anycpu"
-        sha256 = $exeHash
-        size_bytes = (Get-Item $OutputExe).Length
-        signed = ($sigCheck.Status -eq "Valid")
-        signer = if ($sigCheck.SignerCertificate) { $sigCheck.SignerCertificate.Subject } else { "Unsigned" }
+        artifact_name     = [System.IO.Path]::GetFileName($OutputExe)
+        version           = "2.5.0"
+        timestamp_utc     = (Get-Date).ToUniversalTime().ToString("o")
+        author            = "Sandra Gabriela Puerto Torres"
+        commercial_brand  = "Isora Cloud Group"
+        compiler          = "Microsoft .NET Framework csc.exe v4.0.30319"
+        compiler_flags    = "/target:winexe /optimize+ /platform:anycpu"
+        sha256            = $exeHash
+        size_bytes        = (Get-Item $OutputExe).Length
+        signed            = ($sigCheck.Status -eq "Valid")
+        signer            = if ($sigCheck.SignerCertificate) { $sigCheck.SignerCertificate.Subject } else { "Unsigned" }
         signer_thumbprint = if ($sigCheck.SignerCertificate) { $sigCheck.SignerCertificate.Thumbprint } else { $null }
-        timestamp_server = if ($sigCheck.TimeStamperCertificate) { $sigCheck.TimeStamperCertificate.Subject } else { $null }
-        bundled_files = $bundledFiles
+        timestamp_server  = if ($sigCheck.TimeStamperCertificate) { $sigCheck.TimeStamperCertificate.Subject } else { $null }
+        bundled_files     = $bundledFiles
     }
     $provJsonPath = Join-Path $ScriptDir "BUILD_PROVENANCE.json"
     $provenance | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $provJsonPath -Encoding UTF8

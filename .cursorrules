@@ -1,36 +1,108 @@
-# Isora Sentinel Development Rules & Architecture Guidelines
+# Isora Sentinel Suite — Strict Engineering Rules & Anti-Hallucination Guardrails (.cursorrules)
 
-## 1. Project Identity & Author
-* **Author & Architect:** Sandra Gabriela Puerto Torres / Isora Cloud Group
-* **Portals:** https://sandrapuerto.com | https://isora.com.co
-* **License:** Apache License, Version 2.0 (v2.4.0+; v2.3.1 and earlier remain under MIT)
-* **Core Philosophy:** Zero-dependency native PowerShell automation for Windows endpoint auditing, cleanup, and governance, structured SIEM logging, and ISO/IEC 27001:2022 / ISO/IEC 20000-1 control mapping.
+> **CRITICAL INSTRUCTION FOR AI MODELS (ESPECIALLY SMALL / FAST MODELS):**  
+> Read this entire file BEFORE editing any `.cs` or `.ps1` file. Violating the compiler or runtime rules below will immediately break the build or crash production processes.
 
-## 2. Architectural Principles (Hub-and-Spoke)
-* **Hub (`src/lib/`):** Contains shared utilities and cross-cutting concerns:
-  - `Sentinel-Core.psm1`: Privilege assertion (`Assert-IsAdmin`), binary discovery (`Get-DefenderPlatformPath`), and integrity check (`Assert-SentinelIntegrity`).
-  - `Sentinel-Logger.psm1`: Standardized forensic audit logging (`Initialize-SentinelLog`, `Write-AuditEntry`) with dual-format support (Human Text & NDJSON).
-* **Spokes (`src/engines/`):** Atomic, self-contained execution engines mapped to international controls:
-  - `Invoke-CleanupScreenshots.ps1` (ISO 27001 A.8.1 - DLP)
-  - `Invoke-CleanupTempGlobal.ps1` (ISO 20000-1 §8.2 - Capacity Management)
-  - `Invoke-DefenderScan.ps1` (ISO 27001 A.8.7 - Protection against malware)
-  - `Invoke-IntegrityCheck.ps1` (ISO 27001 A.8.20 - Component Store integrity)
-  - `Invoke-BitLockerAudit.ps1` (ISO 27001 A.8.24 - Cryptographic compliance)
-  - `Invoke-EventAudit.ps1` (ISO 27001 A.8.15 - Logging & anti-forensics)
-  - `Invoke-ArchiveDownloads.ps1` (ISO 27001 A.8.10 - Downloads lifecycle & tiering)
-* **Installer (`installer/`):** Automated deployment and Scheduled Tasks orchestrator running as `NT AUTHORITY\SYSTEM`.
+---
 
-## 3. PowerShell Coding Standards
-* **Zero Dependencies:** Never require third-party PowerShell modules, Node, Python, or external package managers. Code must run natively on fresh Windows 10/11 and Windows Server installations.
-* **Dual Runtime Compatibility:** Code must parse cleanly and execute identically on both Windows PowerShell 5.1 and PowerShell Core 7+.
-* **Safe-by-Default Execution:** Destructive engines (file deletion or relocation) must default to safe audit-only mode, requiring an explicit `-Apply` switch for modifications.
-* **Pipeline Binding Safety:** Never pipe into `ForEach-Object` with `-join` inside string expressions (causes `RemainingScripts` binding exception in PS 5.1). Use native `foreach ($entry in $SafeMetadata.GetEnumerator())`.
-* **Privilege Enforcement:** Every engine must invoke `Assert-IsAdmin` inside its primary `try` block.
-* **Exit Code Auditing:** External process invocations (`dism.exe`, `MpCmdRun.exe`, `manage-bde.exe`) must capture and evaluate `$LASTEXITCODE`.
+## 1. Project Identity & Attribution Rules
+* **Product Name:** Isora Sentinel Suite (v2.5.0+)
+* **Commercial Brand:** Isora Cloud Group (https://isora.com.co)
+* **Author & Copyright Holder:** Sandra Gabriela Puerto Torres (https://sandrapuerto.com | https://github.com/sandra-puerto | https://www.linkedin.com/in/sandra-puerto/)
+* **Attribution Policy:**
+  - In **`README.md` ONLY**: Explicitly state that **Sandra Gabriela Puerto Torres** is the **Sole System Architect (*Única Arquitecta*)** and **Google Antigravity** is the **Code Generation Engine**.
+  - In **all other files** (`SentinelSetup.cs`, `SentinelTray.cs`, `NOTICE`, `ROADMAP.md`, `docs/*.md`, script headers): Write ONLY her name (`Sandra Gabriela Puerto Torres` / `Author & Copyright Holder: Sandra Gabriela Puerto Torres`) — **do NOT write `(Arquitecta)` or `(Architect)` in the installer UI**.
+  - **NEVER** reintroduce the legacy pre-v2.4.0 project name anywhere outside historical entries in `CHANGELOG.md`.
 
-## 4. Testing & Verification Gate
-* Always run the Pester test suite before finalizing changes:
-  ```powershell
-  powershell.exe -ExecutionPolicy Bypass -File .\tests\Invoke-Tests.ps1
-  ```
-* All Pester tests (unit tests, AST syntax parsing, and parameter binding) must pass 100%.
+---
+
+## 2. C# Compiler Constraints (`csc.exe` v4.0.30319 — STRICT C# 5.0 ONLY)
+
+The standalone binaries (`Isora-Sentinel-Setup.exe` and `Isora-Sentinel-Tray.exe`) are compiled directly on Windows using the built-in .NET Framework 4.8 compiler:
+`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
+
+**`csc.exe` v4.0.30319 ONLY supports C# 5.0.** If you use ANY C# 6.0+ syntax, compilation will fail immediately with `CS1056`, `CS1525`, or `CS0103`.
+
+| Feature | FORBIDDEN (C# 6+ — Breaks Build) | REQUIRED (C# 5.0 Compatible) |
+| :--- | :--- | :--- |
+| String Interpolation | `$"Hola {name}"` | `string.Format("Hola {0}", name)` or `"Hola " + name` |
+| Null-Conditional | `obj?.Prop` / `arr?[0]` | `if (obj != null) ...` |
+| `nameof` Operator | `nameof(MyParam)` | `"MyParam"` |
+| Inline `out` Variables | `int.TryParse(s, out int val)` | `int val; int.TryParse(s, out val);` |
+| Expression-Bodied Members | `public int X => 5;` | `public int X { get { return 5; } }` |
+| Auto-Property Initializers | `public int X { get; set; } = 1;` | Initialize inside constructor or backing field |
+| `using static` | `using static System.Math;` | `Math.Max(...)` |
+| ValueTuples | `(int a, string b)` | `Tuple<int, string>` or custom `class`/`struct` |
+
+---
+
+## 3. Modular C# Architecture (`installer/src/`)
+
+All shared business logic, security validation, UAC handling, and process execution live in **`installer/src/SentinelCore.cs`** (`namespace IsoraSentinel.Core`). Never duplicate logic across UI forms.
+
+### 3.1. `installer/src/SentinelCore.cs` (Core Layer — Single Source of Truth)
+1. **`SentinelCatalog` & `SentinelModuleDefinition`:**
+   - Centralizes all 7 execution engines (`Cleanup_Screenshots`, `Cleanup_Temp_Global`, `Defender_Scan`, `Integrity_Check`, `BitLocker_Audit`, `Event_Audit`, `Archive_Downloads`).
+   - **To add a new engine:** Add a single `SentinelModuleDefinition` entry to `SentinelCatalog.AllModules`. Both `SentinelTray.cs` and `TaskConfigForm.cs` dynamically read `SentinelCatalog.AllModules`.
+2. **`SentinelPaths`:**
+   - Resolves `InstallDir`, `LogsDir`, `EnginesDir`, and `ResolveActiveDesktopUserProfileDir()` (resolves the real interactive desktop user's `C:\Users\<user>` via `Explorer.exe` process owner or `HKLM\...\Authentication\LogonUI\LastLoggedOnUser` when UAC elevates as a different Administrator account).
+3. **`SentinelSecurity`:**
+   - `IsValidSafeEngineName(string)`: Strict whitelist (`^[a-zA-Z0-9_\-]+$`) preventing command injection from tampered `.progress.json` files.
+   - `EscapePowerShellSingleQuoted(string)`: Doubles single quotes (`'` -> `''`) and strips `\r`/`\n`/`\0`.
+   - `SanitizeDirectoryPath(string)`: Strips dangerous shell metacharacters (`"`, `;`, `|`, `&`, `` ` ``, `$`).
+   - `HardenInstallationDirectoryAcl(string)` & `EnsureSharedStatusDirectory()`: Native `.NET` `DirectorySecurity` ACLs using `WellKnownSidType` (works in Spanish, English, French, or German Windows without localized group name failures).
+4. **`SafeProcessRunner`:**
+   - Executes PowerShell exclusively via `-EncodedCommand` (Base64 UTF-16LE) so inner quotes in paths or `schtasks.exe` never break.
+   - `ReadProcessOutputSmartEncoding`: Detects UTF-16LE BOM, UTF-8 BOM, null-byte ratio, UTF-8 without BOM, and OEM CodePage fallback so `schtasks.exe /Query /XML` never corrupts Spanish accents (`Día`, `Miércoles`, `Análisis`).
+5. **`TaskSchedulerBridge`:**
+   - `BuildHardenTaskSettingsPowerShell`: Applies Windows 11 Modern Standby (S0) battery settings (`-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable`).
+   - `BuildSafeCancelPowerShellScript`: Deterministic 4-step cancellation order:
+     1. Stop Scheduled Task (`Stop-ScheduledTask` / `schtasks /End`) AND kill parent `powershell.exe` (`taskkill /F /PID ... /T`) **FIRST** so the script cannot advance to its next step or rewrite `.progress.json`.
+     2. Delete all `*.progress.json` files **SECOND**.
+     3. Stop native Windows engines (`Stop-MpScan`, `MpCmdRun.exe -Scan -Cancel`, `taskkill /F /IM MpCmdRun.exe /IM dism.exe /T`) **THIRD**.
+6. **`CrossAccountEnvironment`:**
+   - Enumerates `C:\ProgramData\Isora-Sentinel\status` and all `C:\Users\*\AppData\Local\Isora-Sentinel\status` folders so standard users, elevated admins, and `NT AUTHORITY\SYSTEM` share live task progress seamlessly.
+   - `GetBestLogsDirectory` scans `*.log` with `SearchOption.AllDirectories` inside `logs\ISO_*\`.
+7. **`GdiHelper`:**
+   - Caches `Font` instances and wraps `CreateRoundRectRgn` + `DeleteObject` (`gdi32.dll`) to prevent Windows 11's 10,000 GDI handle limit crash.
+
+### 3.2. Presentation Layer (`installer/src/`)
+* `SentinelTray.cs`: System tray icon, context menu, SHA-256 `IntegrityVerifier`, live `.progress.json` polling (`750ms`), and UAC dispatch.
+* `TaskConfigForm.cs`: Executive configuration GUI (`--config`), animated 60fps `ToggleSwitch`, custom GDI+ progress bar, and `schtasks.exe /Query /XML` reader.
+* `SentinelSetup.cs`: 4-step standalone installer wizard, pre-existing task cleanup (`DisableExistingScheduledTask`), and CLI switches (`--audit`, `--extract`, `--version`, `--help`, `--uninstall`).
+* `UninstallForm.cs`: 3-step uninstaller wizard.
+* `Localization.cs`: Bilingual `ES / EN` dictionary (`Loc.T(es, en)`).
+
+---
+
+## 4. PowerShell 5.1 & Windows 11 Critical Rules (NEVER VIOLATE)
+
+1. **NEVER use `$proc.add_OutputDataReceived` with a PowerShell `ScriptBlock`:**
+   - In Windows PowerShell 5.1, `.NET` `Process.OutputDataReceived` fires on a raw `.NET` ThreadPool thread that has **no PowerShell `Runspace` attached**. Invoking a PowerShell `{ param($s, $e) ... }` handler on that thread throws `PSInvalidOperationException ("There is no Runspace available to run scripts in this thread")` and **crashes `powershell.exe` immediately**!
+   - **ALWAYS** read child process stdout/stderr asynchronously on the main PowerShell thread using `$outTask = $proc.StandardOutput.ReadLineAsync()` and `$errTask = $proc.StandardError.ReadLineAsync()` inside `while (-not $proc.WaitForExit(1000))` (see `src/engines/Invoke-DefenderScan.ps1` and `src/engines/Invoke-IntegrityCheck.ps1`).
+2. **NEVER synthesize fake progress from global process names (`GetProcessesByName("MpCmdRun")` or `"dism"`):**
+   - Windows 11's `WinDefend` runs as a Protected Process Light (PPL) service, spawns `MpCmdRun.exe` on its own, and spawns a new `MpCmdRun.exe` when `-Scan -Cancel` is invoked. Only display progress from verified `*.progress.json` files in `TaskProgressInfo.FindAllActiveProgress`.
+3. **Always handle `%USERPROFILE%` pre-expansion under `NT AUTHORITY\SYSTEM`:**
+   - When Windows Task Scheduler (`svchost.exe`) runs a task as `NT AUTHORITY\SYSTEM`, any `%USERPROFILE%` in the `/TR` command line is expanded to `C:\WINDOWS\system32\config\systemprofile` **before** `powershell.exe` starts. In multi-user engines (`Invoke-ArchiveDownloads.ps1`), always map both `%USERPROFILE%` and `^[A-Za-z]:\\Windows\\(?:System32|SysWOW64)\\config\\systemprofile` to the target user's `$ProfilePath`.
+4. **Disambiguate `MpCmdRun.exe` `ExitCode=2`:**
+   - `MpCmdRun.exe` returns `ExitCode=2` both when a threat is found AND when a scan is cancelled or rejected. Only log `Alert=ActiveThreatDetected` if `$ScanProcess -match 'threat|amenaza' -and $ScanProcess -notmatch 'found no threats|0 threats'`.
+5. **Protect `%TEMP%\Isora-Sentinel` during Temp Cleanup:**
+   - In `Invoke-CleanupTempGlobal.ps1`, always skip paths matching `\\Isora-Sentinel(\\|$)` so the cleanup engine never deletes active `.progress.json` IPC files.
+6. **PowerShell 5.1 Pipeline Binding Safety:**
+   - Never pipe into `ForEach-Object` with `-join` inside string expressions. Use `foreach ($entry in $SafeMetadata.GetEnumerator())`.
+7. **TOCTOU Symlink / Junction Defense:**
+   - Always validate `Test-SafePathHierarchy -TargetPath $Item.FullName -BaseRoot $Path` before deleting or moving files under `NT AUTHORITY\SYSTEM`.
+
+---
+
+## 5. Mandatory Build & Test Verification Gate
+
+Before finishing ANY task that modifies `.ps1` or `.cs` files, you MUST run:
+
+```powershell
+# 1. Run all 41 Pester unit, engine, logger, and AST syntax tests (must be 41 Passed, 0 Failed):
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Invoke-Tests.ps1
+
+# 2. Rebuild integrity.manifest.json, compile C# binaries with csc.exe, and sign with Authenticode:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Build-InstallerExe.ps1
+```

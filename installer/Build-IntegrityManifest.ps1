@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Generates cryptographic SHA-256 integrity manifest for Isora Sentinel.
 .DESCRIPTION
@@ -8,6 +8,19 @@
 param(
     [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 )
+
+$utf8Bom = New-Object System.Text.UTF8Encoding($true)
+foreach ($cDir in @((Join-Path $ProjectRoot "src"), (Join-Path $ProjectRoot "installer"), (Join-Path $ProjectRoot "tests"))) {
+    if (Test-Path -LiteralPath $cDir) {
+        Get-ChildItem -Path $cDir -Recurse -Include *.ps1, *.psm1, *.cs -File | ForEach-Object {
+            $rawBytes = [System.IO.File]::ReadAllBytes($_.FullName)
+            if (-not ($rawBytes.Length -ge 3 -and $rawBytes[0] -eq 0xEF -and $rawBytes[1] -eq 0xBB -and $rawBytes[2] -eq 0xBF)) {
+                $content = [System.IO.File]::ReadAllText($_.FullName, [System.Text.Encoding]::UTF8)
+                [System.IO.File]::WriteAllText($_.FullName, $content, $utf8Bom)
+            }
+        }
+    }
+}
 
 $TargetFiles = @(
     "src/lib/Sentinel-Core.psm1",
@@ -37,7 +50,7 @@ foreach ($relPath in $TargetFiles) {
 }
 
 $ManifestObj = [ordered]@{
-        version       = "2.4.7" 
+        version       = "2.5.0" 
     algorithm    = "SHA256"
     author       = "Sandra Gabriela Puerto Torres"
     brand        = "Isora Cloud Group"

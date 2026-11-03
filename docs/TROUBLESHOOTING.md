@@ -1,8 +1,8 @@
 # Diagnostic & Troubleshooting Guide — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
-**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Software Version:** 2.4.7  
+**Author & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
+**Software Version:** 2.5.0  
 
 This guide provides technical root-cause analysis and operational remediation steps for common error scenarios, return codes, and system integration points across **Isora Sentinel**.
 

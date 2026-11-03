@@ -1,8 +1,9 @@
 # System Architecture Specification — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
-**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Document Version:** 2.4.7  
+**Author & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
+
+**Document Version:** 2.5.0  
 **Architectural Taxonomy:** Modular Hub-and-Spoke, Zero External Dependencies, Sovereign Local Execution  
 
 ---
@@ -295,7 +296,8 @@ For engines that wrap native Microsoft Windows command-line utilities (`dism.exe
    $proc.StartInfo = $psi
    ```
 
-2. **Event-Driven Regex Matching:**
+2. **Runspace-Safe Asynchronous Task Polling (`ReadLineAsync()`):**
+   In Windows PowerShell 5.1, attaching a PowerShell `ScriptBlock` directly to `.NET` `Process.add_OutputDataReceived` invokes the delegate on a background `.NET` ThreadPool thread that lacks a PowerShell `Runspace`, causing `PSInvalidOperationException` crashes. Instead, Isora Sentinel dispatches non-blocking `StandardOutput.ReadLineAsync()` and `StandardError.ReadLineAsync()` tasks consumed inside the main thread's `while (-not $proc.WaitForExit(1000))` heartbeat loop, writing real-time audit log lines and updating progress safely within the primary Runspace:
    A script block event handler is attached to `.add_OutputDataReceived`. As native child processes output buffer chunks, the regex matches percentage expressions and scales them into an overall progress range:
    ```powershell
    $proc.add_OutputDataReceived({
@@ -414,3 +416,27 @@ To enable operators to cancel long-running or resource-intensive tasks on demand
 
 3. **Atomic State Invalidation:**
    Simultaneously, the elevated dispatcher purges `%ProgramData%\Isora-Sentinel\status\<engine>.progress.json`. On the subsequent polling tick (800 ms), `TaskConfigForm` and `SentinelTray` verify process non-existence and immediately reset their visual badges to idle.
+
+---
+
+## 9. Modular .NET Framework 4.8 Core (`SentinelCore.cs`) & Windows 11 Hardening
+
+To eliminate duplicated logic across the C# executables (`Isora-Sentinel-Tray.exe` and `Isora-Sentinel-Setup.exe`) while preserving zero external dependencies, all catalog definitions, security gates, UAC bridges, and Windows 11 compatibility routines are consolidated in **`installer/src/SentinelCore.cs`**.
+
+### 9.1. Core Components & Responsibilities
+1. **`SentinelCatalog` & `SentinelModuleDefinition` (Data-Driven Single Source of Truth):**
+   - Centralizes all 7 operational engines, their Task Scheduler identifiers, script filenames, ISO/IEC 27001 / 20000-1 control badges, localized descriptions, and default schedules.
+   - `TaskConfigForm`, `SentinelTray`, `SentinelSetup`, and `UninstallForm` dynamically iterate over `SentinelCatalog.AllModules`, allowing future modules to be added by registering a single entry.
+2. **`SentinelSecurity` (Native BCL Access Control & Anti-Symlink Defense):**
+   - Uses native `System.Security.AccessControl.DirectorySecurity` and `WellKnownSidType` (`LocalSystemSid`, `BuiltinAdministratorsSid`, `BuiltinUsersSid`) to enforce deterministic ACLs on `C:\Program Files\Isora-Sentinel`, `logs\`, and `C:\ProgramData\Isora-Sentinel\status`.
+   - Validates engine names (`IsValidSafeEngineName`) and sanitizes directory paths (`SanitizeDirectoryPath`, `IsForbiddenOrReparseDirectory`) to prevent command injection or directory junction attacks.
+   - Paired with `Test-SafePathHierarchy` in `src/lib/Sentinel-Core.psm1`, which inspects every ancestor folder before `Remove-Item` under `NT AUTHORITY\SYSTEM` to block intermediate directory junction TOCTOU attacks.
+3. **`SafeProcessRunner` (Base64 `-EncodedCommand` & Smart Output Decoding):**
+   - Dispatches all PowerShell commands via UTF-16LE Base64 `-EncodedCommand`, preventing argument-splitting or quote-escaping bugs when running elevated (`Verb = "runas"`).
+   - Implements `ReadProcessOutputSmartEncoding`, which inspects raw stdout byte streams from Windows 11 utilities (`schtasks.exe /Query /XML`) to automatically detect `UTF-16LE` BOM/headers, `UTF-8`, or the active OEM code page.
+4. **`TaskSchedulerBridge` (Windows 11 Modern Standby S0 & Battery Preservation):**
+   - Generates `Set-ScheduledTask` hardening commands (`BuildHardenTaskSettingsPowerShell`) that explicitly preserve `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable`, ensuring scheduled tasks execute reliably on Windows 11 laptops.
+5. **`CrossAccountEnvironment` (Over-the-Shoulder UAC Synchronization):**
+   - Resolves status directories and startup registry keys across both `HKCU`, `HKLM`, and mounted `HKEY_USERS` hives so standard users and elevated administrators share real-time progress visibility and consistent auto-start preferences.
+6. **`GdiHelper` & Executive UI/UX Architecture:**
+   - Prevents GDI handle (`HRGN`) leaks by disposing previous window regions on resize, and powers 60fps smooth `ToggleSwitch` transitions, custom GDI+ progress bars, and WCAG AA/AAA verified contrast palettes across all Windows Forms interfaces.

@@ -193,6 +193,8 @@ namespace IsoraSentinel.Tray
     {
         private bool isChecked;
         private bool hover;
+        private float animPos = 0f;
+        private System.Windows.Forms.Timer animTimer;
         public event EventHandler CheckedChanged;
 
         public ToggleSwitch(float scale)
@@ -204,6 +206,35 @@ namespace IsoraSentinel.Tray
             Cursor = Cursors.Hand;
             AccessibleRole = AccessibleRole.CheckButton;
             Size = new Size((int)Math.Round(40 * scale), (int)Math.Round(22 * scale));
+
+            animTimer = new System.Windows.Forms.Timer();
+            animTimer.Interval = 15;
+            animTimer.Tick += delegate
+            {
+                float target = isChecked ? 1f : 0f;
+                float diff = target - animPos;
+                if (Math.Abs(diff) < 0.08f)
+                {
+                    animPos = target;
+                    animTimer.Stop();
+                }
+                else
+                {
+                    animPos += diff * 0.38f;
+                }
+                Invalidate();
+            };
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && animTimer != null)
+            {
+                animTimer.Stop();
+                animTimer.Dispose();
+                animTimer = null;
+            }
+            base.Dispose(disposing);
         }
 
         public bool Checked
@@ -213,7 +244,15 @@ namespace IsoraSentinel.Tray
             {
                 if (isChecked == value) return;
                 isChecked = value;
-                Invalidate();
+                if (IsHandleCreated && Visible)
+                {
+                    animTimer.Start();
+                }
+                else
+                {
+                    animPos = isChecked ? 1f : 0f;
+                    Invalidate();
+                }
                 if (CheckedChanged != null) CheckedChanged(this, EventArgs.Empty);
             }
         }
@@ -237,6 +276,16 @@ namespace IsoraSentinel.Tray
         protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
         protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
 
+        private static Color BlendColor(Color a, Color b, float t)
+        {
+            if (t <= 0f) return a;
+            if (t >= 1f) return b;
+            int r = (int)Math.Round(a.R + (b.R - a.R) * t);
+            int g = (int)Math.Round(a.G + (b.G - a.G) * t);
+            int bl = (int)Math.Round(a.B + (b.B - a.B) * t);
+            return Color.FromArgb(r, g, bl);
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -247,18 +296,19 @@ namespace IsoraSentinel.Tray
             using (Brush b = new SolidBrush(bg)) g.FillRectangle(b, ClientRectangle);
 
             RectangleF track = new RectangleF(1.5f * s, 1.5f * s, Width - 3f * s, Height - 3f * s);
+            float t = Math.Max(0f, Math.Min(1f, animPos));
             Color fill, border, knob;
             if (!Enabled)
             {
                 fill = Color.FromArgb(226, 232, 240); border = Color.FromArgb(203, 213, 225); knob = Color.FromArgb(148, 163, 184);
             }
-            else if (isChecked)
-            {
-                fill = hover ? ConfigTheme.AccentHover : ConfigTheme.Accent; border = fill; knob = Color.White;
-            }
             else
             {
-                fill = Color.White; border = ConfigTheme.BorderStrong; knob = ConfigTheme.BorderStrong;
+                Color onColor = hover ? ConfigTheme.AccentHover : ConfigTheme.Accent;
+                Color offFill = hover ? Color.FromArgb(241, 245, 249) : Color.White;
+                fill = BlendColor(offFill, onColor, t);
+                border = BlendColor(ConfigTheme.BorderStrong, onColor, t);
+                knob = BlendColor(ConfigTheme.BorderStrong, Color.White, t);
             }
 
             using (GraphicsPath gp = Gfx.Pill(track))
@@ -268,7 +318,9 @@ namespace IsoraSentinel.Tray
             }
 
             float d = track.Height - 6f * s;
-            float x = isChecked ? track.Right - 3f * s - d : track.X + 3f * s;
+            float xOff = track.X + 3f * s;
+            float xOn = track.Right - 3f * s - d;
+            float x = xOff + (xOn - xOff) * t;
             using (Brush b = new SolidBrush(knob))
                 g.FillEllipse(b, x, track.Y + 3f * s, d, d);
 
@@ -645,7 +697,7 @@ namespace IsoraSentinel.Tray
                 pathPanel.BackColor = Color.Transparent;
                 pathPanel.Height = Sz(56);
 
-                CfgLabel lblPath = new CfgLabel("Directorio de retencion de descargas:", 8.25F, FontStyle.Bold, ConfigTheme.Accent);
+                CfgLabel lblPath = new CfgLabel("Directorio de retención de descargas:", 8.25F, FontStyle.Bold, ConfigTheme.Accent);
                 lblPath.SetBounds(0, 0, Sz(320), Sz(18));
                 pathPanel.Controls.Add(lblPath);
 
@@ -791,6 +843,22 @@ namespace IsoraSentinel.Tray
         }
 
         private bool isRunningNow = false;
+        private int activePercent = 0;
+        private bool cardHover = false;
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            cardHover = true;
+            Invalidate();
+            base.OnMouseEnter(e);
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            cardHover = false;
+            Invalidate();
+            base.OnMouseLeave(e);
+        }
 
         public void UpdateRuntimeState(TaskProgressInfo progress)
         {
@@ -799,11 +867,12 @@ namespace IsoraSentinel.Tray
             {
                 isRunningNow = true;
                 activePid = progress.Pid;
-                int p = Math.Max(0, Math.Min(100, progress.Percent));
-                badge.Set("En ejecución (" + p + "%)", BadgeKind.Warning);
-                string bar = progress.GetProgressBar(8);
+                activePercent = Math.Max(0, Math.Min(100, progress.Percent));
+                badge.Set("En ejecución · " + activePercent + "%", BadgeKind.Warning);
                 string stat = !string.IsNullOrEmpty(progress.Status) ? progress.Status : progress.Activity;
-                note.Text = "⚡ " + stat + "  " + bar;
+                note.Text = "En curso: " + stat + " (" + activePercent + "% completado)";
+                note.Font = ConfigTheme.F(8.75F, FontStyle.Bold);
+                note.ForeColor = ConfigTheme.Accent;
                 note.Visible = true;
                 if (btnCancel != null) btnCancel.Visible = true;
                 Invalidate();
@@ -812,6 +881,9 @@ namespace IsoraSentinel.Tray
             {
                 isRunningNow = false;
                 activePid = 0;
+                activePercent = 0;
+                note.Font = ConfigTheme.F(9F, FontStyle.Italic);
+                note.ForeColor = ConfigTheme.TextMuted;
                 if (btnCancel != null) btnCancel.Visible = false;
                 UpdateVisual();
             }
@@ -902,7 +974,7 @@ namespace IsoraSentinel.Tray
             suppress = false;
 
             baseline = Snapshot();
-            note.Text = "⚠️ Permisos insuficientes para consultar el estado. Abra la ventana como Administrador.";
+            note.Text = "Permisos insuficientes para consultar el estado. Abra la ventana como Administrador.";
             note.Visible = true;
             UpdateVisual();
             if (Changed != null) Changed(this, EventArgs.Empty);
@@ -952,13 +1024,16 @@ namespace IsoraSentinel.Tray
 
         /// <summary>
         /// Fragmento de PowerShell para esta tarjeta (vacío si no hay cambios).
-        /// Usa Start-Process con la cadena de argumentos exacta, igual que el instalador,
-        /// para evitar problemas de comillas con rutas que contienen espacios.
+        /// <summary>
+        /// Construye el comando PowerShell para crear, actualizar o deshabilitar la tarea programada.
+        /// Incluye sanitización de rutas personalizadas y aplicación automática de ajustes de batería
+        /// y Modern Standby (S0) para portátiles con Windows 11 (<see cref="TaskSchedulerBridge"/>).
         /// </summary>
         public string BuildCommand(string scriptPath)
         {
             if (!Dirty) return "";
             string args;
+            string postHarden = "";
             if (toggle.Checked)
             {
                 string extraParam = "";
@@ -968,10 +1043,11 @@ namespace IsoraSentinel.Tray
                 }
                 if (TaskName == "Archive_Downloads" && txtCustomPath != null)
                 {
-                    string p = txtCustomPath.Text.Trim();
-                    if (!string.IsNullOrEmpty(p))
+                    string p = SentinelSecurity.SanitizeDirectoryPath(txtCustomPath.Text);
+                    if (!string.IsNullOrEmpty(p) &&
+                        !string.Equals(p, @"%USERPROFILE%\Documents\Isora_Sentinel_Archived\Downloads", StringComparison.OrdinalIgnoreCase))
                     {
-                        extraParam += " -CustomArchiveDir \\\"" + p.Replace("\"", "") + "\\\"";
+                        extraParam += " -CustomArchiveDir \\\"" + p + "\\\"";
                     }
                 }
                 else if (TaskName == "Defender_Scan" && cmbMode != null)
@@ -985,6 +1061,7 @@ namespace IsoraSentinel.Tray
                 args = string.Format(
                     "/Create /TN \"Isora Sentinel\\{0}\" /TR \"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\\"{1}\\\"{2}\" {3} /RU \"NT AUTHORITY\\SYSTEM\" /RL HIGHEST /F",
                     TaskName, scriptPath, extraParam, GetTriggerArgs());
+                postHarden = TaskSchedulerBridge.BuildHardenTaskSettingsPowerShell(TaskName);
             }
             else if (InitialExists)
             {
@@ -995,8 +1072,8 @@ namespace IsoraSentinel.Tray
             {
                 return "";
             }
-            return "$p = Start-Process -FilePath 'schtasks.exe' -ArgumentList '" + args.Replace("'", "''") +
-                   "' -WindowStyle Hidden -Wait -PassThru; if ($p.ExitCode -ne 0) { $errs++ }; ";
+            return "$p = Start-Process -FilePath 'schtasks.exe' -ArgumentList '" + SentinelSecurity.EscapePowerShellSingleQuoted(args) +
+                   "' -WindowStyle Hidden -Wait -PassThru; if ($p.ExitCode -ne 0) { $errs++ } else { " + postHarden + " }; ";
         }
 
         // ---------------- Layout responsive ----------------
@@ -1067,18 +1144,35 @@ namespace IsoraSentinel.Tray
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            using (Pen p = new Pen(ConfigTheme.Border))
+            float s = e.Graphics.DpiX / 96f;
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            Color borderColor = cardHover ? ConfigTheme.BorderStrong : ConfigTheme.Border;
+            using (Pen p = new Pen(borderColor))
                 e.Graphics.DrawRectangle(p, 0, 0, Width - 1, Height - 1);
 
             Color bar = Color.Empty;
             if (!loading)
             {
-                if (Dirty) bar = ConfigTheme.WarningBar;
+                if (isRunningNow || Dirty) bar = ConfigTheme.WarningBar;
                 else if (toggle.Checked) bar = ConfigTheme.Accent;
             }
             if (!bar.IsEmpty)
                 using (Brush b = new SolidBrush(bar))
-                    e.Graphics.FillRectangle(b, 0, 0, (int)Math.Round(3 * e.Graphics.DpiX / 96f), Height);
+                    e.Graphics.FillRectangle(b, 0, 0, (int)Math.Round(4 * s), Height);
+
+            if (isRunningNow)
+            {
+                int trackH = (int)Math.Max(3, Math.Round(4 * s));
+                int trackY = Height - trackH - 1;
+                int trackX = (int)Math.Round(4 * s);
+                int trackW = Math.Max(10, Width - trackX - 1);
+                using (Brush bTrack = new SolidBrush(ConfigTheme.NeutralBg))
+                    e.Graphics.FillRectangle(bTrack, trackX, trackY, trackW, trackH);
+                int fillW = (int)Math.Round(trackW * (Math.Max(4, activePercent) / 100.0));
+                using (Brush bFill = new SolidBrush(ConfigTheme.Accent))
+                    e.Graphics.FillRectangle(bFill, trackX, trackY, fillW, trackH);
+            }
         }
     }
 
@@ -1286,7 +1380,7 @@ namespace IsoraSentinel.Tray
             Panel accentLine = new Panel();
             accentLine.Dock = DockStyle.Top;
             accentLine.Height = Sz(3);
-            accentLine.BackColor = TrayTheme.AccentSky;
+            accentLine.BackColor = TrayTheme.AccentOnDark;
             Controls.Add(accentLine);
 
             CfgStack header = new CfgStack();
@@ -1295,7 +1389,7 @@ namespace IsoraSentinel.Tray
             header.BackColor = TrayTheme.BgDark;
             header.Spacing = Sz(4);
             header.Padding = new Padding(Sz(28), Sz(18), Sz(28), Sz(18));
-            header.Controls.Add(new CfgLabel("ISORA SENTINEL · CONFIGURACIÓN", 8F, FontStyle.Bold, TrayTheme.AccentSky));
+            header.Controls.Add(new CfgLabel("ISORA SENTINEL · CONFIGURACIÓN", 8F, FontStyle.Bold, TrayTheme.AccentOnDark));
             header.Controls.Add(new CfgLabel("Tareas programadas", 15F, FontStyle.Bold, Color.White));
             header.Controls.Add(new CfgLabel(
                 "Active, desactive o cambie el horario de cada rutina. Los cambios se guardan en el Programador de tareas de Windows y se ejecutan con la cuenta SYSTEM.",
@@ -1336,35 +1430,13 @@ namespace IsoraSentinel.Tray
             bar.Tag = -4;
             stack.Controls.Add(bar);
 
-            // Rutinas (mismos horarios por defecto que el instalador)
-            AddCard(stack, "Cleanup_Screenshots", "Invoke-CleanupScreenshots.ps1",
-                "Limpieza de capturas de pantalla", "A.8.1 · Dispositivos",
-                "Elimina capturas guardadas en carpetas locales y en carpetas sincronizadas con OneDrive, Google Drive o Dropbox.",
-                "Diario", 0, 0, "03:00");
-            AddCard(stack, "Cleanup_Temp_Global", "Invoke-CleanupTempGlobal.ps1",
-                "Limpieza de archivos temporales", "ISO 20000-1 · Capacidad",
-                "Libera espacio en carpetas temporales del sistema, informes de errores (WER) y cachés de perfiles, sin seguir enlaces simbólicos.",
-                "Diario", 0, 0, "03:00");
-            AddCard(stack, "Defender_Scan", "Invoke-DefenderScan.ps1",
-                "Análisis con Microsoft Defender", "A.8.7 · Antimalware",
-                "Actualiza las firmas de seguridad y ejecuta un análisis antimalware.",
-                "Semanal", 6, 0, "02:00");
-            AddCard(stack, "Integrity_Check", "Invoke-IntegrityCheck.ps1",
-                "Revisión del almacén de componentes (DISM)", "A.8.9 · Configuración",
-                "Comprueba la integridad del almacén de componentes de Windows (WinSxS) con DISM /ScanHealth.",
-                "Semanal", 6, 0, "02:00");
-            AddCard(stack, "BitLocker_Audit", "Invoke-BitLockerAudit.ps1",
-                "Verificación de cifrado BitLocker", "A.8.24 · Criptografía",
-                "Comprueba que los volúmenes fijos estén cifrados y tengan protectores de clave, como TPM.",
-                "Diario", 0, 0, "03:00");
-            AddCard(stack, "Event_Audit", "Invoke-EventAudit.ps1",
-                "Auditoría de eventos de seguridad", "A.8.15 · Registro",
-                "Detecta el borrado del registro de seguridad (evento 1102), intentos fallidos de inicio de sesión (4625) y cuentas nuevas.",
-                "Diario", 0, 0, "03:00");
-            AddCard(stack, "Archive_Downloads", "Invoke-ArchiveDownloads.ps1",
-                "Archivado seguro de descargas", "A.8.10 · Ciclo de vida",
-                @"Relocaliza descargas de más de 30 días hacia Documentos\Isora_Sentinel_Archived\Downloads protegiéndolas con respaldo corporativo.",
-                "Mensual", 0, 0, "03:00");
+            // Rutinas generadas dinámicamente desde el catálogo centralizado (SentinelCatalog.AllModules)
+            foreach (SentinelModuleDefinition mod in SentinelCatalog.AllModules)
+            {
+                AddCard(stack, mod.TaskShortName, mod.ScriptFileName,
+                    mod.TitleEs, mod.IsoBadge, mod.DescriptionEs,
+                    mod.DefaultFrequency, mod.DefaultDayIndex, 0, mod.DefaultTime);
+            }
 
             // Opciones generales
             CfgStack general = new CfgStack();
@@ -1420,14 +1492,12 @@ namespace IsoraSentinel.Tray
 
             if (dr != DialogResult.Yes) return;
 
-            string cmd = "try { & taskkill.exe /PID " + pid + " /T /F } catch { }; " +
-                         "if ('" + taskName + "' -match 'Defender') { try { & taskkill.exe /IM MpCmdRun.exe /F } catch { } }; " +
-                         "if ('" + taskName + "' -match 'Integrity|DISM') { try { & taskkill.exe /IM dism.exe /F } catch { } }; " +
-                         "$progDirs = @((Join-Path $env:ProgramData 'Isora-Sentinel\\status'), (Join-Path $env:LOCALAPPDATA 'Isora-Sentinel\\status'), (Join-Path ([System.IO.Path]::GetTempPath()) 'Isora-Sentinel\\status')); " +
-                         "foreach ($d in $progDirs) { if (Test-Path $d) { Get-ChildItem -Path $d -Filter '*" + taskName + "*.progress.json' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue } };";
+            string cmd = TaskSchedulerBridge.BuildSafeCancelPowerShellScript(taskName, null);
 
             runPsAction(cmd, true, delegate(int code)
             {
+                if (code < 0) return;
+                TaskProgressInfo.SuppressCancelledEngine(taskName, 15);
                 PollRunningTasks();
             });
         }
@@ -1466,6 +1536,7 @@ namespace IsoraSentinel.Tray
             bool can = (n > 0) && !applying;
             btnApply.Enabled = can;
             btnApply.BackColor = can ? ConfigTheme.Accent : ConfigTheme.NeutralBg;
+            btnApply.ForeColor = can ? Color.White : ConfigTheme.TextMuted;
         }
 
         // ---------------- Lectura del estado actual ----------------
@@ -1517,6 +1588,11 @@ namespace IsoraSentinel.Tray
             });
         }
 
+        /// <summary>
+        /// Consulta la definición XML de una tarea programada usando decodificación inteligente
+        /// (<see cref="SafeProcessRunner.ReadProcessOutputSmartEncoding"/>) para evitar corrupción
+        /// de caracteres acentuados o UTF-16LE en Windows 11.
+        /// </summary>
         private static TaskStateInfo QueryTask(string taskName)
         {
             TaskStateInfo info = new TaskStateInfo();
@@ -1525,8 +1601,6 @@ namespace IsoraSentinel.Tray
                 "Isora Sentinel\\" + taskName,
                 "\\Isora-Sentinel\\" + taskName,
                 "Isora-Sentinel\\" + taskName,
-
-
                 "\\" + taskName,
                 taskName
             };
@@ -1535,33 +1609,24 @@ namespace IsoraSentinel.Tray
             {
                 try
                 {
-                    ProcessStartInfo psi = new ProcessStartInfo("schtasks.exe",
-                        "/Query /TN \"" + queryPath + "\" /XML");
-                    psi.CreateNoWindow = true;
-                    psi.UseShellExecute = false;
-                    psi.RedirectStandardOutput = true;
-                    psi.RedirectStandardError = true;
-                    psi.StandardErrorEncoding = Encoding.UTF8;
-                    psi.StandardOutputEncoding = Encoding.UTF8;
+                    int exitCode;
+                    string xml = SafeProcessRunner.ReadProcessOutputSmartEncoding(
+                        "schtasks.exe",
+                        "/Query /TN \"" + queryPath + "\" /XML",
+                        6000,
+                        out exitCode);
 
-                    using (Process p = Process.Start(psi))
+                    if (exitCode == 0 && !string.IsNullOrEmpty(xml))
                     {
-                        string xml = p.StandardOutput.ReadToEnd();
-                        string err = p.StandardError.ReadToEnd();
-                        p.WaitForExit();
-                        if (p.ExitCode != 0 && !string.IsNullOrEmpty(err) && (err.IndexOf("denied", StringComparison.OrdinalIgnoreCase) >= 0 || err.IndexOf("denegado", StringComparison.OrdinalIgnoreCase) >= 0 || err.IndexOf("acceso", StringComparison.OrdinalIgnoreCase) >= 0)) info.AccessDenied = true;
-                        if (p.ExitCode == 0 && !string.IsNullOrEmpty(xml))
-                        {
-                            info.Exists = true;
-                            info.Enabled = true;
+                        info.Exists = true;
+                        info.Enabled = true;
 
-                            xml = xml.Replace("\0", "");
-                            int lt = xml.IndexOf('<');
-                            if (lt > 0) xml = xml.Substring(lt);
+                        xml = xml.Replace("\0", "");
+                        int lt = xml.IndexOf('<');
+                        if (lt > 0) xml = xml.Substring(lt);
 
-                            try { ParseTaskXml(xml, info); } catch { }
-                            return info;
-                        }
+                        try { ParseTaskXml(xml, info); } catch { }
+                        return info;
                     }
                 }
                 catch { }
@@ -1645,25 +1710,7 @@ namespace IsoraSentinel.Tray
         // ---------------- Guardado ----------------
         private string ResolveEngine(string script)
         {
-            string[] baseDirs = new string[] {
-                installDir,
-                @"C:\Program Files\Isora-Sentinel",
-                @"C:\Program Files\Isora Sentinel",
-                AppDomain.CurrentDomain.BaseDirectory,
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @".."),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\src")
-            };
-            foreach (string dir in baseDirs)
-            {
-                if (string.IsNullOrEmpty(dir)) continue;
-                string p1 = Path.Combine(dir, @"engines\" + script);
-                if (File.Exists(p1)) return p1;
-                string p2 = Path.Combine(dir, @"src\engines\" + script);
-                if (File.Exists(p2)) return p2;
-                string p3 = Path.Combine(dir, script);
-                if (File.Exists(p3)) return p3;
-            }
-            return Path.Combine(installDir ?? @"C:\Program Files\Isora-Sentinel", @"engines\" + script);
+            return SentinelPaths.ResolveEngineScript(installDir, script);
         }
 
         private void ApplyChanges()
@@ -1737,44 +1784,22 @@ namespace IsoraSentinel.Tray
             });
         }
 
-        // ---------------- Inicio automático (HKCU / HKLM) ----------------
+        // ---------------- Inicio automático (HKCU / HKLM / HKEY_USERS) ----------------
         private bool IsAutoStartEnabled()
         {
-            try
-            {
-                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
-                {
-                    if (k != null && k.GetValue("IsoraSentinel_Tray") != null)
-                        return true;
-                }
-                using (RegistryKey k = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
-                {
-                    if (k != null && k.GetValue("IsoraSentinel_Tray") != null)
-                        return true;
-                }
-            }
-            catch { }
-            return false;
+            return CrossAccountEnvironment.IsAutoStartEnabled();
         }
 
         private bool SetAutoStart(bool enable)
         {
-            try
+            string err;
+            bool ok = CrossAccountEnvironment.SetAutoStart(enable, Application.ExecutablePath, out err);
+            if (!ok && !string.IsNullOrEmpty(err))
             {
-                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
-                {
-                    if (k == null) throw new InvalidOperationException("Clave Run no disponible.");
-                    if (enable) k.SetValue("IsoraSentinel_Tray", "\"" + Application.ExecutablePath + "\"");
-                    else k.DeleteValue("IsoraSentinel_Tray", false);
-                }
-                return true;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, "No se pudo cambiar el inicio automático:\n" + ex.Message,
+                MessageBox.Show(this, "No se pudo cambiar el inicio automático:\n" + err,
                     "Isora Sentinel · Tareas programadas", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
             }
+            return ok;
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -1789,11 +1814,11 @@ namespace IsoraSentinel.Tray
             base.OnFormClosing(e);
         }
 
-                internal static string GetRegistryArchiveDir()
+        internal static string GetRegistryArchiveDir()
         {
             try
             {
-                using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel", false))
+                using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(SentinelCatalog.UninstallRegistrySubKey, false))
                 {
                     if (rk != null)
                     {
@@ -1808,29 +1833,12 @@ namespace IsoraSentinel.Tray
 
         private static void EnsureTaskFolderReadAcl()
         {
-            try
-            {
-                string windir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-                string taskDir = Path.Combine(windir, @"System32\Tasks\Isora Sentinel");
-                if (Directory.Exists(taskDir))
-                {
-                    ProcessStartInfo psi = new ProcessStartInfo("icacls.exe",
-                        "\"" + taskDir + "\" /grant *S-1-5-32-545:(OI)(CI)RX /Q");
-                    psi.CreateNoWindow = true;
-                    psi.UseShellExecute = false;
-                    using (Process p = Process.Start(psi))
-                    {
-                        if (p != null) p.WaitForExit(2000);
-                    }
-                }
-            }
-            catch { }
+            SentinelSecurity.ApplyTaskFolderReadAcl();
         }
 
         private static bool IsAdministrator()
         {
-            using (WindowsIdentity id = WindowsIdentity.GetCurrent())
-                return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
+            return SentinelSecurity.IsAdministrator();
         }
     }
 }

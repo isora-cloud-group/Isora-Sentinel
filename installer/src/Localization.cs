@@ -1,6 +1,6 @@
 ﻿// =============================================================================
 //  Isora Sentinel Suite - Internationalization & Localization Engine (I18n)
-//  Copyright & Architecture: Sandra Gabriela Puerto Torres
+//  Copyright: Sandra Gabriela Puerto Torres
 //  Distribution: Isora Cloud Group (https://isora.com.co)
 //  ISO/IEC 27001:2022 & ISO/IEC 20000-1 Enterprise Multi-Language Framework
 // =============================================================================

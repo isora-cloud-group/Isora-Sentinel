@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Downloads Lifecycle & Storage Tiering Engine - ISO/IEC 27001:2022 Control A.8.10 / A.8.1
 .DESCRIPTION
@@ -148,12 +148,21 @@ function Process-UserDownloads {
     }
 
     # Determine Destination Archive Directory
-    $archiveDir = if ($CustomArchiveDir -and $CustomArchiveDir.Trim() -ne "") {
-        if ($CustomArchiveDir -match '%USERPROFILE%') {
-            $CustomArchiveDir.Replace('%USERPROFILE%', $ProfilePath)
-        } else {
-            $CustomArchiveDir
+    # Note: When invoked by Windows Task Scheduler under NT AUTHORITY\SYSTEM, %USERPROFILE% in command-line
+    # arguments is pre-expanded by svchost.exe to C:\WINDOWS\system32\config\systemprofile before PowerShell starts.
+    $resolveUserArchivePath = {
+        param([string]$RawPath, [string]$TargetProfile)
+        if ($RawPath -match '%USERPROFILE%') {
+            return ($RawPath -ireplace '%USERPROFILE%', $TargetProfile)
         }
+        if ($RawPath -match '^[A-Za-z]:\\Windows\\(?:System32|SysWOW64)\\config\\systemprofile(\\|$)') {
+            return ($RawPath -ireplace '^[A-Za-z]:\\Windows\\(?:System32|SysWOW64)\\config\\systemprofile', $TargetProfile.TrimEnd('\', '/'))
+        }
+        return $RawPath
+    }
+
+    $archiveDir = if ($CustomArchiveDir -and $CustomArchiveDir.Trim() -ne "") {
+        & $resolveUserArchivePath $CustomArchiveDir.Trim() $ProfilePath
     } else {
         $regArchive = $null
         try {
@@ -164,11 +173,7 @@ function Process-UserDownloads {
         } catch { }
 
         if ($regArchive -and $regArchive.Trim() -ne "") {
-            if ($regArchive -match '%USERPROFILE%') {
-                $regArchive.Replace('%USERPROFILE%', $ProfilePath)
-            } else {
-                $regArchive
-            }
+            & $resolveUserArchivePath $regArchive.Trim() $ProfilePath
         } else {
             Join-Path $ProfilePath "Documents\Isora_Sentinel_Archived\Downloads"
         }

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Static AST Integrity and Syntax Validation for Isora Sentinel.
 .DESCRIPTION
@@ -31,6 +31,9 @@ Describe "Isora Sentinel Syntax and AST Integrity" {
         }
 
         $parseErrors.Count | Should -Be 0
+        $rawBytes = [System.IO.File]::ReadAllBytes($Path)
+        $hasUtf8Bom = ($rawBytes.Length -ge 3 -and $rawBytes[0] -eq 0xEF -and $rawBytes[1] -eq 0xBB -and $rawBytes[2] -eq 0xBF)
+        $hasUtf8Bom | Should -BeTrue
     }
 }
 

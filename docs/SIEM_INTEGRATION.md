@@ -1,9 +1,9 @@
 # Enterprise SIEM Ingestion & Security Operations Guide — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
-**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
+**Author & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
 **Control Mapping:** ISO/IEC 27001:2022 Control A.8.15 (Logging and Monitoring)
-**Software Version:** 2.4.7  
+**Software Version:** 2.5.0  
 **Telemetry Format:** UTF-8 JSON (RFC 8259) delimited by newlines (NDJSON)  
 **Supported Platforms:** Splunk Enterprise / Cloud, Elastic Stack (ELK), Datadog Log Management, Microsoft Sentinel (Azure Monitor)  
 

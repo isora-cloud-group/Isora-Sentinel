@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     System-wide and User Cache Reclamation Engine - ISO/IEC 20000-1:2018 §8.2
 .DESCRIPTION
@@ -73,6 +73,7 @@ function Clean-Directory {
 
         foreach ($Item in $SortedItems) {
             $itemFullPath = [System.IO.Path]::GetFullPath($Item.FullName)
+            if ($itemFullPath -match '\\Isora-Sentinel(\\|$)') { continue }
             
             # Boundary check: enforce containment within normalized target directory
             if (-not $itemFullPath.StartsWith($normalizedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -87,7 +88,7 @@ function Clean-Directory {
             # Real-time fresh attribute query (defeats TOCTOU symlink/junction races)
             try {
                 $freshAttr = [System.IO.File]::GetAttributes($Item.FullName)
-                if ($freshAttr -band [System.IO.FileAttributes]::ReparsePoint) {
+                if (($freshAttr -band [System.IO.FileAttributes]::ReparsePoint) -or (-not (Test-SafePathHierarchy -TargetPath $Item.FullName -BaseRoot $Path))) {
                     Write-AuditEntry "SECURITY: Reparse point detected during sanitization. Skipping item." -Level "WARN" -Metadata @{ Path = $Item.FullName }
                     continue
                 }

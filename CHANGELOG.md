@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.0] - 2026-11-02
+
+### Added
+- **Modular .NET Framework 4.8 Core Architecture (`SentinelCore.cs`) & Deduplication:**
+  - Created `installer/src/SentinelCore.cs` as the single source of truth (`SentinelCatalog`, `SentinelPaths`, `SentinelSecurity`, `SafeProcessRunner`, `TaskSchedulerBridge`, `CrossAccountEnvironment`, and `GdiHelper`), eliminating duplicated logic across `SentinelTray.cs`, `TaskConfigForm.cs`, `SentinelSetup.cs`, and `UninstallForm.cs`.
+  - Converted `TaskConfigForm.cs` to dynamically generate task configuration cards from `SentinelCatalog.AllModules`.
+  - Added `ROADMAP.md` documenting the dual-track strategy (native `.NET 4.8` zero-dependency branch + future dedicated `.NET 8 / .NET 9 LTS` branch).
+- **Windows 11, Standard User & Strict UAC Security Hardening:**
+  - Implemented `Test-SafePathHierarchy` in `src/lib/Sentinel-Core.psm1` to prevent intermediate directory junction TOCTOU attacks during `NT AUTHORITY\SYSTEM` file cleanup.
+  - Added Windows 11 Snipping Tool (`Microsoft.ScreenSketch_8wekyb3d8bbwe\TempState` and `LocalState\Screenshots`) discovery in `Invoke-CleanupScreenshots.ps1`.
+  - Preserved Windows 11 Modern Standby (S0) laptop battery execution settings (`-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable`) when modifying tasks in `TaskConfigForm.cs` and `SentinelSetup.cs`.
+  - Configured shared `BuiltinUsersSid` `Modify` ACLs on `C:\ProgramData\Isora-Sentinel\status` and cross-profile status discovery (`CrossAccountEnvironment`) so standard users and elevated administrators share live progress visibility in Over-the-Shoulder (OTS) UAC sessions.
+- **Executive UI/UX Design, WCAG Contrast & Smooth Transitions:**
+  - Added 60fps smooth animated transitions and color interpolation to `ToggleSwitch` controls in `TaskConfigForm.cs`.
+  - Replaced ASCII progress blocks and playful emojis with custom GDI+ progress bars, Segoe Fluent / MDL2 vector iconography, and executive typography.
+  - Enhanced WCAG AA/AAA contrast across dark headers (`AccentOnDark` Sky 400 on Slate 900), disabled action buttons, and High-DPI (`--config`) scaling.
+
+### Fixed
+- **PowerShell 5.1 Runspace-Safe Async Child Process Streaming (`Invoke-DefenderScan.ps1`, `Invoke-IntegrityCheck.ps1`):**
+  - Replaced `.NET` thread-pool event handlers (`$proc.add_OutputDataReceived` + `BeginOutputReadLine()`) with main-thread `$proc.StandardOutput.ReadLineAsync()` and `$proc.StandardError.ReadLineAsync()` polling inside `while (-not $proc.WaitForExit(1000))`, preventing `"No hay ningún espacio de ejecución disponible"` crashes in `powershell.exe -NonInteractive`.
+- **Deterministic Defender/DISM Cancellation & Progress Synchrony (`SentinelCore.cs`, `SentinelTray.cs`, `TaskConfigForm.cs`):**
+  - Removed synthetic `MpCmdRun.exe`/`dism.exe` process scanning from `TaskProgressInfo.FindAllActiveProgress` and reordered `TaskSchedulerBridge.BuildSafeCancelPowerShellScript` to stop the Scheduled Task and kill the root `powershell.exe` host before purging `*.progress.json` and terminating child binaries.
+- **`NT AUTHORITY\SYSTEM` Pre-Expanded `%USERPROFILE%` Resolution (`Invoke-ArchiveDownloads.ps1`):**
+  - Detected `C:\WINDOWS\system32\config\systemprofile` paths passed by Windows Task Scheduler (`svchost.exe`) and remapped them dynamically to each interactive user's `$ProfilePath`.
+- **Defender `ExitCode=2` Disambiguation (`Invoke-DefenderScan.ps1`):**
+  - Verified explicit `"found ... threats"` stdout/stderr output before emitting `Alert=ActiveThreatDetected` on `ExitCode=2`, categorizing cancelled or skipped scans as `Status=ScanIncompleteOrCancelled`.
+- **Installer Wizard Non-Blocking Navigation & Task Registration (`SentinelSetup.cs`):**
+  - Moved scheduled task discovery (`LoadExistingTasksIfAny`) to a background thread so clicking `Siguiente >` on Step 1 never blocks the UI thread, preserved `-Disabled` state for unchecked installer rows, and wired explicit `-ScanType` / `-QuickCheck` / `-AutoRepair` flags.
+
 ## [2.4.7] - 2026-11-01
 
 ### Added

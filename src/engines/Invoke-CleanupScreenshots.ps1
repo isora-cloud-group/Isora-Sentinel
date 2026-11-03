@@ -178,7 +178,10 @@ try {
             'Imágenes\Capturas de pantalla',
             'Bilder\Screenshots',
             "Images\Captures d'écran",
-            'Immagini\Schermate'
+            'Immagini\Schermate',
+            'Videos\Captures',
+            'AppData\Local\Packages\Microsoft.ScreenSketch_8wekyb3d8bbwe\TempState',
+            'AppData\Local\Packages\Microsoft.ScreenSketch_8wekyb3d8bbwe\LocalState\Screenshots'
         )) {
             [void]$Vectors.Add((Join-Path $ProfilePath $sub))
         }
@@ -209,7 +212,7 @@ try {
 
                                 try {
                                     $freshAttr = [System.IO.File]::GetAttributes($Asset.FullName)
-                                    $isReparseOrCloud = ($freshAttr -band [System.IO.FileAttributes]::ReparsePoint) -or ($freshAttr -band [System.IO.FileAttributes]::Offline)
+                                    $isReparseOrCloud = ($freshAttr -band [System.IO.FileAttributes]::ReparsePoint) -or ($freshAttr -band [System.IO.FileAttributes]::Offline) -or (-not (Test-SafePathHierarchy -TargetPath $Asset.FullName -BaseRoot $PathItem))
                                     if ($isReparseOrCloud) {
                                         continue
                                     }

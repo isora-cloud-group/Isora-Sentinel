@@ -1,8 +1,8 @@
 # Operator & Deployment Manual — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
-**Architect & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Software Version:** 2.4.7  
+**Author & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
+**Software Version:** 2.5.0  
 **Target Operating Systems:** Windows 10 (1809+), Windows 11, Windows Server 2016 / 2019 / 2022 / 2025  
 **Execution Runtimes:** Windows PowerShell 5.1+ or PowerShell Core 7+ (`pwsh`)  
 **Privilege Context:** `NT AUTHORITY\SYSTEM` / Elevated Local Administrator  

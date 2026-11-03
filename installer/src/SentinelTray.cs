@@ -32,7 +32,7 @@ namespace IsoraSentinel.Tray
     internal static class Branding
     {
         public const string ProductName   = "Isora Sentinel";
-        public const string Version       = "2.4.7";
+        public const string Version       = "2.5.0";
         public const string TaskFolder    = "Isora Sentinel";          // Carpeta en el Programador de tareas
         public const string UninstallKey  = "Isora-Sentinel";          // HKLM\...\Uninstall\<clave>
         public const string AutoStartName = "IsoraSentinel_Tray";         // Valor en ...\Run (igual que el instalador)
@@ -291,21 +291,29 @@ namespace IsoraSentinel.Tray
             {
                 try
                 {
-                    Process p = Process.GetProcessById(Pid);
-                    try
+                    using (Process p = Process.GetProcessById(Pid))
                     {
-                        if (p.HasExited) return false;
+                        try
+                        {
+                            if (p.HasExited) return false;
+                        }
+                        catch (System.ComponentModel.Win32Exception)
+                        {
+                            // En Windows, consultar HasExited sobre un proceso elevado desde un proceso
+                            // con token estándar genera Win32Exception (Acceso denegado).
+                            // Esto demuestra fehacientemente que el proceso existe y está en ejecución con privilegios elevados.
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            return false;
+                        }
                     }
-                    catch (System.ComponentModel.Win32Exception)
+                    if (!string.IsNullOrEmpty(FilePath) && File.Exists(FilePath))
                     {
-                        // En Windows, consultar HasExited sobre un proceso elevado desde un proceso
-                        // con token estándar genera Win32Exception (Acceso denegado).
-                        // Esto demuestra fehacientemente que el proceso existe y está en ejecución con privilegios elevados.
+                        if ((DateTime.UtcNow - File.GetLastWriteTimeUtc(FilePath)).TotalSeconds > 14400)
+                            return false;
                     }
-                    catch (InvalidOperationException)
-                    {
-                        return false;
-                    }
+                    return true;
                 }
                 catch (ArgumentException)
                 {
@@ -315,11 +323,16 @@ namespace IsoraSentinel.Tray
                 catch (System.ComponentModel.Win32Exception)
                 {
                     // Acceso denegado en GetProcessById confirma que el proceso existe y está protegido/elevado
+                    return true;
                 }
                 catch
                 {
                     return false;
                 }
+            }
+            if (!string.IsNullOrEmpty(FilePath) && File.Exists(FilePath))
+            {
+                return (DateTime.UtcNow - File.GetLastWriteTimeUtc(FilePath)).TotalSeconds <= 300;
             }
             if (UpdatedAt > DateTime.MinValue && (DateTime.UtcNow - UpdatedAt).TotalSeconds > 300)
                 return false;
@@ -335,6 +348,10 @@ namespace IsoraSentinel.Tray
             return "[" + new string('\u2588', filled) + new string('\u2591', length - filled) + "] " + p + "%";
         }
 
+        /// <summary>
+        /// Analiza el contenido JSON de un archivo <c>.progress.json</c> aplicando validación
+        /// estricta de lista blanca sobre el nombre del motor para impedir inyección de comandos.
+        /// </summary>
         public static TaskProgressInfo Parse(string json)
         {
             TaskProgressInfo info = new TaskProgressInfo();
@@ -342,15 +359,19 @@ namespace IsoraSentinel.Tray
             try
             {
                 Match mEng = Regex.Match(json, @"""engine""\s*:\s*""([^""]+)""");
-                if (mEng.Success) info.Engine = mEng.Groups[1].Value;
+                if (mEng.Success)
+                {
+                    string candidateEng = mEng.Groups[1].Value;
+                    info.Engine = SentinelSecurity.IsValidSafeEngineName(candidateEng) ? candidateEng : "General";
+                }
 
                 Match mAct = Regex.Match(json, @"""activity""\s*:\s*""([^""]+)""");
-                if (mAct.Success) info.Activity = mAct.Groups[1].Value;
+                if (mAct.Success) info.Activity = SafeProcessRunner.RepairMojibake(mAct.Groups[1].Value);
 
                 Match mStat = Regex.Match(json, @"""status""\s*:\s*""([^""]+)""");
-                if (mStat.Success) info.Status = mStat.Groups[1].Value;
+                if (mStat.Success) info.Status = SafeProcessRunner.RepairMojibake(mStat.Groups[1].Value);
 
-                Match mPct = Regex.Match(json, @"""percent""\s*:\s*(\d+)");
+                Match mPct = Regex.Match(json, @"""percent""\s*:\s*(-?\d+)");
                 if (mPct.Success) int.TryParse(mPct.Groups[1].Value, out info.Percent);
 
                 Match mPid = Regex.Match(json, @"""pid""\s*:\s*(\d+)");
@@ -369,21 +390,46 @@ namespace IsoraSentinel.Tray
         public static bool MatchesTask(string engineName, string taskName)
         {
             if (string.IsNullOrEmpty(engineName) || string.IsNullOrEmpty(taskName)) return false;
-            string cleanEng = engineName.Replace("ISO_", "").Replace("Invoke-", "").Replace(".ps1", "").Replace("-", "_").Trim();
-            string cleanTask = taskName.Replace("ISO_", "").Replace("Invoke-", "").Replace(".ps1", "").Replace("-", "_").Trim();
+            string cleanEng = engineName.Replace("ISO_", "").Replace("Invoke-", "").Replace(".ps1", "").Replace("-", "").Replace("_", "").Trim();
+            string cleanTask = taskName.Replace("ISO_", "").Replace("Invoke-", "").Replace(".ps1", "").Replace("-", "").Replace("_", "").Trim();
             return string.Equals(cleanEng, cleanTask, StringComparison.OrdinalIgnoreCase);
         }
 
+        private static readonly Dictionary<string, DateTime> suppressedEngines = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        public static void SuppressCancelledEngine(string engineName, int seconds)
+        {
+            if (string.IsNullOrEmpty(engineName)) return;
+            lock (suppressedEngines)
+            {
+                suppressedEngines[engineName] = DateTime.UtcNow.AddSeconds(seconds);
+            }
+        }
+
+        private static bool IsEngineSuppressed(string engineName)
+        {
+            if (string.IsNullOrEmpty(engineName)) return false;
+            lock (suppressedEngines)
+            {
+                foreach (KeyValuePair<string, DateTime> kvp in suppressedEngines)
+                {
+                    if (DateTime.UtcNow < kvp.Value && MatchesTask(engineName, kvp.Key))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Descubre todas las tareas en ejecución inspeccionando exclusivamente los archivos IPC
+        /// deterministas (<c>*.progress.json</c>) en las carpetas de estado compartidas (<c>ProgramData</c>)
+        /// y de perfil de usuario (<c>CrossAccountEnvironment</c>).
+        /// </summary>
         public static List<TaskProgressInfo> FindAllActiveProgress(string installDir)
         {
             List<TaskProgressInfo> activeList = new List<TaskProgressInfo>();
-            List<string> dirs = new List<string>();
-            string progData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            if (!string.IsNullOrEmpty(progData)) dirs.Add(Path.Combine(progData, @"Isora-Sentinel\status"));
+            List<string> dirs = new List<string>(CrossAccountEnvironment.GetAllStatusDirectories());
             if (!string.IsNullOrEmpty(installDir)) dirs.Add(Path.Combine(installDir, @"logs\.status"));
-            string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (!string.IsNullOrEmpty(localApp)) dirs.Add(Path.Combine(localApp, @"Isora-Sentinel\status"));
-            dirs.Add(Path.Combine(Path.GetTempPath(), @"Isora-Sentinel\status"));
 
             HashSet<string> seenEngines = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -397,11 +443,21 @@ namespace IsoraSentinel.Tray
                     {
                         try
                         {
-                            string raw = File.ReadAllText(f, Encoding.UTF8);
+                            string raw = "";
+                            using (FileStream fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                            using (StreamReader sr = new StreamReader(fs, Encoding.UTF8))
+                            {
+                                raw = sr.ReadToEnd();
+                            }
                             TaskProgressInfo info = Parse(raw);
                             if (info != null)
                             {
                                 info.FilePath = f;
+                                if (IsEngineSuppressed(info.Engine))
+                                {
+                                    try { File.Delete(f); } catch { }
+                                    continue;
+                                }
                                 if (info.IsActive())
                                 {
                                     if (!seenEngines.Contains(info.Engine))
@@ -417,46 +473,6 @@ namespace IsoraSentinel.Tray
                             }
                         }
                         catch { }
-                    }
-                }
-                catch { }
-            }
-
-            // Detección sintética de respaldo: Si hay un proceso pesado como Defender o DISM corriendo
-            // en segundo plano pero su archivo .progress.json fue purgado o aún no se ha escrito,
-            // se expone dinámicamente en el menú para que el usuario siempre pueda ver su avance y cancelarlo.
-            if (activeList.Count == 0)
-            {
-                try
-                {
-                    Process[] defProcs = Process.GetProcessesByName("MpCmdRun");
-                    if (defProcs != null && defProcs.Length > 0)
-                    {
-                        TaskProgressInfo synth = new TaskProgressInfo();
-                        synth.Engine = "ISO_Defender_Scan";
-                        synth.Activity = "Análisis de Microsoft Defender";
-                        synth.Status = "Escaneando archivos en segundo plano...";
-                        synth.Percent = 50;
-                        synth.Pid = defProcs[0].Id;
-                        synth.UpdatedAt = DateTime.UtcNow;
-                        activeList.Add(synth);
-                    }
-                }
-                catch { }
-
-                try
-                {
-                    Process[] dismProcs = Process.GetProcessesByName("dism");
-                    if (dismProcs != null && dismProcs.Length > 0)
-                    {
-                        TaskProgressInfo synth = new TaskProgressInfo();
-                        synth.Engine = "ISO_Integrity_Check";
-                        synth.Activity = "Comprobación de Windows (DISM)";
-                        synth.Status = "Operación de componentes en curso...";
-                        synth.Percent = 50;
-                        synth.Pid = dismProcs[0].Id;
-                        synth.UpdatedAt = DateTime.UtcNow;
-                        activeList.Add(synth);
                     }
                 }
                 catch { }
@@ -508,18 +524,6 @@ namespace IsoraSentinel.Tray
         private TaskConfigForm configForm = null;
         private readonly HashSet<string> running = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Mapeo script -> tarea programada
-        private static readonly Dictionary<string, string> TaskByScript = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "Invoke-CleanupScreenshots.ps1", "Cleanup_Screenshots" },
-            { "Invoke-CleanupTempGlobal.ps1",  "Cleanup_Temp_Global" },
-            { "Invoke-ArchiveDownloads.ps1",   "Archive_Downloads" },
-            { "Invoke-DefenderScan.ps1",       "Defender_Scan" },
-            { "Invoke-IntegrityCheck.ps1",     "Integrity_Check" },
-            { "Invoke-BitLockerAudit.ps1",     "BitLocker_Audit" },
-            { "Invoke-EventAudit.ps1",         "Event_Audit" }
-        };
-
         // Glifos (Segoe MDL2 Assets / Segoe Fluent Icons)
         private const string G_Shield   = "\uEA18";
         private const string G_Camera   = "\uE722";
@@ -533,6 +537,7 @@ namespace IsoraSentinel.Tray
         private const string G_Settings = "\uE713";
         private const string G_Power    = "\uE7E8";
         private const string G_Refresh  = "\uE72C";
+        private const string G_Cancel   = "\uE711";
 
         public SentinelTrayContext()
         {
@@ -581,92 +586,23 @@ namespace IsoraSentinel.Tray
 
         private static string InstallLocationFromRegistry()
         {
-            string key = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + Branding.UninstallKey;
-            try
-            {
-                // Consultar vista nativa de 64 bits primero
-                using (RegistryKey baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
-                using (RegistryKey rk = baseKey.OpenSubKey(key))
-                {
-                    string v = (rk != null) ? rk.GetValue("InstallLocation") as string : null;
-                    if (!string.IsNullOrEmpty(v)) return v;
-                }
-                using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(key))
-                {
-                    string v = (rk != null) ? rk.GetValue("InstallLocation") as string : null;
-                    if (!string.IsNullOrEmpty(v)) return v;
-                }
-                using (RegistryKey rk = Registry.CurrentUser.OpenSubKey(key))
-                {
-                    string v = (rk != null) ? rk.GetValue("InstallLocation") as string : null;
-                    if (!string.IsNullOrEmpty(v)) return v;
-                }
-            }
-            catch { }
-            return null;
+            return SentinelPaths.GetInstallLocationFromRegistry();
         }
 
         private void LocateDirectories()
         {
-            string regLoc = InstallLocationFromRegistry();
-            if (!string.IsNullOrEmpty(regLoc) && Directory.Exists(regLoc))
-            {
-                installDir = regLoc;
-                logsDir = Path.Combine(installDir, "logs");
-                return;
-            }
-
-            string pf = Environment.GetEnvironmentVariable("ProgramW6432");
-            if (string.IsNullOrEmpty(pf)) pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-
-            string defHyphen = Path.Combine(pf, "Isora-Sentinel");
-            string defSpace  = Path.Combine(pf, "Isora Sentinel");
-
-            if (Directory.Exists(defHyphen))
-            {
-                installDir = defHyphen;
-                logsDir = Path.Combine(defHyphen, "logs");
-            }
-            else if (Directory.Exists(defSpace))
-            {
-                installDir = defSpace;
-                logsDir = Path.Combine(defSpace, "logs");
-            }
-            else
-            {
-                installDir = AppDomain.CurrentDomain.BaseDirectory;   // entorno de desarrollo
-                logsDir = Path.Combine(installDir, "logs");
-            }
+            installDir = SentinelPaths.LocateInstallDirectory();
+            logsDir = Path.Combine(installDir, "logs");
         }
 
         private string ResolveEngine(string scriptName)
         {
-            string[] baseDirs = new string[] {
-                installDir,
-                @"C:\Program Files\Isora-Sentinel",
-                @"C:\Program Files\Isora Sentinel",
-                AppDomain.CurrentDomain.BaseDirectory,
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @".."),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\src")
-            };
-
-            foreach (string dir in baseDirs)
-            {
-                if (string.IsNullOrEmpty(dir)) continue;
-                string p1 = Path.Combine(dir, @"engines\" + scriptName);
-                if (File.Exists(p1)) return p1;
-                string p2 = Path.Combine(dir, @"src\engines\" + scriptName);
-                if (File.Exists(p2)) return p2;
-                string p3 = Path.Combine(dir, scriptName);
-                if (File.Exists(p3)) return p3;
-            }
-            return Path.Combine(installDir ?? @"C:\Program Files\Isora-Sentinel", @"engines\" + scriptName);
+            return SentinelPaths.ResolveEngineScript(installDir, scriptName);
         }
 
         private static bool IsAdministrator()
         {
-            using (WindowsIdentity id = WindowsIdentity.GetCurrent())
-                return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
+            return SentinelSecurity.IsAdministrator();
         }
 
         // ---------------------------------------------------------------------
@@ -838,22 +774,26 @@ namespace IsoraSentinel.Tray
             menu.Items.Add(itemIntegrity);
 
             // ---- Indicador de avance de tareas en ejecución (0% - 100%) ----
-            itemLiveProgress = NewItem("⚡ Sin tareas en ejecución (sistema en reposo)", G_Sync, null);
+            itemLiveProgress = NewItem("Sistema en reposo (sin tareas en curso)", G_Sync, null);
             itemLiveProgress.Font = TrayTheme.Font(8.5F, FontStyle.Regular);
             itemLiveProgress.ForeColor = TrayTheme.TextMuted;
+            itemLiveProgress.Tag = TrayTheme.TextMuted;
             itemLiveProgress.Enabled = false;
             itemLiveProgress.Visible = true;
             menu.Items.Add(itemLiveProgress);
 
             itemLiveProgressBar = NewItem("  [░░░░░░░░░░░░] 0%", null, null);
             itemLiveProgressBar.Font = new Font("Consolas", 8.5F, FontStyle.Regular);
-            itemLiveProgressBar.ForeColor = TrayTheme.TextMuted;
+            itemLiveProgressBar.ForeColor = TrayTheme.TextSecondary;
+            itemLiveProgressBar.Tag = TrayTheme.TextSecondary;
             itemLiveProgressBar.Visible = false;
             menu.Items.Add(itemLiveProgressBar);
 
-            itemLiveCancel = NewItem("  ⛔ Cancelar tarea en ejecución…", null, delegate { CancelActiveTask(); });
-            itemLiveCancel.Font = TrayTheme.Font(8.5F, FontStyle.Bold);
-            itemLiveCancel.ForeColor = Color.FromArgb(220, 38, 38); // Red
+            itemLiveCancel = NewItem("Cancelar tarea en ejecución…", null, delegate { CancelActiveTask(); });
+            itemLiveCancel.Image = Glyph(G_Cancel, TrayTheme.Danger);
+            itemLiveCancel.Font = TrayTheme.Font(8.75F, FontStyle.Bold);
+            itemLiveCancel.ForeColor = TrayTheme.Danger;
+            itemLiveCancel.Tag = TrayTheme.Danger;
             itemLiveCancel.ShortcutKeyDisplayString = "Administrador";
             itemLiveCancel.ToolTipText = "Detiene y finaliza inmediatamente el proceso de la tarea en ejecución.";
             itemLiveCancel.Visible = false;
@@ -862,8 +802,6 @@ namespace IsoraSentinel.Tray
             itemLiveProgressSep = new ToolStripSeparator();
             itemLiveProgressSep.Visible = true;
             menu.Items.Add(itemLiveProgressSep);
-
-            menu.Items.Add(new ToolStripSeparator());
 
             // ---- Mantenimiento ----
             menu.Items.Add(NewSectionLabel(Loc.T("MANTENIMIENTO", "MAINTENANCE")));
@@ -1142,7 +1080,8 @@ namespace IsoraSentinel.Tray
             sb.AppendLine();
             sb.AppendLine("Mantenimiento y seguridad para equipos Windows: limpieza, análisis antimalware, comprobaciones de integridad y auditorías, con un registro de cada ejecución.");
             sb.AppendLine();
-            sb.AppendLine("Autora: Sandra Gabriela Puerto Torres");
+            sb.AppendLine("Autora y titular: Sandra Gabriela Puerto Torres");
+            sb.AppendLine("Marca comercial: Isora Cloud Group (isora.com.co)");
             sb.AppendLine("Licencia: Apache-2.0 (código abierto)");
             sb.AppendLine("Instalada en: " + installDir);
             sb.AppendLine();
@@ -1289,9 +1228,9 @@ namespace IsoraSentinel.Tray
             bool elevate = needsAdmin && !IsAdministrator();
             if (!Confirm(title, confirmBody, elevate, warn)) return;
 
-            string taskName;
+            string taskName = SentinelCatalog.GetTaskNameByScript(script);
             string cmd;
-            if (needsAdmin && string.IsNullOrEmpty(args) && TaskByScript.TryGetValue(script, out taskName))
+            if (needsAdmin && string.IsNullOrEmpty(args) && !string.IsNullOrEmpty(taskName))
             {
                 cmd = "schtasks.exe /Run /TN " + Q(Branding.TaskFolder + "\\" + taskName) + " 2>$null | Out-Null; " +
                       "if ($LASTEXITCODE -eq 0) { exit " + ExitTriggered + " }; " + DirectRun(path, args);
@@ -1423,17 +1362,15 @@ namespace IsoraSentinel.Tray
             catch { return false; }
         }
 
+        /// <summary>
+        /// Abre en el Explorador de Windows la carpeta de registros (<c>logs</c>) que contenga
+        /// la actividad más reciente, priorizando los registros del propio usuario estándar
+        /// (<c>%LOCALAPPDATA%\Isora-Sentinel\logs</c>) cuando acaba de ejecutar una limpieza de su cuenta.
+        /// </summary>
         private void OpenLogs()
         {
-            string userLogs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Isora-Sentinel\logs");
-
-            string target = null;
-            if (HasEntries(logsDir)) target = logsDir;
-            else if (HasEntries(userLogs)) target = userLogs;
-            else if (Directory.Exists(logsDir)) target = logsDir;
-            else if (Directory.Exists(userLogs)) target = userLogs;
-
-            if (target == null)
+            string target = CrossAccountEnvironment.GetBestLogsDirectory(installDir);
+            if (string.IsNullOrEmpty(target) || (!HasEntries(target) && !Directory.Exists(target)))
             {
                 Msg("Todavía no hay registros de actividad.\n\nSe crean la primera vez que se ejecuta una tarea.",
                     Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1483,31 +1420,14 @@ namespace IsoraSentinel.Tray
             }
         }
 
+        /// <summary>
+        /// Ejecuta comandos de PowerShell desde la ventana independiente <c>--config</c> utilizando
+        /// <see cref="SafeProcessRunner.RunPowerShellAsync"/> con <c>-EncodedCommand</c> (Base64 UTF-16LE),
+        /// evitando que las comillas dobles internas de <c>schtasks.exe</c> se rompan.
+        /// </summary>
         internal static void RunPowerShellDirect(string cmd, bool elevate, Action<int> onDone)
         {
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                int exitCode = 1;
-                try
-                {
-                    ProcessStartInfo psi = new ProcessStartInfo();
-                    psi.FileName = "powershell.exe";
-                    psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"" + cmd + "\"";
-                    psi.CreateNoWindow = true;
-                    psi.UseShellExecute = elevate;
-                    if (elevate) psi.Verb = "runas";
-                    using (Process p = Process.Start(psi))
-                    {
-                        if (p != null)
-                        {
-                            p.WaitForExit();
-                            exitCode = p.ExitCode;
-                        }
-                    }
-                }
-                catch { }
-                if (onDone != null) onDone(exitCode);
-            });
+            SafeProcessRunner.RunPowerShellAsync(cmd, elevate, null, onDone, null);
         }
 
         private void OpenConfig()
@@ -1684,9 +1604,10 @@ namespace IsoraSentinel.Tray
 
                     if (itemLiveProgress != null)
                     {
-                        itemLiveProgress.Text = "⚡ " + info.Activity + " [" + info.Percent + "%]";
+                        itemLiveProgress.Text = info.Activity + "  ·  " + info.Percent + "%";
                         itemLiveProgress.Font = TrayTheme.Font(9.5F, FontStyle.Bold);
-                        itemLiveProgress.ForeColor = Color.FromArgb(2, 132, 199); // Sky blue
+                        itemLiveProgress.ForeColor = TrayTheme.AccentBlue;
+                        itemLiveProgress.Tag = TrayTheme.AccentBlue;
                         itemLiveProgress.Enabled = true;
                         itemLiveProgress.Visible = true;
                     }
@@ -1695,11 +1616,13 @@ namespace IsoraSentinel.Tray
                         string sub = "  " + info.GetProgressBar(12);
                         if (!string.IsNullOrEmpty(info.Status)) sub += "  " + info.Status;
                         itemLiveProgressBar.Text = sub;
+                        itemLiveProgressBar.Tag = TrayTheme.TextSecondary;
                         itemLiveProgressBar.Visible = true;
                     }
                     if (itemLiveCancel != null)
                     {
-                        itemLiveCancel.Text = "  ⛔ Cancelar \"" + info.Activity + "\"…";
+                        itemLiveCancel.Text = "Cancelar «" + info.Activity + "»…";
+                        itemLiveCancel.Tag = TrayTheme.Danger;
                         itemLiveCancel.Visible = true;
                         itemLiveCancel.Enabled = true;
                     }
@@ -1709,9 +1632,10 @@ namespace IsoraSentinel.Tray
                 {
                     if (itemLiveProgress != null)
                     {
-                        itemLiveProgress.Text = "⚡ Sin tareas en ejecución (sistema en reposo)";
+                        itemLiveProgress.Text = "Sistema en reposo (sin tareas en curso)";
                         itemLiveProgress.Font = TrayTheme.Font(8.5F, FontStyle.Regular);
                         itemLiveProgress.ForeColor = TrayTheme.TextMuted;
+                        itemLiveProgress.Tag = TrayTheme.TextMuted;
                         itemLiveProgress.Enabled = false;
                         itemLiveProgress.Visible = true;
                     }
@@ -1742,19 +1666,14 @@ namespace IsoraSentinel.Tray
 
             if (r != DialogResult.Yes) return;
 
-            string cmd = "try { & taskkill.exe /PID " + target.Pid + " /T /F } catch { }; " +
-                         "if ('" + target.Engine + "' -match 'Defender') { " +
-                         "  try { & $env:ProgramData\\Microsoft\\'Windows Defender'\\Platform\\*\\MpCmdRun.exe -Scan -Cancel } catch { }; " +
-                         "  try { & taskkill.exe /IM MpCmdRun.exe /F } catch { }; " +
-                         "}; " +
-                         "if ('" + target.Engine + "' -match 'Integrity|DISM') { try { & taskkill.exe /IM dism.exe /F } catch { } }; " +
-                         "$targetFile = '" + (target.FilePath ?? "").Replace("'", "''") + "'; " +
-                         "if ($targetFile -and (Test-Path $targetFile)) { Remove-Item $targetFile -Force -ErrorAction SilentlyContinue }; " +
-                         "$progDirs = @((Join-Path $env:ProgramData 'Isora-Sentinel\\status'), (Join-Path $env:LOCALAPPDATA 'Isora-Sentinel\\status'), (Join-Path ([System.IO.Path]::GetTempPath()) 'Isora-Sentinel\\status')); " +
-                         "foreach ($d in $progDirs) { if (Test-Path $d) { Get-ChildItem -Path $d -Filter '*" + target.Engine + "*.progress.json' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue } };";
+            // Construcción segura contra inyección de comandos mediante TaskSchedulerBridge
+            string cmd = TaskSchedulerBridge.BuildSafeCancelPowerShellScript(target.Engine, target.FilePath);
 
             RunPowerShell(cmd, true, delegate(int code)
             {
+                if (code == ExitCanceled) return;
+                TaskProgressInfo.SuppressCancelledEngine(target.Engine, 15);
+                try { if (!string.IsNullOrEmpty(target.FilePath) && File.Exists(target.FilePath)) File.Delete(target.FilePath); } catch { }
                 currentActiveProgress = null;
                 PollTaskProgress();
                 Notify(Branding.ProductName, "Se ha cancelado y detenido la tarea \"" + target.Activity + "\".", ToolTipIcon.Info);
@@ -1821,8 +1740,10 @@ namespace IsoraSentinel.Tray
                             return;
                         }
 
+                        float scale = 1.0f;
+                        try { using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) { scale = g.DpiX / 96f; } } catch { }
                         string instDir = AppDomain.CurrentDomain.BaseDirectory;
-                        TaskConfigForm cfg = new TaskConfigForm(instDir, LoadTrayIcon(), 1.0f,
+                        TaskConfigForm cfg = new TaskConfigForm(instDir, LoadTrayIcon(), scale,
                             RunPowerShellDirect,
                             delegate { OpenSetup(instDir); });
                         Application.Run(cfg);
@@ -1830,21 +1751,8 @@ namespace IsoraSentinel.Tray
                     }
                 }
             }
-            // Terminar instancias huérfanas o duplicadas de versiones previas
-            try
-            {
-                int myPid = Process.GetCurrentProcess().Id;
-                string[] legacyNames = new string[] { "Isora-Sentinel-Tray", "IsoraSentinel-Tray", "SentinelTray" };
-                foreach (string leg in legacyNames)
-                {
-                    foreach (Process lp in Process.GetProcessesByName(leg))
-                    {
-                        if (lp.Id == myPid) continue;
-                        try { lp.Kill(); lp.WaitForExit(1000); } catch { }
-                    }
-                }
-            }
-            catch { }
+            // Terminar instancias huérfanas únicamente dentro de la sesión interactiva actual de Windows
+            CrossAccountEnvironment.TerminateOtherTrayInstancesInCurrentSession();
 
             bool created;
             using (Mutex single = new Mutex(true, Branding.MutexName, out created))

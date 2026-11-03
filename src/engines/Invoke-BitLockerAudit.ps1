@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     BitLocker Cryptographic Compliance Audit Engine - ISO/IEC 27001:2022 Control A.8.24
 .DESCRIPTION

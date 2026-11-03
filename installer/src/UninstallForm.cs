@@ -22,7 +22,7 @@ namespace IsoraSentinel.Installer
     public class UninstallForm : Form
     {
         private const string AppName = "Isora Sentinel Suite";
-        private const string AppVersion = "2.4.7";
+        private const string AppVersion = "2.5.0";
         private const string ArchivedFolderName = "Isora_Sentinel_Archived";
 
         private enum Outcome { Success, SuccessWithWarnings, Failed }
@@ -993,7 +993,7 @@ namespace IsoraSentinel.Installer
                 "Integrity_Check", "BitLocker_Audit", "Event_Audit", "Archive_Downloads", "SystemTray_Monitor"
             };
             int removed = 0, absent = 0;
-            foreach (string t in taskNames)
+            foreach (string t in SentinelCatalog.GetAllTaskNames(true))
             {
                 UnregisterTask("Isora Sentinel\\" + t, ref removed, ref absent);
                 UnregisterTask("Isora-Sentinel\\" + t, ref removed, ref absent);

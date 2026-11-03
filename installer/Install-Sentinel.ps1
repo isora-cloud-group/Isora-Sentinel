@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Enterprise Installer for Isora Sentinel Suite (Bilingual English / Spanish)
 .DESCRIPTION
@@ -33,7 +33,7 @@ function Msg([string]$es, [string]$en) { if ($isEn) { return $en } else { return
 
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Isora Sentinel Suite" -ForegroundColor Cyan
-Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor Gray
+Write-Host " Copyright: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor Gray
 Write-Host " Operaciones de Seguridad: security@isora.com.co" -ForegroundColor DarkGray
 Write-Host " GitHub: https://github.com/sandra-puerto | LinkedIn: https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
@@ -157,6 +157,9 @@ try {
     & icacls.exe "$InstallDir" /grant "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-545:(OI)(CI)RX" /inheritance:r /T /Q 2>$null
     # Central audit logs must NOT have Modify permissions for unprivileged users (prevents log tampering and junction attacks)
     & icacls.exe "$LogsDir" /grant "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-545:(OI)(CI)RX" /inheritance:r /T /Q 2>$null
+    $sharedStatusDir = Join-Path $env:ProgramData "Isora-Sentinel\status"
+    if (-not (Test-Path -LiteralPath $sharedStatusDir)) { New-Item -ItemType Directory -Path $sharedStatusDir -Force | Out-Null }
+    & icacls.exe "$sharedStatusDir" /grant "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-545:(OI)(CI)M" /T /Q 2>$null
     Write-Host (Msg "[SUCCESS] Permisos NTFS asegurados para Administradores/SYSTEM con derechos restringidos para Usuarios." "[SUCCESS] NTFS ACLs locked down to Administrators/SYSTEM with restricted User rights.") -ForegroundColor Green
 } catch {
     Write-Host (Msg "[WARN] No se pudo aplicar el aseguramiento estricto de icacls: $($_.Exception.Message)" "[WARN] Could not apply strict icacls hardening: $($_.Exception.Message)") -ForegroundColor Yellow
@@ -167,7 +170,7 @@ try {
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel"
     if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
     Set-ItemProperty -Path $regPath -Name "DisplayName" -Value "Isora Sentinel Suite (Endpoint Auditing & Governance)" -Force
-    Set-ItemProperty -Path $regPath -Name "DisplayVersion" -Value "2.4.7" -Force
+    Set-ItemProperty -Path $regPath -Name "DisplayVersion" -Value "2.5.0" -Force
     Set-ItemProperty -Path $regPath -Name "Publisher" -Value "Sandra Gabriela Puerto Torres" -Force
     Set-ItemProperty -Path $regPath -Name "InstallLocation" -Value $InstallDir -Force
     Set-ItemProperty -Path $regPath -Name "UninstallString" -Value "PowerShell.exe -NoProfile -ExecutionPolicy Bypass -File `"$InstallDir\Uninstall-Sentinel.ps1`"" -Force
@@ -189,7 +192,7 @@ if ($RegisterTasks -match "^(y|s)") {
     $Principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
     # Unattended resilience: timeout hung tasks, wake on available, prevent overlaps
-    $TaskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 2) -StartWhenAvailable -MultipleInstancesPolicy IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 15)
+    $TaskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2) -StartWhenAvailable -MultipleInstancesPolicy IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 15)
 
     function Register-SentinelTask {
         param(
@@ -214,6 +217,7 @@ if ($RegisterTasks -match "^(y|s)") {
             }
         }
 
+        if ($TriggerInput -match "^(Disabled|None|Off|Desactivada|No)$") { Write-Host (Msg "[INFO] Tarea '$TaskName' omitida/desactivada." "[INFO] Task '$TaskName' skipped/disabled.") -ForegroundColor DarkGray; return }
         $Trigger = switch -Regex ($TriggerInput) {
             "^(Weekly|Semanal)"  { New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 2am }
             "^(Monthly|Mensual)" { New-ScheduledTaskTrigger -Monthly -DaysOfMonth 1 -At 3am }
@@ -258,7 +262,7 @@ if ($RegisterTasks -match "^(y|s)") {
 
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
 Write-Host " ISORA CLOUD GROUP | Isora Sentinel Suite" -ForegroundColor Cyan
-Write-Host " Copyright & Arquitectura: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor White
+Write-Host " Copyright: Sandra Gabriela Puerto Torres (SGPT)" -ForegroundColor White
 Write-Host " Operaciones de Seguridad: security@isora.com.co" -ForegroundColor Gray
 Write-Host " https://github.com/sandra-puerto | https://www.linkedin.com/in/sandra-puerto/" -ForegroundColor DarkGray
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan

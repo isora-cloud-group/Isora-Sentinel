@@ -171,6 +171,18 @@ function Get-SentinelProgressDir {
         try {
             if (-not (Test-Path -LiteralPath $dir)) {
                 $null = New-Item -ItemType Directory -Path $dir -Force -ErrorAction SilentlyContinue
+                if ($dir -like "*ProgramData*" -and (Test-Path -LiteralPath $dir)) {
+                    try {
+                        $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+                        if (([Security.Principal.WindowsPrincipal]$id).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -or ($id.User.Value -eq "S-1-5-18")) {
+                            $sidUsers = New-Object System.Security.Principal.SecurityIdentifier([System.Security.Principal.WellKnownSidType]::BuiltinUsersSid, $null)
+                            $inh = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
+                            $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sidUsers, [System.Security.AccessControl.FileSystemRights]::Modify, $inh, [System.Security.AccessControl.PropagationFlags]::None, [System.Security.AccessControl.AccessControlType]::Allow)
+                            $acl = Get-Acl -LiteralPath $dir -ErrorAction SilentlyContinue
+                            if ($acl) { $acl.AddAccessRule($rule); Set-Acl -LiteralPath $dir -AclObject $acl -ErrorAction SilentlyContinue }
+                        }
+                    } catch { }
+                }
             }
             if (Test-Path -LiteralPath $dir) {
                 $probe = Join-Path $dir (".probe_" + [Guid]::NewGuid().ToString("N"))
@@ -218,17 +230,15 @@ function Set-SentinelProgress {
             status     = $Status
             percent    = $clamped
             pid        = $PID
-            updated_at = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ")
+            updated_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
             completed  = [bool]$Completed
         }
 
         $json = ($obj | ConvertTo-Json -Compress)
         $tmp = "$statusFile.tmp.$PID"
         [System.IO.File]::WriteAllText($tmp, $json, $global:SentinelUtf8NoBom)
-        if (Test-Path -LiteralPath $statusFile) {
-            Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
-        }
-        Move-Item -LiteralPath $tmp -Destination $statusFile -Force -ErrorAction SilentlyContinue
+        try { [System.IO.File]::Copy($tmp, $statusFile, $true) } catch { [System.IO.File]::WriteAllText($statusFile, $json, $global:SentinelUtf8NoBom) }
+        try { [System.IO.File]::Delete($tmp) } catch { }
     } catch { }
 }
 

@@ -1,85 +1,145 @@
-# Isora Sentinel — AI Agent Assistant Guide (CLAUDE.md)
+# Isora Sentinel Suite — AI Agent Knowledge Base & Engineering Blueprint (`CLAUDE.md`)
 
-## Project Overview
-Isora Sentinel is a free, open-source, zero-dependency PowerShell automation suite for Windows endpoints. It executes as `NT AUTHORITY\SYSTEM` or elevated administrator to perform endpoint auditing, cleanup, and ISO control mapping (ISO/IEC 27001:2022 and ISO/IEC 20000-1:2018), producing structured logs for SIEM platforms (Splunk, Elastic, Datadog, Microsoft Sentinel).
-
-**Author & Architecture:** Sandra Gabriela Puerto Torres  
-**Commercial Brand:** Isora Cloud Group  
-**Portals:** https://sandrapuerto.com | https://isora.com.co  
-**License:** Apache License, Version 2.0 (v2.4.0+; v2.3.1 and earlier remain under MIT)
+> **PURPOSE OF THIS DOCUMENT:**  
+> This file is a comprehensive technical handoff and architectural reference designed so that **any AI coding assistant (including lightweight, fast, or small-context models)** or human engineer can maintain, debug, and extend **Isora Sentinel Suite** without introducing compiler errors, concurrency bugs, or security regressions.
 
 ---
 
-## Directory Layout
-* `src/lib/`
-  * `Sentinel-Core.psm1`: `Assert-IsAdmin`, `Assert-SentinelIntegrity`, `Get-DefenderPlatformPath`
-  * `Sentinel-Logger.psm1`: `Initialize-SentinelLog`, `Write-AuditEntry` (Text & NDJSON)
-* `src/engines/`
-  * `Invoke-CleanupScreenshots.ps1` (ISO 27001 Control A.8.1 - DLP)
-  * `Invoke-CleanupTempGlobal.ps1` (ISO 20000-1 §8.2 - Capacity Management)
-  * `Invoke-DefenderScan.ps1` (ISO 27001 Control A.8.7 - Antimalware)
-  * `Invoke-IntegrityCheck.ps1` (ISO 27001 Control A.8.20 - Component Store)
-  * `Invoke-BitLockerAudit.ps1` (ISO 27001 Control A.8.24 - BitLocker Encryption)
-  * `Invoke-EventAudit.ps1` (ISO 27001 Control A.8.15 - Event Logs)
-  * `Invoke-ArchiveDownloads.ps1` (ISO 27001 Control A.8.10 - Downloads Archival)
-* `installer/`
-  * `Isora-Sentinel-Setup.exe`: Standalone GUI WinForms installer.
-  * `Build-InstallerExe.ps1`: Build script compiling installer via native .NET `csc.exe`.
-  * `Build-IntegrityManifest.ps1`: Generates SHA-256 hashes in `integrity.manifest.json`.
-  * `Install-Sentinel.ps1`: CLI deployment to `C:\Program Files\Isora-Sentinel\` and task registration.
-  * `Uninstall-Sentinel.ps1`: Deregisters scheduled tasks and unregisters from Windows Programs & Features.
-* `docs/`
-  * `OPERATOR_GUIDE.md`: Operator and administration manual.
-  * `MANUAL_DE_USO.md`: Legacy operator guide redirect.
-  * `SIEM_INTEGRATION.md`: Forwarder configs and SIEM query guides.
-  * `TROUBLESHOOTING.md`: Common issue resolution and diagnostic matrix.
-  * `ARCHITECTURE.md`: Technical specification and Mermaid diagrams.
-  * `ISO_MAPPING.md`: Control mapping matrix for ISO 27001/20000-1/SOC 2/CIS.
-* `tests/`
-  * `Invoke-Tests.ps1`: Pester test runner and CI/CD gate.
-  * `Sentinel-Core.Tests.ps1`: Core utility tests.
-  * `Sentinel-Logger.Tests.ps1`: Forensics and SIEM format tests.
-  * `Sentinel-Engines.Tests.ps1`: Engine parameter binding tests.
-  * `Sentinel-Syntax.Tests.ps1`: Static AST syntax integrity validator.
+## 1. Project Overview & Attribution Rules
+
+**Isora Sentinel Suite** (v2.5.0) is a zero-dependency, sovereign endpoint hardening, maintenance, and compliance telemetry platform for Microsoft Windows 10, Windows 11 (22H2/23H2/24H2), and Windows Server. It maps controls to **ISO/IEC 27001:2022**, **ISO/IEC 20000-1:2018**, **SOC 2 Type II**, and **CIS Microsoft Windows Benchmarks**, emitting structured logs (Human Text and RFC 8259 NDJSON) for enterprise SIEM collectors (Splunk, Elastic, Datadog, Microsoft Sentinel).
+
+* **Author & Copyright Holder:** Sandra Gabriela Puerto Torres (https://sandrapuerto.com | https://github.com/sandra-puerto | https://www.linkedin.com/in/sandra-puerto/)
+* **Commercial Brand:** Isora Cloud Group (https://isora.com.co)
+* **License:** Apache License, Version 2.0
+* **Strict Attribution Rule:**
+  1. In **`README.md` ONLY**: Explicitly state that **Sandra Gabriela Puerto Torres** is the **Sole System Architect (*Única Arquitecta*)** and that **Google Antigravity** is in charge of code generation.
+  2. In **the installer UI (`SentinelSetup.cs`), tray (`SentinelTray.cs`), and all other files**: Write ONLY her name (`Sandra Gabriela Puerto Torres` / `Author & Copyright Holder: Sandra Gabriela Puerto Torres`). Do **not** add `(Arquitecta)` in the installer sidebar.
+  3. Never use the legacy pre-v2.4.0 project name outside historical release notes in `CHANGELOG.md`.
 
 ---
 
-## Essential Commands
+## 2. Repository Structure & File Map
 
-### Run Test Suite
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\tests\Invoke-Tests.ps1
-```
-
-### Run Engines Locally (Manual Elevated Run)
-```powershell
-# Safe audit mode (default, no deletion/move):
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupScreenshots.ps1
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupTempGlobal.ps1
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1
-
-# Active mode (-Apply):
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupScreenshots.ps1 -Apply
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-CleanupTempGlobal.ps1 -Apply
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-ArchiveDownloads.ps1 -Apply
-
-# Auditing engines:
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-DefenderScan.ps1 -ScanType 1
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-IntegrityCheck.ps1
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-BitLockerAudit.ps1
-powershell.exe -ExecutionPolicy Bypass -File .\src\engines\Invoke-EventAudit.ps1 -Hours 24
-```
-
-### Install / Register Tasks
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\installer\Install-Sentinel.ps1 -Silent
+```text
+Sentinel-IT/
+├── .cursorrules                      # Strict compiler & runtime guardrails for AI agents
+├── CLAUDE.md                         # This comprehensive AI knowledge base & engineering blueprint
+├── README.md                         # Main enterprise documentation (includes Sole Architect attribution)
+├── ROADMAP.md                        # Product roadmap (v2.5.x on .NET 4.8 + future branch on .NET 8/9 LTS)
+├── CHANGELOG.md                      # Release history
+├── SECURITY.md                       # Vulnerability disclosure & threat model
+├── NOTICE                            # Apache-2.0 attribution notice
+├── LICENSE                           # Apache License 2.0
+├── integrity.manifest.json           # SHA-256 cryptographic manifest of all bundled modules
+├── docs/
+│   ├── ARCHITECTURE.md               # Deep-dive architecture, IPC telemetry, and security boundaries
+│   ├── ISO_MAPPING.md                # ISO 27001:2022, ISO 20000-1, SOC 2 & CIS traceability
+│   ├── OPERATOR_GUIDE.md             # Enterprise deployment (GUI, Intune, SCCM, GPO) & CLI reference
+│   ├── SIEM_INTEGRATION.md           # Splunk, Elastic Filebeat, Datadog & MS Sentinel configs
+│   └── TROUBLESHOOTING.md            # Diagnostic codes and remediation matrix
+├── installer/
+│   ├── Build-InstallerExe.ps1        # Compiles Tray.exe + Setup.exe via csc.exe & signs with Authenticode
+│   ├── Build-IntegrityManifest.ps1   # Regenerates integrity.manifest.json SHA-256 hashes
+│   ├── Install-Sentinel.ps1          # Unattended CLI installer for Intune / SCCM / GPO
+│   ├── Uninstall-Sentinel.ps1        # Unattended CLI uninstaller
+│   ├── Verify-PackageIntegrity.ps1   # Offline binary & manifest auditor
+│   ├── BUILD_PROVENANCE.json         # Cryptographic build receipt generated by Build-InstallerExe.ps1
+│   ├── Isora-Sentinel-Setup.exe      # Compiled & Authenticode-signed standalone GUI installer
+│   └── src/
+│       ├── SentinelCore.cs           # SHARED CORE LAYER: Catalog, Paths, Security, ProcessRunner, UAC, GDI
+│       ├── SentinelSetup.cs          # 4-step WinForms Installer Wizard + CLI (--audit, --extract)
+│       ├── SentinelTray.cs           # System Tray Monitor + SHA-256 verifier + live progress menu
+│       ├── TaskConfigForm.cs         # Scheduled Task GUI Configurator (--config)
+│       ├── UninstallForm.cs          # 3-step WinForms Uninstaller Wizard (--uninstall)
+│       ├── Localization.cs           # Bilingual ES/EN string helper (Loc.T)
+│       ├── AssemblyInfo.cs           # Assembly version metadata
+│       ├── app.manifest              # UAC manifest for Setup (requireAdministrator)
+│       └── tray.manifest             # UAC manifest for Tray (asInvoker)
+├── src/
+│   ├── lib/
+│   │   ├── Sentinel-Core.psm1        # Test-IsAdmin, Assert-IsAdmin, Get-DefenderPlatformPath, Assert-SentinelIntegrity, Test-SafePathHierarchy
+│   │   └── Sentinel-Logger.psm1      # Initialize-SentinelLog, Write-AuditEntry, Set-SentinelProgress, Clear-OldSentinelLogs
+│   └── engines/
+│       ├── Invoke-CleanupScreenshots.ps1 # ISO 27001 A.8.1  — Multi-profile & cloud screenshot DLP purge
+│       ├── Invoke-CleanupTempGlobal.ps1  # ISO 20000-1 §8.2 — System & user temp/cache reclamation
+│       ├── Invoke-DefenderScan.ps1       # ISO 27001 A.8.7  — Defender signature update & scan engine
+│       ├── Invoke-IntegrityCheck.ps1     # ISO 27001 A.8.20 — DISM component store health & repair
+│       ├── Invoke-BitLockerAudit.ps1     # ISO 27001 A.8.24 — BitLocker volume & TPM protector audit
+│       ├── Invoke-EventAudit.ps1         # ISO 27001 A.8.15 — Security/System log clearance & brute-force audit
+│       └── Invoke-ArchiveDownloads.ps1   # ISO 27001 A.8.10 — Aged downloads (>30d) relocation & tiering
+└── tests/
+    ├── Invoke-Tests.ps1              # Pester test runner (41 tests)
+    ├── Sentinel-Core.Tests.ps1       # Core library unit tests
+    ├── Sentinel-Engines.Tests.ps1    # Engine parameter & signature tests
+    ├── Sentinel-Logger.Tests.ps1     # Text/JSON logger & IPC progress tests
+    └── Sentinel-Syntax.Tests.ps1     # AST static syntax verification across all scripts
 ```
 
 ---
 
-## Rules for AI Agents
-1. **Zero External Dependencies:** Never add npm packages, python requirements, or external PowerShell gallery modules.
-2. **Safe by Default:** Ensure destructive operations require an explicit `-Apply` switch.
-3. **Deterministic Syntax:** Always test with AST parser and Pester before submitting code.
-4. **Pipeline Parameter Binding Safety:** Never pipe into `ForEach-Object` with `-join` inside string expressions. Use native `foreach ($k in $dict)`.
-5. **Privilege Boundary:** Maintain `Assert-IsAdmin` at the entry of every engine script.
+## 3. Step-by-Step Guide: How to Add a New Engine (Scalability Pattern)
+
+If asked to add a new engine (e.g., `Invoke-FirewallAudit.ps1`):
+1. **Create the PowerShell engine in `src/engines/Invoke-FirewallAudit.ps1`:**
+   - Import `Sentinel-Logger.psm1` and `Sentinel-Core.psm1`.
+   - Call `Initialize-SentinelLog -EngineName "ISO_Firewall_Audit"`.
+   - Call `Set-SentinelProgress -Activity "..." -Percent 5 -Status "..."`.
+   - Call `$null = Assert-SentinelIntegrity`.
+   - At the end of the script, ALWAYS call `Set-SentinelProgress -Activity "..." -Percent 100 -Status "..." -Completed`.
+2. **Register the module in `installer/src/SentinelCore.cs` (`SentinelCatalog.AllModules`):**
+   - Add one `new SentinelModuleDefinition(...)` entry to `SentinelCatalog.AllModules`.
+   - `TaskConfigForm.cs` and `SentinelTray.cs` read from `SentinelCatalog.AllModules` automatically.
+3. **Add a Pester test in `tests/Sentinel-Engines.Tests.ps1` and `tests/Sentinel-Syntax.Tests.ps1`.**
+4. **Run `.\installer\Build-InstallerExe.ps1`:**
+   - This automatically updates `integrity.manifest.json`, bundles the new script into `PackageArchive`, compiles the C# executables, and signs them with Authenticode.
+
+---
+
+## 4. Common Pitfalls & Production Bug Post-Mortems (DO NOT REPEAT)
+
+### Pitfall 1: C# 6+ Syntax in `.cs` Files
+* **Symptom:** `Build-InstallerExe.ps1` fails with `error CS1056: Carácter '$' inesperado` or `error CS1525: El término de la expresión '.' no es válido`.
+* **Why:** `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` is a C# 5.0 compiler.
+* **Fix:** Use `string.Format(...)`, explicit `if (x != null)` checks, `"paramName"` string literals instead of `nameof`, and pre-declared `int val; int.TryParse(s, out val);`.
+
+### Pitfall 2: PowerShell 5.1 Crash on `$proc.add_OutputDataReceived`
+* **Symptom:** `Invoke-DefenderScan.ps1` or `Invoke-IntegrityCheck.ps1` exits in 2–6 seconds right after starting `MpCmdRun.exe` or `dism.exe`, leaving the log truncated without a `RESULT:` line and leaving `MpCmdRun.exe` orphaned.
+* **Why:** `.NET` fires `OutputDataReceived` on a background ThreadPool thread that has no PowerShell `Runspace`, crashing `powershell.exe` with `PSInvalidOperationException`.
+* **Fix:** Never use `add_OutputDataReceived` / `BeginOutputReadLine()` in PowerShell. Always use `$outTask = $proc.StandardOutput.ReadLineAsync()` and poll `$outTask.IsCompleted` inside the main `while (-not $proc.WaitForExit(1000))` loop.
+
+### Pitfall 3: Ghost `"50%"` Status After Cancelling Defender Scan
+* **Symptom:** User cancels a Defender scan, gets the cancellation notification, but the tray menu still shows `Análisis de Microsoft Defender · 50%`.
+* **Why:**
+  1. Checking `Process.GetProcessesByName("MpCmdRun")` as a synthetic fallback detects `MpCmdRun.exe -Scan -Cancel` or `WinDefend` background PPL processes winding down.
+  2. Killing `MpCmdRun.exe` *before* killing the parent `powershell.exe` script allows `Invoke-DefenderScan.ps1` to advance from `-SignatureUpdate` to `-Scan` or write a final `.progress.json` update before exiting.
+* **Fix:**
+  1. Never use `GetProcessesByName("MpCmdRun")` to fabricate progress in `SentinelTray.cs`. Also NEVER use `Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ"` in PowerShell (`Z` is literal, not UTC conversion, which in `UTC-5` makes `SentinelTray.cs` think `.progress.json` is 5 hours old and delete it!). Always use `(Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")` and check `File.GetLastWriteTimeUtc(FilePath)` in C#.
+  2. In `TaskSchedulerBridge.BuildSafeCancelPowerShellScript` (`SentinelCore.cs`), always kill the Scheduled Task and parent `powershell.exe` **FIRST**, delete `*.progress.json` **SECOND**, and cancel/kill `MpCmdRun.exe` / `dism.exe` **THIRD**.
+
+### Pitfall 4: `Archive_Downloads` Moving Files into `C:\WINDOWS\system32\config\systemprofile`
+* **Symptom:** When `Archive_Downloads` runs as a Scheduled Task under `NT AUTHORITY\SYSTEM`, `PlannedArchive` points to `C:\WINDOWS\system32\config\systemprofile\Documents\...`.
+* **Why:** Windows Task Scheduler (`svchost.exe`) expands `%USERPROFILE%` in the `/TR` command line using the `SYSTEM` token before `powershell.exe` starts.
+* **Fix:** In `Invoke-ArchiveDownloads.ps1`, `$resolveUserArchivePath` replaces both `%USERPROFILE%` and `^[A-Za-z]:\\Windows\\(?:System32|SysWOW64)\\config\\systemprofile` with the target user's `$ProfilePath`. And in `SentinelSetup.cs` / `TaskConfigForm.cs`, `-CustomArchiveDir` is omitted when set to the default path.
+
+### Pitfall 5: Unchecked Tasks in Setup Remaining Active on Upgrade
+* **Symptom:** User unchecks a task (e.g., `Archive_Downloads`) in `Isora-Sentinel-Setup.exe` when upgrading, but the task still shows as `Activa` in `TaskConfigForm`.
+* **Why:** Skipping an unchecked task with `continue;` leaves the previously registered task active in Windows Task Scheduler.
+* **Fix:** Always call `DisableExistingScheduledTask(t.Item1)` (`schtasks.exe /Delete /TN ... /F`) when `!t.Item3.Check.Checked` or when `!chkEnableTasks.Checked`.
+
+---
+
+## 5. Verification Commands
+
+Always run both commands before completing any code change:
+
+```powershell
+# 1. Execute Pester test suite (41 tests across 4 suites):
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Invoke-Tests.ps1
+
+# 2. Compile and Authenticode-sign Isora-Sentinel-Tray.exe and Isora-Sentinel-Setup.exe:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Build-InstallerExe.ps1
+
+# 3. Verify package integrity non-interactively (must exit 0):
+.\installer\Isora-Sentinel-Setup.exe --audit
+```

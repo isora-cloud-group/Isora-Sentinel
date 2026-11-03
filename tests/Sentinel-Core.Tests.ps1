@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Unit tests for Sentinel-Core utility module.
 .DESCRIPTION
@@ -49,6 +49,22 @@ Describe "Sentinel-Core Module Tests" {
         It "Succeeds gracefully when -AllowMissingManifest is passed with non-existent path" {
             $fakeManifest = Join-Path $env:TEMP ("nonexistent_" + [Guid]::NewGuid().ToString("N") + ".json")
             { Assert-SentinelIntegrity -ManifestPath $fakeManifest -AllowMissingManifest } | Should -Not -Throw
+        }
+
+        It "Test-SafePathHierarchy validates hierarchy inside BaseRoot and blocks traversal" {
+            $tempBase = Join-Path $env:TEMP ("SentinelSafeTest_" + [Guid]::NewGuid().ToString("N"))
+            $subDir   = Join-Path $tempBase "sub\nested"
+            $testFile = Join-Path $subDir "sample.txt"
+            try {
+                New-Item -ItemType Directory -Path $subDir -Force | Out-Null
+                [System.IO.File]::WriteAllText($testFile, "ok")
+                (Test-SafePathHierarchy -TargetPath $testFile -BaseRoot $tempBase) | Should -Be $true
+                (Test-SafePathHierarchy -TargetPath $env:windir -BaseRoot $tempBase) | Should -Be $false
+            } finally {
+                if (Test-Path -LiteralPath $tempBase) {
+                    Remove-Item -LiteralPath $tempBase -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
         }
     }
 }
