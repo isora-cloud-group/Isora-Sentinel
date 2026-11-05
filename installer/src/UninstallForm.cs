@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
@@ -18,11 +19,10 @@ namespace IsoraSentinel.Installer
     /// Pensado para dos públicos: usuarios normales (textos simples, sin jerga)
     /// y personal de TI (detalles técnicos disponibles bajo demanda y copiables).
     /// Depende de las clases del proyecto: Theme, Card, StepButton.
-    /// </summary>
     public class UninstallForm : Form
     {
         private const string AppName = "Isora Sentinel Suite";
-        private const string AppVersion = "2.5.0";
+        private const string AppVersion = "2.5.2";
         private const string ArchivedFolderName = "Isora_Sentinel_Archived";
 
         private enum Outcome { Success, SuccessWithWarnings, Failed }
@@ -143,14 +143,13 @@ namespace IsoraSentinel.Installer
         /// <summary>
         /// Seguridad: solo se borran archivos si la carpeta realmente parece una instalación
         /// (evita borrar carpetas "lib" o "src" ajenas si el desinstalador se ejecuta desde otro lugar).
-        /// </summary>
         private static bool LooksInstalled(string dir)
         {
             try
             {
                 if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return false;
                 if (Directory.Exists(Path.Combine(dir, ".git"))) return false; // Protección: un repositorio git nunca es un path de instalación
-                string[] marks = new string[] { "integrity.manifest.json", "Isora-Sentinel-Tray.exe" };
+                string[] marks = new string[] { "integrity.manifest.json", "Isora-Sentinel.exe", "Isora-Sentinel-Tray.exe" };
                 foreach (string m in marks)
                 {
                     if (File.Exists(Path.Combine(dir, m))) return true;
@@ -208,7 +207,6 @@ namespace IsoraSentinel.Installer
         /// <summary>
         /// Calcula el alto real de cada tarjeta según el ancho disponible, de modo que
         /// el texto nunca se corte ni quede espacio vacío al redimensionar la ventana.
-        /// </summary>
         private void ReflowCard(Card card)
         {
             int padX = Sz(22);
@@ -958,7 +956,7 @@ namespace IsoraSentinel.Installer
             // 1. Procesos
             SetProgress(10, "Cerrando el icono de la bandeja del sistema…");
             Log("Cerrando el monitor de la bandeja…");
-            string[] procNames = new string[] { "Isora-Sentinel-Tray", "IsoraSentinel-Tray", "IsoraSentinelTray", "SentinelTray" };
+            string[] procNames = new string[] { "Isora-Sentinel", "Isora-Sentinel-Tray", "IsoraSentinel-Tray", "IsoraSentinelTray", "SentinelTray" };
             bool anyProc = false;
             foreach (string pName in procNames)
             {
@@ -1155,6 +1153,7 @@ namespace IsoraSentinel.Installer
 
                 string currentExeName = Path.GetFileName(Application.ExecutablePath);
                 string[] rootFiles = new string[] {
+                    "Isora-Sentinel.exe",
                     "Isora-Sentinel-Tray.exe",
                     "Isora-Sentinel-Setup.exe",
                     "Isora-Sentinel-Uninstall.exe",
@@ -1311,10 +1310,18 @@ namespace IsoraSentinel.Installer
         }
 
         /// <summary>
-        /// Elimina el propio desinstalador cuando se ejecuta desde la carpeta de instalación.
         /// Importante: NO borra la carpeta de forma recursiva, para respetar el historial que el usuario decidió conservar;
-        /// rmdir sin /s solo quita la carpeta si quedó vacía.
+        /// <summary>
+        /// Elimina el propio desinstalador cuando se ejecuta desde la carpeta de instalación.
+        /// Programa su eliminación en el siguiente reinicio mediante MoveFileEx nativo de Windows (Win32),
+        /// eliminando subprocesos cmd.exe/ping/del que activan falsos positivos en motores EDR/AV.
         /// </summary>
+        [Flags]
+        private enum MoveFileFlags { MOVEFILE_DELAY_UNTIL_REBOOT = 0x00000004 }
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern bool MoveFileEx(string lpExistingFileName, string lpNewFileName, MoveFileFlags dwFlags);
+
         private static void CleanupRemainingInstallDir(string dir)
         {
             try
@@ -1323,11 +1330,10 @@ namespace IsoraSentinel.Installer
                 string exeDir = Path.GetDirectoryName(exePath).TrimEnd('\\');
                 if (dir.TrimEnd('\\').Equals(exeDir, StringComparison.OrdinalIgnoreCase))
                 {
-                    ProcessStartInfo psi = new ProcessStartInfo("cmd.exe");
-                    psi.Arguments = "/c ping -n 3 127.0.0.1 >nul & del /f /q \"" + exePath + "\" & rmdir \"" + dir + "\" 2>nul";
-                    psi.CreateNoWindow = true;
-                    psi.UseShellExecute = false;
-                    Process.Start(psi);
+                    // Delegacion limpia a MoveFileEx nativo (PendingFileRenameOperations)
+                    // Elimina cmd.exe/ping/del que disparan falsos positivos en EDR/AV (Elastic Security)
+                    MoveFileEx(exePath, null, MoveFileFlags.MOVEFILE_DELAY_UNTIL_REBOOT);
+                    MoveFileEx(dir, null, MoveFileFlags.MOVEFILE_DELAY_UNTIL_REBOOT);
                 }
                 else if (Directory.Exists(dir))
                 {

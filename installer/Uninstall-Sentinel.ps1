@@ -27,7 +27,7 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
 }
 
 Write-Host (Msg "[*] Deteniendo procesos de Isora Sentinel y versiones previas..." "[*] Stopping Isora Sentinel and legacy processes...")
-$candidateProcesses = @("Isora-Sentinel-Tray", "IsoraSentinel-Tray", "IsoraSentinelTray", "SentinelTray", "Isora-Sentinel-Setup")
+$candidateProcesses = @("Isora-Sentinel", "Isora-Sentinel-Tray", "IsoraSentinel-Tray", "IsoraSentinelTray", "SentinelTray", "Isora-Sentinel-Setup")
 foreach ($pName in $candidateProcesses) {
     Stop-Process -Name $pName -Force -ErrorAction SilentlyContinue
 }
@@ -99,7 +99,7 @@ try {
     }
     $runHklm = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
     $runHkcu = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-    $runValues = @("IsoraSentinel_Tray", "Isora-Sentinel-Tray", "SentinelTray")
+    $runValues = @("IsoraSentinel_Tray", "Isora-Sentinel-Tray", "SentinelTray", "Isora-Sentinel")
     foreach ($v in $runValues) {
         if (Get-ItemProperty -Path $runHklm -Name $v -ErrorAction SilentlyContinue) {
             Remove-ItemProperty -Path $runHklm -Name $v -Force -ErrorAction SilentlyContinue

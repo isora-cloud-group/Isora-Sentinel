@@ -50,7 +50,7 @@ foreach ($relPath in $TargetFiles) {
 }
 
 $ManifestObj = [ordered]@{
-        version       = "2.5.0" 
+        version       = "2.5.2" 
     algorithm    = "SHA256"
     author       = "Sandra Gabriela Puerto Torres"
     brand        = "Isora Cloud Group"

@@ -1,9 +1,9 @@
-# Control Mapping & Audit Traceability Matrix
+﻿# Control Mapping & Audit Traceability Matrix
 ### ISO/IEC 27001:2022 · ISO/IEC 20000-1:2018 · SOC 2 Type II · CIS Benchmark
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Author & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Document Version:** 2.5.0  
+**Document Version:** 2.5.2  
 **Purpose:** Provides technical traceability, control justification, and auditor evidence verification for accreditation assessors, ISMS compliance officers, and external security auditors.
 
 ---

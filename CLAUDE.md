@@ -1,4 +1,4 @@
-# Isora Sentinel Suite — AI Agent Knowledge Base & Engineering Blueprint (`CLAUDE.md`)
+﻿# Isora Sentinel Suite — AI Agent Knowledge Base & Engineering Blueprint (`CLAUDE.md`)
 
 > **PURPOSE OF THIS DOCUMENT:**  
 > This file is a comprehensive technical handoff and architectural reference designed so that **any AI coding assistant (including lightweight, fast, or small-context models)** or human engineer can maintain, debug, and extend **Isora Sentinel Suite** without introducing compiler errors, concurrency bugs, or security regressions.
@@ -7,7 +7,7 @@
 
 ## 1. Project Overview & Attribution Rules
 
-**Isora Sentinel Suite** (v2.5.0) is a zero-dependency, sovereign endpoint hardening, maintenance, and compliance telemetry platform for Microsoft Windows 10, Windows 11 (22H2/23H2/24H2), and Windows Server. It maps controls to **ISO/IEC 27001:2022**, **ISO/IEC 20000-1:2018**, **SOC 2 Type II**, and **CIS Microsoft Windows Benchmarks**, emitting structured logs (Human Text and RFC 8259 NDJSON) for enterprise SIEM collectors (Splunk, Elastic, Datadog, Microsoft Sentinel).
+**Isora Sentinel Suite** (v2.5.3) is a zero-dependency, sovereign endpoint hardening, maintenance, and compliance telemetry platform for Microsoft Windows 10, Windows 11 (22H2/23H2/24H2), and Windows Server. It maps controls to **ISO/IEC 27001:2022**, **ISO/IEC 20000-1:2018**, **SOC 2 Type II**, and **CIS Microsoft Windows Benchmarks**, emitting structured logs (Human Text and RFC 8259 NDJSON) for enterprise SIEM collectors (Splunk, Elastic, Datadog, Microsoft Sentinel).
 
 * **Author & Copyright Holder:** Sandra Gabriela Puerto Torres (https://sandrapuerto.com | https://github.com/sandra-puerto | https://www.linkedin.com/in/sandra-puerto/)
 * **Commercial Brand:** Isora Cloud Group (https://isora.com.co)
@@ -39,7 +39,7 @@ Sentinel-IT/
 │   ├── SIEM_INTEGRATION.md           # Splunk, Elastic Filebeat, Datadog & MS Sentinel configs
 │   └── TROUBLESHOOTING.md            # Diagnostic codes and remediation matrix
 ├── installer/
-│   ├── Build-InstallerExe.ps1        # Compiles Tray.exe + Setup.exe via csc.exe & signs with Authenticode
+│   ├── Build-InstallerExe.ps1        # Compiles standalone unified Setup.exe via csc.exe & signs with Authenticode
 │   ├── Build-IntegrityManifest.ps1   # Regenerates integrity.manifest.json SHA-256 hashes
 │   ├── Install-Sentinel.ps1          # Unattended CLI installer for Intune / SCCM / GPO
 │   ├── Uninstall-Sentinel.ps1        # Unattended CLI uninstaller

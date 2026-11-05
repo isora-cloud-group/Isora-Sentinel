@@ -57,58 +57,12 @@ if ($codeCert) {
 $manifestScript = Join-Path $ScriptDir "Build-IntegrityManifest.ps1"
 & $manifestScript -ProjectRoot $ProjectRoot
 
-# 2. Compile System Tray Monitor to temporary staging location (to embed inside Setup)
-Write-Host "`n[*] Compilando monitor de bandeja en entorno temporal para incrustación..." -ForegroundColor Yellow
-$TempBuildDir = Join-Path $env:TEMP ("SentinelTrayBuild_" + [System.Guid]::NewGuid().ToString("N"))
-New-Item -ItemType Directory -Path $TempBuildDir -Force | Out-Null
+# 2. Prepare Source References for Unified Multi-Mode Executable
 $TraySource       = Join-Path $ScriptDir "src\SentinelTray.cs"
 $ConfigFormSource = Join-Path $ScriptDir "src\TaskConfigForm.cs"
 $LocSource        = Join-Path $ScriptDir "src\Localization.cs"
-$TrayManifest     = Join-Path $ScriptDir "src\tray.manifest"
-$TrayExe          = Join-Path $TempBuildDir "Isora-Sentinel-Tray.exe"
-
-$trayArgs = @(
-    "/nologo",
-    "/target:winexe",
-    "/optimize+",
-    "/platform:anycpu",
-    "/codepage:65001",
-    "/win32manifest:$TrayManifest",
-    "/reference:System.dll",
-    "/reference:System.Core.dll",
-    "/reference:System.Windows.Forms.dll",
-    "/reference:System.Drawing.dll",
-    "/reference:System.Xml.dll",
-    "/out:$TrayExe",
-    $CoreSource,
-    $TraySource,
-    $ConfigFormSource,
-    $LocSource,
-    $AsmInfo
-)
-if (Test-Path $AppIcon) {
-    $trayArgs += "/resource:$AppIcon,AppIcon"
-    $trayArgs += "/win32icon:$AppIcon"
-}
-
-$procTray = Start-Process -FilePath $cscPath -ArgumentList $trayArgs -NoNewWindow -Wait -PassThru
-if ($procTray.ExitCode -ne 0 -or -not (Test-Path $TrayExe)) {
-    throw "Fallo al compilar Isora-Sentinel-Tray.exe (código de salida: $($procTray.ExitCode))."
-}
-Write-Host "[SUCCESS] Monitor de bandeja compilado ($([math]::Round((Get-Item $TrayExe).Length / 1024, 2)) KB)" -ForegroundColor Green
-if ($codeCert) {
-    try {
-        Write-Host "[*] Firmando digitalmente Isora-Sentinel-Tray.exe con Authenticode..." -ForegroundColor Yellow
-        $sigTray = Set-AuthenticodeSignature -FilePath $TrayExe -Certificate $codeCert -HashAlgorithm SHA256 -TimestampServer "http://timestamp.digicert.com" -ErrorAction SilentlyContinue
-        if ($sigTray.Status -eq "Valid") {
-            Copy-Item -Path $TrayExe -Destination (Join-Path $ScriptDir "Isora-Sentinel-Tray.exe") -Force
-            Write-Host "[SUCCESS] Isora-Sentinel-Tray.exe firmado con éxito por $($codeCert.Subject)" -ForegroundColor Green
-        }
-    } catch {
-        Write-Warning "No se pudo firmar Isora-Sentinel-Tray.exe: $($_.Exception.Message)"
-    }
-}
-
+$CsSource         = Join-Path $ScriptDir "src\SentinelSetup.cs"
+$UninstallSource  = Join-Path $ScriptDir "src\UninstallForm.cs"
 # 3. Regenerate SHA-256 Integrity Manifest
 Write-Host "`n[*] Regenerando manifiesto de integridad SHA-256..." -ForegroundColor Yellow
 $manifestScript = Join-Path $ScriptDir "Build-IntegrityManifest.ps1"
@@ -131,7 +85,7 @@ try {
     $srcFiles = Get-ChildItem -Path $srcDir -Recurse -File
     foreach ($file in $srcFiles) {
         $relPath = $file.FullName.Substring($srcDir.Length + 1)
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file.FullName, $relPath) | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file.FullName, $relPath, [System.IO.Compression.CompressionLevel]::NoCompression) | Out-Null
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash
         $bundledFiles.Add([PSCustomObject]@{
             Path = "src\$relPath"
@@ -140,19 +94,9 @@ try {
         })
     }
 
-    # Add Isora-Sentinel-Tray.exe
-    if (Test-Path $TrayExe) {
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $TrayExe, "Isora-Sentinel-Tray.exe") | Out-Null
-        $bundledFiles.Add([PSCustomObject]@{
-            Path = "Isora-Sentinel-Tray.exe"
-            Size = (Get-Item $TrayExe).Length
-            SHA256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $TrayExe).Hash
-        })
-    }
-
     # Add app.ico and app.svg
     if (Test-Path $AppIcon) {
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $AppIcon, "app.ico") | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $AppIcon, "app.ico", [System.IO.Compression.CompressionLevel]::NoCompression) | Out-Null
         $bundledFiles.Add([PSCustomObject]@{
             Path = "app.ico"
             Size = (Get-Item $AppIcon).Length
@@ -160,7 +104,7 @@ try {
         })
     }
     if (Test-Path $AppSvg) {
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $AppSvg, "app.svg") | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $AppSvg, "app.svg", [System.IO.Compression.CompressionLevel]::NoCompression) | Out-Null
         $bundledFiles.Add([PSCustomObject]@{
             Path = "app.svg"
             Size = (Get-Item $AppSvg).Length
@@ -171,7 +115,7 @@ try {
     # Add LICENSE
     $licenseFile = Join-Path $ProjectRoot "LICENSE"
     if (Test-Path $licenseFile) {
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $licenseFile, "LICENSE") | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $licenseFile, "LICENSE", [System.IO.Compression.CompressionLevel]::NoCompression) | Out-Null
         $bundledFiles.Add([PSCustomObject]@{
             Path = "LICENSE"
             Size = (Get-Item $licenseFile).Length
@@ -182,7 +126,7 @@ try {
     # Add NOTICE
     $noticeFile = Join-Path $ProjectRoot "NOTICE"
     if (Test-Path $noticeFile) {
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $noticeFile, "NOTICE") | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $noticeFile, "NOTICE", [System.IO.Compression.CompressionLevel]::NoCompression) | Out-Null
         $bundledFiles.Add([PSCustomObject]@{
             Path = "NOTICE"
             Size = (Get-Item $noticeFile).Length
@@ -193,7 +137,7 @@ try {
     # Add integrity.manifest.json
     $manifestFile = Join-Path $ProjectRoot "integrity.manifest.json"
     if (Test-Path $manifestFile) {
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $manifestFile, "integrity.manifest.json") | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $manifestFile, "integrity.manifest.json", [System.IO.Compression.CompressionLevel]::NoCompression) | Out-Null
         $bundledFiles.Add([PSCustomObject]@{
             Path = "integrity.manifest.json"
             Size = (Get-Item $manifestFile).Length
@@ -204,7 +148,7 @@ try {
     # Add Uninstall-Sentinel.ps1
     $uninstallScript = Join-Path $ScriptDir "Uninstall-Sentinel.ps1"
     if (Test-Path $uninstallScript) {
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $uninstallScript, "Uninstall-Sentinel.ps1") | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $uninstallScript, "Uninstall-Sentinel.ps1", [System.IO.Compression.CompressionLevel]::NoCompression) | Out-Null
         $bundledFiles.Add([PSCustomObject]@{
             Path = "Uninstall-Sentinel.ps1"
             Size = (Get-Item $uninstallScript).Length
@@ -261,6 +205,8 @@ $cscArgs = @(
     $CoreSource,
     $CsSource,
     $UninstallSource,
+    $TraySource,
+    $ConfigFormSource,
     $LocSource,
     $AsmInfo
 )
@@ -319,7 +265,7 @@ if ($proc.ExitCode -eq 0 -and (Test-Path $OutputExe)) {
     # 6. Generate Institutional Provenance Receipt (BUILD_PROVENANCE.json)
     $provenance = [ordered]@{
         artifact_name     = [System.IO.Path]::GetFileName($OutputExe)
-        version           = "2.5.0"
+        version           = "2.5.3"
         timestamp_utc     = (Get-Date).ToUniversalTime().ToString("o")
         author            = "Sandra Gabriela Puerto Torres"
         commercial_brand  = "Isora Cloud Group"
@@ -357,7 +303,7 @@ public static class ShellCacheReloader {
     Write-Host "`n============================================================" -ForegroundColor DarkCyan
     Write-Host " BUILD SUCCESS: Standalone GUI Installer Created!" -ForegroundColor Green
     Write-Host " Binary Artifact : $OutputExe" -ForegroundColor White
-    Write-Host " Note            : Auto-contenido. Incluye Isora-Sentinel-Tray.exe incrustado." -ForegroundColor Cyan
+    Write-Host " Note            : Binario único autónomo (Instalador, Monitor Tray, Configuración y Desinstalador)." -ForegroundColor Cyan
     Write-Host " File Size       : $([math]::Round($exeSizeKb, 2)) KB" -ForegroundColor Gray
     Write-Host " SHA-256 Digest  : $exeHash" -ForegroundColor DarkGray
     Write-Host " Provenance Doc  : $provJsonPath" -ForegroundColor DarkGray

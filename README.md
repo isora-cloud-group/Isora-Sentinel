@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="installer/src/app.svg" width="80" height="80" alt="Isora Sentinel Institutional Logo" />
 </p>
 
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-2.5.0-0284c7.svg?style=flat-square" alt="Version 2.5.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-2.5.2-0284c7.svg?style=flat-square" alt="Version 2.5.2" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-059669.svg?style=flat-square" alt="License Apache-2.0" /></a>
   <a href="installer/BUILD_PROVENANCE.json"><img src="https://img.shields.io/badge/Authenticode-SHA--256%20%2B%20DigiCert%20RFC%203161-0284c7.svg?style=flat-square" alt="Authenticode Signed" /></a>
   <a href="docs/ISO_MAPPING.md"><img src="https://img.shields.io/badge/Control%20mapping-ISO%2027001%20%7C%20ISO%2020000--1-0f766e.svg?style=flat-square" alt="Control Mapping" /></a>
@@ -27,7 +27,7 @@
 
 ### Why Large Corporations Choose Isora Sentinel
 
-| Enterprise Evaluation Criterion | Traditional Endpoint RMM / Compliance Agents | Isora Sentinel Suite (v2.5.0) |
+| Enterprise Evaluation Criterion | Traditional Endpoint RMM / Compliance Agents | Isora Sentinel Suite (v2.5.3) |
 | :--- | :--- | :--- |
 | **Deployment Footprint** | `150 MB – 500 MB` installer + third-party runtimes | **`< 600 KB` single self-contained signed binary** |
 | **Idle RAM / CPU Overhead** | `150 MB – 400 MB` continuous background daemon | **`0 MB` idle daemon overhead** (delegates to native Windows Kernel Task Scheduler `NT AUTHORITY\SYSTEM`) |
@@ -75,7 +75,7 @@ Detailed audit evidence commands and control rationales are provided in **[docs/
 flowchart TD
     subgraph Layer1["1. Orchestration & Trigger Layer"]
         Scheduler["⏰ Windows Task Scheduler\nNT AUTHORITY\\SYSTEM • Automated Background Tasks"]
-        Tray["🛡️ System Tray Observability Utility\nIsora-Sentinel-Tray.exe • Desktop Session (asInvoker)"]
+        Tray["🛡️ System Tray Observability Utility\nIsora-Sentinel.exe --tray • Desktop Session (asInvoker)"]
         AdminCLI["💻 Enterprise Deployment\nInstall-Sentinel.ps1 • Intune / GPO / CLI"]
     end
 
@@ -177,7 +177,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Install-Sent
 * `-ApplyTemp` `[switch]`: Configures temporary file cleanup task to execute with `-Apply` (default: audit-only).
 * `-ApplyDownloads` `[switch]`: Configures download archival task to execute with `-Apply` (default: audit-only).
 
-### Option C: System Tray Monitor (`Isora-Sentinel-Tray.exe`)
+### Option C: System Tray Monitor (`Isora-Sentinel.exe --tray`)
 The system tray monitor runs within user desktop sessions:
 * Real-time SHA-256 integrity badge (Green = Verified; Amber = Discrepancy detected).
 * On-demand manual execution with standard Windows UAC elevation.
@@ -243,8 +243,8 @@ The compiled standalone installer (`Isora-Sentinel-Setup.exe`) is submitted to V
 
 * **Build Provenance Receipt:** [`installer/BUILD_PROVENANCE.json`](installer/BUILD_PROVENANCE.json) (deterministic compiler flags, bundled module SHA-256 table, and certificate thumbprint).
 * **Static & Dynamic Audit:** Zero outbound network sockets, zero unmanaged third-party DLLs, and 100% inspectable payload via `--audit` and `--extract`.
-* **Analyzed Binary:** `Isora-Sentinel-Setup.exe` (v2.5.0)
-* **SHA-256 Digest:** `55E2E164882EEEE41FAFCAA0682F08D4F1A5EC940715B4F6E780ACD9EE6BCB84`
+* **Analyzed Binary:** `Isora-Sentinel-Setup.exe` (v2.5.3)
+* **SHA-256 Digest:** `63FDDACB960CC3CE8741B3DC07512160F4F8A30E39BFC634E8177EC430FC47B1`
 * **Code Signing Verification:** Authenticode SHA-256 signature issued to `CN=Sandra Gabriela Puerto Torres (Isora Cloud Group)` with DigiCert timestamp responder (`CN=DigiCert SHA256 RSA4096 Timestamp Responder 2026 1`).
 
 > **Important Note:** A clean antivirus scan reflects a single point in time and does not prove that the software is completely safe or free of vulnerabilities; it is not a substitute for reviewing the source code.

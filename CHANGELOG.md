@@ -1,4 +1,21 @@
-# Changelog
+﻿# Changelog
+
+## [2.5.3] - 2026-11-02
+
+### Architecture & Anti-Malware Hardening (Single-Binary Model)
+- **Strict Single-Executable Distribution & Deployment:**
+  - Enforced that the build pipeline outputs **strictly one standalone executable** (`Isora-Sentinel-Setup.exe`). Completely eliminated loose secondary executables (`Isora-Sentinel-Tray.exe`).
+  - Unified deployment footprint: When installed into `C:\Program Files\Isora-Sentinel\`, the setup deploys **a single executable** (`Isora-Sentinel.exe`), completely eradicating the practice of duplicating the binary under separate file names (`Isora-Sentinel-Tray.exe` and `Isora-Sentinel-Uninstall.exe`).
+  - Seamless Multi-Mode Dispatcher:
+    - Outside install directory / `--setup`: Interactive Setup Wizard (`SetupForm`).
+    - Inside install directory / `--tray`: System Tray Monitor (`SentinelTrayContext`).
+    - `--config` / `--tasks`: Scheduled Task Governance & Schedule Configurator (`TaskConfigForm`).
+    - `--uninstall`: Native Win32 Uninstaller Wizard (`UninstallForm`).
+    - `--audit` / `--extract`: In-memory SHA-256 verification and sovereign script extraction.
+  - Automated Legacy Cleanup: Proactively purges legacy `Isora-Sentinel-Tray.exe` and `Isora-Sentinel-Uninstall.exe` binaries and registry references during install, upgrade, or uninstall.
+  - Eliminates secondary executable dropper patterns and overlay heuristics on machine-learning endpoint detection engines (VirusTotal / Elastic).
+
+---
 
 All notable changes to **Isora Sentinel** will be documented in this file.
 
@@ -7,6 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.2] - 2026-11-02
+
+### Changed
+- **Unified Sovereign Multi-Mode Binary Architecture (Zero Embedded PE Executables):**
+  - **Eliminated Embedded Secondary Executable in Resources:** Consolidated SentinelSetup.cs, SentinelTray.cs, TaskConfigForm.cs, and UninstallForm.cs into a single, multi-mode executable. Removed Isora-Sentinel-Tray.exe from PackageArchive (package.zip), completely eliminating the nested PE binary structure (dropper pattern) that triggers machine-learning classifiers (Elastic: Malicious (moderate Confidence)).
+  - **Low-Entropy Resource Archiving:** Configured package.zip with uncompressed / low-entropy storage for pure PowerShell scripts and configuration manifests, eradicating high-entropy anomaly flags in PE section analysis.
+  - **Context-Aware Dynamic Execution:** The unified binary automatically executes as the Installer Wizard (SetupForm), System Tray Monitor (SentinelTrayContext), Task Configurator (TaskConfigForm), or Uninstaller (UninstallForm) based on process filename or CLI arguments (--tray, --config, --uninstall, --audit, --extract).
+  - **Standard User Execution Profile (sInvoker):** Aligned pp.manifest to sInvoker so the tray monitor launches at logon without administrative prompts, delegating UAC elevation exclusively to write-operations via 
+unas.
+## [2.5.1] - 2026-11-02
+
+### Fixed
+- **EDR & Antivirus Heuristic False Positive Remediation (Elastic Security / VirusTotal):**
+  - **Eliminated Command-Line Dropper Heuristic in Uninstaller (UninstallForm.cs):** Replaced legacy cmd.exe /c ping -n 3 127.0.0.1 >nul & del /f /q ... pattern with native Win32 MoveFileEx(..., MOVEFILE_DELAY_UNTIL_REBOOT) API (PendingFileRenameOperations). This removes the MITRE ATT&CK T1070.004 dropper self-deletion signature string that triggered Elastic: Malicious (moderate Confidence) on VirusTotal.
+  - **Removed Redundant Inline Task Fallback (SentinelSetup.cs):** Removed secondary fallback that constructed dynamic PowerShell script blocks referencing NT AUTHORITY\SYSTEM and Register-ScheduledTask, relying exclusively on standard, trusted Windows schtasks.exe /Create commands.
+  - **Factual Code Signing & Authenticode Trust Documentation:** Documented in README.md and release notes that the VirusTotal invalid-signature tag stems from the institutional self-signed developer root certificate (CN=Sandra Gabriela Puerto Torres (Isora Cloud Group)) rather than an invalid PE structure.
 ## [2.5.0] - 2026-11-02
 
 ### Added

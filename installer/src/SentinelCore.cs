@@ -1069,7 +1069,7 @@ namespace IsoraSentinel
         public static bool SetAutoStart(bool enable, string executablePath, out string errorMessage)
         {
             errorMessage = null;
-            string quotedPath = "\"" + executablePath + "\"";
+            string quotedPath = "\"" + executablePath + "\" --tray";
             bool anySuccess = false;
 
             // 1. Actualizar HKCU del proceso actual
@@ -1179,23 +1179,22 @@ namespace IsoraSentinel
                 int currentPid = current.Id;
                 int currentSession = current.SessionId;
 
-                Process[] existing = Process.GetProcessesByName("Isora-Sentinel-Tray");
-                foreach (Process p in existing)
+                string[] targetProcessNames = new string[] { "Isora-Sentinel", "Isora-Sentinel-Tray" };
+                foreach (string pName in targetProcessNames)
                 {
-                    try
+                    Process[] existing = Process.GetProcessesByName(pName);
+                    foreach (Process p in existing)
                     {
-                        if (p.Id != currentPid && p.SessionId == currentSession)
+                        try
                         {
-                            p.Kill();
-                            p.WaitForExit(1500);
+                            if (p.Id != currentPid && p.SessionId == currentSession)
+                            {
+                                p.Kill();
+                                p.WaitForExit(1500);
+                            }
                         }
-                    }
-                    catch
-                    {
-                    }
-                    finally
-                    {
-                        try { p.Dispose(); } catch { }
+                        catch { }
+                        finally { try { p.Dispose(); } catch { } }
                     }
                 }
             }

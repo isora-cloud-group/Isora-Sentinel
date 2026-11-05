@@ -44,7 +44,7 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
 }
 
 Write-Host (Msg "[*] Deteniendo instancias previas en ejecución..." "[*] Stopping previous running instances...")
-$candidateProcesses = @("Isora-Sentinel-Tray", "IsoraSentinel-Tray", "IsoraSentinelTray", "SentinelTray", "Isora-Sentinel-Uninstall")
+$candidateProcesses = @("Isora-Sentinel", "Isora-Sentinel-Tray", "IsoraSentinel-Tray", "IsoraSentinelTray", "SentinelTray", "Isora-Sentinel-Uninstall")
 foreach ($pName in $candidateProcesses) {
     Get-Process -Name $pName -ErrorAction SilentlyContinue | ForEach-Object {
         try {
@@ -102,9 +102,15 @@ if (Test-Path "$PSScriptRoot\..\integrity.manifest.json") {
 }
 Copy-Item -Path "$PSScriptRoot\Uninstall-Sentinel.ps1" -Destination (Join-Path $InstallDir "Uninstall-Sentinel.ps1") -Force
 
-# Copiar ejecutables y recursos de soporte si existen
-if (Test-Path "$PSScriptRoot\Isora-Sentinel-Tray.exe") {
-    Copy-Item -Path "$PSScriptRoot\Isora-Sentinel-Tray.exe" -Destination (Join-Path $InstallDir "Isora-Sentinel-Tray.exe") -Force
+# Copiar el binario único autónomo (Isora-Sentinel.exe) y recursos de soporte
+$sourceExe = if (Test-Path "$PSScriptRoot\Isora-Sentinel.exe") { "$PSScriptRoot\Isora-Sentinel.exe" } elseif (Test-Path "$PSScriptRoot\Isora-Sentinel-Setup.exe") { "$PSScriptRoot\Isora-Sentinel-Setup.exe" } else { $null }
+if ($sourceExe) {
+    Copy-Item -Path $sourceExe -Destination (Join-Path $InstallDir "Isora-Sentinel.exe") -Force
+}
+# Limpieza preventiva de cualquier ejecutable secundario heredado en destino
+@("Isora-Sentinel-Tray.exe", "Isora-Sentinel-Uninstall.exe", "Isora-Sentinel-Setup.exe") | ForEach-Object {
+    $oldPath = Join-Path $InstallDir $_
+    if ($_ -ne "Isora-Sentinel.exe" -and (Test-Path $oldPath)) { Remove-Item -Path $oldPath -Force -ErrorAction SilentlyContinue }
 }
 if (Test-Path "$PSScriptRoot\src\app.ico") {
     Copy-Item -Path "$PSScriptRoot\src\app.ico" -Destination (Join-Path $InstallDir "app.ico") -Force
@@ -122,11 +128,12 @@ try {
     if (-not (Test-Path $sentinelStartFolder)) { New-Item -ItemType Directory -Path $sentinelStartFolder -Force | Out-Null }
 
     $wsh = New-Object -ComObject WScript.Shell
-    $trayExe = Join-Path $InstallDir "Isora-Sentinel-Tray.exe"
+    $mainExe = Join-Path $InstallDir "Isora-Sentinel.exe"
     $appIco = Join-Path $InstallDir "app.ico"
-    if (Test-Path $trayExe) {
+    if (Test-Path $mainExe) {
         $sc = $wsh.CreateShortcut((Join-Path $sentinelStartFolder "Isora Sentinel.lnk"))
-        $sc.TargetPath = $trayExe
+        $sc.TargetPath = $mainExe
+        $sc.Arguments = "--tray"
         $sc.WorkingDirectory = $InstallDir
         $sc.Description = "Isora Sentinel Suite - Monitor y Observabilidad"
         if (Test-Path $appIco) { $sc.IconLocation = "$appIco,0" }
@@ -136,7 +143,8 @@ try {
         $commonStartup = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonStartup)
         if (Test-Path $commonStartup) {
             $scStartup = $wsh.CreateShortcut((Join-Path $commonStartup "Isora Sentinel.lnk"))
-            $scStartup.TargetPath = $trayExe
+            $scStartup.TargetPath = $mainExe
+            $scStartup.Arguments = "--tray"
             $scStartup.WorkingDirectory = $InstallDir
             $scStartup.Description = "Isora Sentinel Suite Tray Monitor"
             if (Test-Path $appIco) { $scStartup.IconLocation = "$appIco,0" }
@@ -144,7 +152,7 @@ try {
         }
 
         # Autoinicio en registro HKLM Run
-        Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "IsoraSentinel_Tray" -Value "`"$trayExe`"" -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "IsoraSentinel_Tray" -Value "`"$mainExe`" --tray" -Force -ErrorAction SilentlyContinue
     }
 } catch { }
 
@@ -170,7 +178,7 @@ try {
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Isora-Sentinel"
     if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
     Set-ItemProperty -Path $regPath -Name "DisplayName" -Value "Isora Sentinel Suite (Endpoint Auditing & Governance)" -Force
-    Set-ItemProperty -Path $regPath -Name "DisplayVersion" -Value "2.5.0" -Force
+    Set-ItemProperty -Path $regPath -Name "DisplayVersion" -Value "2.5.3" -Force
     Set-ItemProperty -Path $regPath -Name "Publisher" -Value "Sandra Gabriela Puerto Torres" -Force
     Set-ItemProperty -Path $regPath -Name "InstallLocation" -Value $InstallDir -Force
     Set-ItemProperty -Path $regPath -Name "UninstallString" -Value "PowerShell.exe -NoProfile -ExecutionPolicy Bypass -File `"$InstallDir\Uninstall-Sentinel.ps1`"" -Force

@@ -1,4 +1,4 @@
-# Isora Sentinel Suite — Strict Engineering Rules & Anti-Hallucination Guardrails (.cursorrules)
+﻿# Isora Sentinel Suite — Strict Engineering Rules & Anti-Hallucination Guardrails (.cursorrules)
 
 > **CRITICAL INSTRUCTION FOR AI MODELS (ESPECIALLY SMALL / FAST MODELS):**  
 > Read this entire file BEFORE editing any `.cs` or `.ps1` file. Violating the compiler or runtime rules below will immediately break the build or crash production processes.
@@ -6,7 +6,7 @@
 ---
 
 ## 1. Project Identity & Attribution Rules
-* **Product Name:** Isora Sentinel Suite (v2.5.0+)
+* **Product Name:** Isora Sentinel Suite (v2.5.3+)
 * **Commercial Brand:** Isora Cloud Group (https://isora.com.co)
 * **Author & Copyright Holder:** Sandra Gabriela Puerto Torres (https://sandrapuerto.com | https://github.com/sandra-puerto | https://www.linkedin.com/in/sandra-puerto/)
 * **Attribution Policy:**
@@ -18,7 +18,7 @@
 
 ## 2. C# Compiler Constraints (`csc.exe` v4.0.30319 — STRICT C# 5.0 ONLY)
 
-The standalone binaries (`Isora-Sentinel-Setup.exe` and `Isora-Sentinel-Tray.exe`) are compiled directly on Windows using the built-in .NET Framework 4.8 compiler:
+The standalone multi-mode binary (`Isora-Sentinel-Setup.exe` / `Isora-Sentinel.exe`) is compiled directly on Windows using the built-in .NET Framework 4.8 compiler:
 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
 
 **`csc.exe` v4.0.30319 ONLY supports C# 5.0.** If you use ANY C# 6.0+ syntax, compilation will fail immediately with `CS1056`, `CS1525`, or `CS0103`.

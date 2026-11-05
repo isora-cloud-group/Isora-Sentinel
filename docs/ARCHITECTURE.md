@@ -1,9 +1,9 @@
-# System Architecture Specification — Isora Sentinel Suite
+﻿# System Architecture Specification — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Author & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
 
-**Document Version:** 2.5.0  
+**Document Version:** 2.5.2  
 **Architectural Taxonomy:** Modular Hub-and-Spoke, Zero External Dependencies, Sovereign Local Execution  
 
 ---
@@ -28,7 +28,7 @@ flowchart TD
     subgraph Schedulers["Execution & Orchestration Layer"]
         direction TB
         TaskSched["Windows Task Scheduler (Kernel Engine)\n- RunLevel: Highest (NT AUTHORITY\\SYSTEM)\n- Triggers: Daily 03:00 / Weekly Sun 02:00"]
-        Tray["System Tray Monitor (Isora-Sentinel-Tray.exe)\n- Single-Instance Process (Local\\IsoraSentinel.TrayMonitor)\n- Real-Time Integrity Status (Verified Installation)\n- On-Demand UAC Elevation Dispatcher"]
+        Tray["System Tray Monitor (Isora-Sentinel.exe --tray)\n- Single-Instance Process (Local\\IsoraSentinel.TrayMonitor)\n- Real-Time Integrity Status (Verified Installation)\n- On-Demand UAC Elevation Dispatcher"]
         ConfigForm["TaskConfigForm (Task Configurator GUI)\n- Direct Task Scheduler XML Query / Update\n- Interactive ToggleSwitches & Schedule Controls"]
     end
 
@@ -105,13 +105,13 @@ Standard users cannot alter script content, overwrite manifest files, or plant r
 
 ## 4. System Tray Observability & Elevation Architecture
 
-Isora Sentinel includes a lightweight, unmanaged C# Windows Forms utility (`Isora-Sentinel-Tray.exe`) that executes in the user's interactive desktop session:
+Isora Sentinel includes a lightweight, unmanaged C# Windows Forms utility (`Isora-Sentinel.exe --tray`) that executes in the user's interactive desktop session:
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as Operator / Administrator
-    participant Tray as Isora-Sentinel-Tray.exe (asInvoker)
+    participant Tray as Isora-Sentinel.exe --tray (asInvoker)
     participant Config as TaskConfigForm
     participant UAC as Windows UAC (consent.exe)
     participant Sched as Task Scheduler (SYSTEM)
@@ -135,7 +135,7 @@ sequenceDiagram
     Tray-->>User: Display Notification Balloon (Task completed successfully)
 ```
 
-### Technical Highlights of `Isora-Sentinel-Tray.exe`:
+### Technical Highlights of `Isora-Sentinel.exe` (Tray Mode):
 * **High-DPI Awareness:** Uses `SetProcessDPIAware()` and dynamic layout scaling based on screen PPI (96 to 288 DPI), rendering crisp vector glyphs and typography on 4K displays.
 * **Non-Blocking Elevation:** Starts elevated tasks using `ProcessStartInfo` with `Verb = "runas"`, avoiding the Windows 10/11 UAC suppression bug caused by `SW_HIDE` on elevated parent processes. Background non-elevated executions use `CreateNoWindow = true` cleanly without shell window flicker.
 * **Asynchronous Thread Pool Waiting:** Eliminates cross-integrity `EnableRaisingEvents` handle duplication crashes (`Win32Exception: 0x32`) by awaiting process completion via `ThreadPool.QueueUserWorkItem(delegate { p.WaitForExit(); })`.
@@ -399,7 +399,7 @@ State tracking is surfaced across multiple intuitive layers:
 
 ### 8.6. Process Tree Termination & Elevated Cancellation Subsystem
 
-When maintenance routines run under `NT AUTHORITY\SYSTEM` (e.g., triggered by Windows Task Scheduler) or in high-integrity administrator sessions, processes operating at lower integrity levels (such as `Isora-Sentinel-Tray.exe` running within a standard user desktop session) cannot terminate them directly using Win32 `TerminateProcess` or .NET `Process.Kill()`, as Windows returns `ERROR_ACCESS_DENIED` (Win32 Error 5).
+When maintenance routines run under `NT AUTHORITY\SYSTEM` (e.g., triggered by Windows Task Scheduler) or in high-integrity administrator sessions, processes operating at lower integrity levels (such as `Isora-Sentinel.exe --tray` running within a standard user desktop session) cannot terminate them directly using Win32 `TerminateProcess` or .NET `Process.Kill()`, as Windows returns `ERROR_ACCESS_DENIED` (Win32 Error 5).
 
 To enable operators to cancel long-running or resource-intensive tasks on demand without compromising security:
 
@@ -421,7 +421,7 @@ To enable operators to cancel long-running or resource-intensive tasks on demand
 
 ## 9. Modular .NET Framework 4.8 Core (`SentinelCore.cs`) & Windows 11 Hardening
 
-To eliminate duplicated logic across the C# executables (`Isora-Sentinel-Tray.exe` and `Isora-Sentinel-Setup.exe`) while preserving zero external dependencies, all catalog definitions, security gates, UAC bridges, and Windows 11 compatibility routines are consolidated in **`installer/src/SentinelCore.cs`**.
+To eliminate duplicated logic across the C# executables (`Isora-Sentinel.exe` and `Isora-Sentinel-Setup.exe`) while preserving zero external dependencies, all catalog definitions, security gates, UAC bridges, and Windows 11 compatibility routines are consolidated in **`installer/src/SentinelCore.cs`**.
 
 ### 9.1. Core Components & Responsibilities
 1. **`SentinelCatalog` & `SentinelModuleDefinition` (Data-Driven Single Source of Truth):**

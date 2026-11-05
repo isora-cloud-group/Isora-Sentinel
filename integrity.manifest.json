@@ -1,20 +1,20 @@
-﻿{
-    "version":  "2.5.0",
-    "algorithm":  "SHA256",
-    "author":  "Sandra Gabriela Puerto Torres",
-    "brand":  "Isora Cloud Group",
-    "generated_at":  "2026-11-02T23:59:51Z",
-    "files":  {
-                  "lib\\Sentinel-Core.psm1":  "a591698106b012580c365fadff5299a38eeda6bb24c0f5da4279ccdd03d79b57",
-                  "lib\\Sentinel-Logger.psm1":  "874a0f02b0e2de20fbfb7722aced57606bd2cc9238c50af345e795656d152eff",
-                  "engines\\Invoke-ArchiveDownloads.ps1":  "9dc8f63c6bb1c74212715f53abd98b9b3b5533b62fbe9d95ff6ec6ca3e3d8b91",
-                  "engines\\Invoke-BitLockerAudit.ps1":  "a69536f239a5a1d62d445c1cb20a7e75b13a0137c70927cafabcf538b256cea3",
-                  "engines\\Invoke-CleanupScreenshots.ps1":  "0404e35d72a1d6dace7b20d89c1649101ccfbc98d63b277688f69a77a0011c62",
-                  "engines\\Invoke-CleanupTempGlobal.ps1":  "c7c01d687b14e13c613a1cda15446706a01e582a560f1db09338b5b37c3ec0ec",
-                  "engines\\Invoke-DefenderScan.ps1":  "d9f8cd706de054a3f8c7dc76c83992e2c0162c76aa913f54b64e3d6e8738a85e",
-                  "engines\\Invoke-EventAudit.ps1":  "2be7db7c8b813a40d13933034408dfa4a3a5bf1fc1c4d3745401fef3a66c99c2",
-                  "engines\\Invoke-IntegrityCheck.ps1":  "af084f55c9e68b050593e60c6d01776cd5836d3f1c0a48d9389a4c71faf09263",
-                  "LICENSE":  "46c49e6a06bdb4659f829af4b9d1e97d7d042e27558f1c02aa2ed8d4f2449b96",
-                  "NOTICE":  "efc832c7b07ddffef2a5d2087b7f87c901819e19d5a5c6a225d610ceaa44fba5"
-              }
+{
+  "version": "2.5.2",
+  "algorithm": "SHA256",
+  "author": "Sandra Gabriela Puerto Torres",
+  "brand": "Isora Cloud Group",
+  "generated_at": "2026-11-03T02:25:32Z",
+  "files": {
+    "lib\\Sentinel-Core.psm1": "a591698106b012580c365fadff5299a38eeda6bb24c0f5da4279ccdd03d79b57",
+    "lib\\Sentinel-Logger.psm1": "874a0f02b0e2de20fbfb7722aced57606bd2cc9238c50af345e795656d152eff",
+    "engines\\Invoke-ArchiveDownloads.ps1": "9dc8f63c6bb1c74212715f53abd98b9b3b5533b62fbe9d95ff6ec6ca3e3d8b91",
+    "engines\\Invoke-BitLockerAudit.ps1": "a69536f239a5a1d62d445c1cb20a7e75b13a0137c70927cafabcf538b256cea3",
+    "engines\\Invoke-CleanupScreenshots.ps1": "0404e35d72a1d6dace7b20d89c1649101ccfbc98d63b277688f69a77a0011c62",
+    "engines\\Invoke-CleanupTempGlobal.ps1": "c7c01d687b14e13c613a1cda15446706a01e582a560f1db09338b5b37c3ec0ec",
+    "engines\\Invoke-DefenderScan.ps1": "d9f8cd706de054a3f8c7dc76c83992e2c0162c76aa913f54b64e3d6e8738a85e",
+    "engines\\Invoke-EventAudit.ps1": "2be7db7c8b813a40d13933034408dfa4a3a5bf1fc1c4d3745401fef3a66c99c2",
+    "engines\\Invoke-IntegrityCheck.ps1": "af084f55c9e68b050593e60c6d01776cd5836d3f1c0a48d9389a4c71faf09263",
+    "LICENSE": "46c49e6a06bdb4659f829af4b9d1e97d7d042e27558f1c02aa2ed8d4f2449b96",
+    "NOTICE": "efc832c7b07ddffef2a5d2087b7f87c901819e19d5a5c6a225d610ceaa44fba5"
+  }
 }

@@ -1,8 +1,8 @@
-# Operator & Deployment Manual — Isora Sentinel Suite
+﻿# Operator & Deployment Manual — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Author & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Software Version:** 2.5.0  
+**Software Version:** 2.5.2  
 **Target Operating Systems:** Windows 10 (1809+), Windows 11, Windows Server 2016 / 2019 / 2022 / 2025  
 **Execution Runtimes:** Windows PowerShell 5.1+ or PowerShell Core 7+ (`pwsh`)  
 **Privilege Context:** `NT AUTHORITY\SYSTEM` / Elevated Local Administrator  
@@ -93,7 +93,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\Install-Sent
 
 ---
 
-### 3.3. System Tray Monitor & Task Configurator (`Isora-Sentinel-Tray.exe`)
+### 3.3. System Tray Monitor & Task Configurator (`Isora-Sentinel.exe --tray`)
 The System Tray application provides continuous endpoint observability and interactive task management:
 
 * **Integrity Status & Verification:** Displays **"Instalación verificada"** with live verification timestamp, confirming local files match the SHA-256 integrity manifest.

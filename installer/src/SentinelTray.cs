@@ -32,10 +32,11 @@ namespace IsoraSentinel.Tray
     internal static class Branding
     {
         public const string ProductName   = "Isora Sentinel";
-        public const string Version       = "2.5.0";
+        public const string Version       = "2.5.3";
         public const string TaskFolder    = "Isora Sentinel";          // Carpeta en el Programador de tareas
         public const string UninstallKey  = "Isora-Sentinel";          // HKLM\...\Uninstall\<clave>
         public const string AutoStartName = "IsoraSentinel_Tray";         // Valor en ...\Run (igual que el instalador)
+        public const string MainExe       = "Isora-Sentinel.exe";
         public const string SetupExe      = "Isora-Sentinel-Setup.exe";
         public const string MutexName     = @"Local\IsoraSentinel.TrayMonitor";
     }
@@ -1389,11 +1390,17 @@ namespace IsoraSentinel.Tray
         internal static void OpenSetup(string instDir)
         {
             List<string> candidates = new List<string>();
+            if (!string.IsNullOrEmpty(instDir)) candidates.Add(Path.Combine(instDir, Branding.MainExe));
             if (!string.IsNullOrEmpty(instDir)) candidates.Add(Path.Combine(instDir, Branding.SetupExe));
+            candidates.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Branding.MainExe));
             candidates.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Branding.SetupExe));
             string reg = InstallLocationFromRegistry();
-            if (!string.IsNullOrEmpty(reg)) candidates.Add(Path.Combine(reg, Branding.SetupExe));
-            candidates.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\installer\" + Branding.SetupExe));   // árbol de desarrollo
+            if (!string.IsNullOrEmpty(reg))
+            {
+                candidates.Add(Path.Combine(reg, Branding.MainExe));
+                candidates.Add(Path.Combine(reg, Branding.SetupExe));
+            }
+            candidates.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\installer\" + Branding.SetupExe));
 
             string setupExe = null;
             foreach (string c in candidates)
@@ -1401,8 +1408,8 @@ namespace IsoraSentinel.Tray
 
             if (setupExe == null)
             {
-                MessageBox.Show("No se encontró el asistente de instalación en este equipo.\n\nVuelva a ejecutar el instalador original (" +
-                    Branding.SetupExe + ") o solicite apoyo al área de TI.",
+                MessageBox.Show("No se encontro el asistente de instalacion en este equipo.\n\nVuelva a ejecutar el instalador original (" +
+                    Branding.SetupExe + ") o solicite apoyo al area de TI.",
                     Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -1410,12 +1417,16 @@ namespace IsoraSentinel.Tray
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo(setupExe);
+                if (string.Equals(Path.GetFileName(setupExe), Branding.MainExe, StringComparison.OrdinalIgnoreCase))
+                {
+                    psi.Arguments = "--setup";
+                }
                 psi.UseShellExecute = true;
                 Process.Start(psi);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudo abrir el asistente de instalación.\n\nDetalle técnico: " + ex.Message,
+                MessageBox.Show("No se pudo abrir el asistente de instalacion.\n\nDetalle tecnico: " + ex.Message,
                     Branding.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
@@ -1563,7 +1574,7 @@ namespace IsoraSentinel.Tray
                     if (key == null) throw new InvalidOperationException("No se pudo abrir la clave de inicio de Windows.");
                     if (enable)
                     {
-                        key.SetValue(Branding.AutoStartName, "\"" + Application.ExecutablePath + "\"");
+                        key.SetValue(Branding.AutoStartName, "\"" + Application.ExecutablePath + "\" --tray");
                     }
                     else
                     {
@@ -1703,8 +1714,7 @@ namespace IsoraSentinel.Tray
         [DllImport("user32.dll")]
         private static extern bool SetProcessDPIAware();
 
-        [STAThread]
-        public static void Main(string[] args)
+        public static void RunTray(string[] args)
         {
             try { SetProcessDPIAware(); } catch { }
             Application.EnableVisualStyles();

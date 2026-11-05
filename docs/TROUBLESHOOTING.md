@@ -1,8 +1,8 @@
-# Diagnostic & Troubleshooting Guide — Isora Sentinel Suite
+﻿# Diagnostic & Troubleshooting Guide — Isora Sentinel Suite
 
 **Commercial Brand & Distribution:** Isora Cloud Group  
 **Author & Copyright Holder:** Sandra Gabriela Puerto Torres ([sandrapuerto.com](https://sandrapuerto.com) · [GitHub: @sandra-puerto](https://github.com/sandra-puerto) · [LinkedIn](https://www.linkedin.com/in/sandra-puerto/))  
-**Software Version:** 2.5.0  
+**Software Version:** 2.5.2  
 
 This guide provides technical root-cause analysis and operational remediation steps for common error scenarios, return codes, and system integration points across **Isora Sentinel**.
 
@@ -60,7 +60,7 @@ When inspecting task history via `Get-ScheduledTaskInfo`:
 ## 3. Windows UAC Elevation Nuances (Windows 10/11)
 
 ### Symptom
-When triggering an administrative module from `Isora-Sentinel-Tray.exe`, the UAC elevation prompt does not display, or the task fails silently.
+When triggering an administrative module from `Isora-Sentinel.exe` (tray mode), the UAC elevation prompt does not display, or the task fails silently.
 
 ### Technical Root Cause
 1. **The `SW_HIDE` with `runas` Issue:** In Windows 10 (22H2) and Windows 11 (23H2/24H2), passing `ProcessWindowStyle.Hidden` (`SW_HIDE`) to `ShellExecuteEx` alongside `Verb = "runas"` suppresses the secure desktop credential prompt (`consent.exe`), causing Windows to block execution.
@@ -176,7 +176,7 @@ After restarting or logging into Windows, the system tray shield icon does not l
 2. **Missing Redundant Startup Shortcut:** Relying solely on registry `Run` keys can fail if Group Policies or third-party startup optimizers disable registry autostart entries.
 
 ### Remediation (Implemented in v2.4.3)
-- `Isora-Sentinel-Tray.exe` is compiled with a dedicated `tray.manifest` specifying `requestedExecutionLevel level="asInvoker"`. This allows `explorer.exe` to start the monitor cleanly as a standard-user process at logon. When the user requests an administrative action (e.g. running a scan or saving task schedules), the monitor requests elevation on-demand.
+- `Isora-Sentinel.exe` (tray mode) is compiled with a dedicated `tray.manifest` specifying `requestedExecutionLevel level="asInvoker"`. This allows `explorer.exe` to start the monitor cleanly as a standard-user process at logon. When the user requests an administrative action (e.g. running a scan or saving task schedules), the monitor requests elevation on-demand.
 - The installer automatically registers an `.lnk` shortcut in the system-wide Startup folder:
   `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\Isora Sentinel.lnk`
 - Both `HKLM` and `HKCU` autostart keys are maintained and validated.
@@ -194,7 +194,7 @@ The Windows Search indexer monitors `CommonPrograms` (`%ProgramData%\Microsoft\W
 ### Remediation (Implemented in v2.4.3)
 The installer (`SentinelSetup.cs` and `Install-Sentinel.ps1`) automatically provisions a Start Menu entry:
 - Directory: `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Isora Sentinel`
-- Shortcut: `Isora Sentinel.lnk` pointing to `C:\Program Files\Isora-Sentinel\Isora-Sentinel-Tray.exe` with `app.ico` as its icon resource.
+- Shortcut: `Isora Sentinel.lnk` pointing to `C:\Program Files\Isora-Sentinel\Isora-Sentinel.exe` with `app.ico` as its icon resource.
 - On uninstall, the shortcut directory is cleanly removed.
 
 ---
@@ -226,4 +226,4 @@ Two shield icons appear in the notification area. Clicking one opens an older bu
 ### Remediation (Implemented in v2.4.3)
 - `TerminateExistingProcesses` scans all known process names (`Isora-Sentinel-Tray`, `IsoraSentinel-Tray`, `IsoraSentinelTray`, `SentinelTray`), system process paths, and terminates them prior to file extraction.
 - `CleanOrphanedAutoStartEntries` sweeps `HKCU`, `HKLM`, and all mounted user profile hives in `HKEY_USERS`, purging invalid, unexpanded, or legacy paths.
-- `Isora-Sentinel-Tray.exe` terminates any legacy instances upon startup before taking ownership of its single-instance mutex.
+- `Isora-Sentinel.exe` (tray mode) terminates any legacy instances upon startup before taking ownership of its single-instance mutex.

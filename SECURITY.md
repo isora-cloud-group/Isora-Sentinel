@@ -1,9 +1,9 @@
-# Security Policy
+﻿# Security Policy
 
 **Repository:** `Isora Sentinel`  
 **Security Operations:** [security@isora.com.co](mailto:security@isora.com.co)  
 **General Contact:** [contact@isora.com.co](mailto:contact@isora.com.co)  
-**Revision:** 2.5.0  
+**Revision:** 2.5.2  
 **Status:** Production / Community & Open Source Release  
 **Author & Copyright Holder:** Sandra Gabriela Puerto Torres  
 **Commercial Brand & Distribution:** Isora Cloud Group (ICG)  
@@ -170,6 +170,6 @@ powershell.exe -ExecutionPolicy Bypass -File installer\Verify-PackageIntegrity.p
 | Repository | `Isora Sentinel` |
 | Security Contact | security@isora.com.co |
 | General Contact | contact@isora.com.co |
-| Revision | 2.5.0 |
+| Revision | 2.5.2 |
 | Status | Production / Community & Open Source Release |
 | Classification | Public Security Policy |
